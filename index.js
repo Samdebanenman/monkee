@@ -1,6 +1,5 @@
 import { Client, GatewayIntentBits, Collection, Events, REST, Routes, Partials, ApplicationCommandType, ApplicationCommandOptionType } from 'discord.js';
 import { getMonkeeReply } from './utils/openai.js';
-import { getProxyLink, isProxyActive } from './utils/proxyLink.js';
 import { isMonkeeEnabled } from './commands/monkee.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -124,12 +123,7 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-client.on(Events.MessageCreate, async message => {
-  if (message.author.bot) return;
 
-  await handleMonkeeMessage(client, message);
-  await handleProxyMessage(client, message);
-});
 
 async function handleMonkeeMessage(client, message) {
   if (!isMonkeeEnabled()) return;
@@ -170,34 +164,7 @@ async function handleMonkeeMessage(client, message) {
   }
 }
 
-async function handleProxyMessage(client, message) {
-  if (!isProxyActive()) return;
 
-  const { source, target } = getProxyLink();
-  const isSource = message.channelId === source;
-  const isTarget = message.channelId === target;
-
-  if (!isSource && !isTarget) return;
-
-  const content = message.content || '[non-text content]';
-
-  try {
-    if (isSource) {
-      const targetChannel = await client.channels.fetch(target);
-      if (targetChannel) {
-        await targetChannel.send(content);
-      }
-      return;
-    }
-
-    const sourceChannel = await client.channels.fetch(source);
-    if (sourceChannel) {
-      await sourceChannel.send(content);
-    }
-  } catch (err) {
-    console.log(err);
-  }
-}
 
 await client.login(process.env.TOKEN);
 
