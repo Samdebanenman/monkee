@@ -1,11 +1,85 @@
+import axios from 'axios';
+import protobuf from 'protobufjs';
 import { DateTime } from 'luxon';
-import { getStoredContracts } from './database/index.js';
+import { getStoredContracts, getMeta, setMeta, upsertContracts } from './database/index.js';
+
+const CONTRACT_ARCHIVE_URL = 'https://raw.githubusercontent.com/carpetsage/egg/main/periodicals/data/contracts.json';
+const META_LAST_FETCH_KEY = 'lastContractFetch';
+const REFRESH_ZONE = 'America/Los_Angeles';
+const REFRESH_HOUR = 9;
+const REFRESH_MINUTE = 3;
+const REFRESH_WEEKDAYS = new Set([1, 3, 5]); // Monday, Wednesday, Friday
+
+let cachedProtoRoot = null;
 
 const SEASON_ORDER = ['winter', 'spring', 'summer', 'fall'];
 const THREE_WEEKS = { weeks: 3 };
 const ONE_WEEK = { weeks: 1 };
 
 const SEASON_REGEX = /^(winter|spring|summer|fall)[ _-]?(\d{4})$/;
+
+async function loadContractProto() {
+  if (cachedProtoRoot) return cachedProtoRoot;
+  cachedProtoRoot = await protobuf.load('./ei.proto');
+  return cachedProtoRoot;
+}
+
+function mapRemoteContract(obj, ContractType, eggEnum) {
+  const decoded = ContractType.decode(Buffer.from(obj.proto, 'base64'));
+  const name = decoded.name || 'Unknown';
+  const release = decoded.startTime || 0;
+  const season = decoded.seasonId || '';
+  let egg = eggEnum.valuesById[decoded.egg] || 'UNKNOWN';
+
+  if (decoded.egg === 200) {
+    egg = decoded.customEggId.toUpperCase().replaceAll('-', '_') || 'UNKNOWN';
+  }
+
+  return { id: obj.id, name, release, season, egg };
+}
+
+async function fetchAndCacheContracts() {
+  const response = await axios.get(CONTRACT_ARCHIVE_URL);
+  if (!Array.isArray(response.data)) return [];
+
+  const root = await loadContractProto();
+  const ContractType = root.lookupType('Contract');
+  const eggEnum = root.lookupEnum('Egg');
+
+  const rows = response.data.map(obj => mapRemoteContract(obj, ContractType, eggEnum));
+  upsertContracts(rows);
+  return rows;
+}
+
+function mostRecentTrigger(now) {
+  for (let i = 0; i < 7; i += 1) {
+    const candidate = now.minus({ days: i }).set({
+      hour: REFRESH_HOUR,
+      minute: REFRESH_MINUTE,
+      second: 0,
+      millisecond: 0,
+    });
+
+    if (candidate <= now && REFRESH_WEEKDAYS.has(candidate.weekday)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function shouldRefreshContracts(now, lastFetch) {
+  const lastTrigger = mostRecentTrigger(now);
+  if (!lastTrigger) {
+    return !lastFetch;
+  }
+
+  if (!lastFetch) {
+    return now >= lastTrigger;
+  }
+
+  return lastFetch < lastTrigger;
+}
 
 function normalizeSeason(value) {
   if (!value || typeof value !== 'string') return null;
@@ -102,6 +176,7 @@ function prepareRecentContracts(now) {
 }
 
 export async function activeContracts() {
+  await getAllContracts();
   const now = DateTime.now().setZone('utc');
   const oneWeekAgo = now.minus(ONE_WEEK);
 
@@ -142,9 +217,33 @@ export async function activeContracts() {
 }
 
 export async function getAllContracts({ forceRefresh = false } = {}) {
-  return getStoredContracts();
+  const now = DateTime.now().setZone(REFRESH_ZONE);
+  const lastFetchISO = getMeta(META_LAST_FETCH_KEY);
+  const lastFetchValue = lastFetchISO ? DateTime.fromISO(lastFetchISO).setZone(REFRESH_ZONE) : null;
+  const lastFetch = lastFetchValue && lastFetchValue.isValid ? lastFetchValue : null;
+
+  if (!forceRefresh && !shouldRefreshContracts(now, lastFetch)) {
+    return getStoredContracts();
+  }
+
+  try {
+    const rows = await fetchAndCacheContracts();
+    setMeta(META_LAST_FETCH_KEY, now.toISO());
+    return rows.length > 0 ? rows : getStoredContracts();
+  } catch (err) {
+    console.error('Error fetching contracts archive:', err.message);
+    return getStoredContracts();
+  }
 }
 
 export async function refreshContractsCache() {
-  return getStoredContracts();
+  const now = DateTime.now().setZone(REFRESH_ZONE);
+  try {
+    const rows = await fetchAndCacheContracts();
+    setMeta(META_LAST_FETCH_KEY, now.toISO());
+    return rows;
+  } catch (err) {
+    console.error('Failed to refresh contracts cache:', err.message);
+    throw err;
+  }
 }
