@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  monkee:
+    user: root
+    build: .
+    container_name: monkee
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+
+
+
