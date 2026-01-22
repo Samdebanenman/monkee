@@ -40,5 +40,13 @@ const EggtoEmoji = {
     UNKNOWN: `<:egg_unknown:1426349264925364244>`,
 };
 
-export default EggtoEmoji;
-export { EggtoEmoji };
+const ArtifactEmoji = {
+    TOKEN: `<:Token:1463686148353294409>`,
+    QUANTUM_4: `<:Afx_quantum_stone_4:1463684184621977762>`,
+    TACHYON_4: `<:Afx_tachyon_stone_4:1463684182352986184>`,
+    DEFLECTOR_4: `<:Afx_tachyon_deflector_4:1463684180104970323>`,
+    NEO_MEDALLION_4: `<:Afx_neo_medallion_4:1463685017182933073>`
+}
+
+export default { EggtoEmoji, ArtifactEmoji };
+export { EggtoEmoji, ArtifactEmoji };
