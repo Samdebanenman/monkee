@@ -76,8 +76,8 @@ export function upsertContracts(rows = []) {
 }
 
 export function getStoredContracts() {
-  return getAllContractsStmt
-    .all()
+  const rows = getAllContractsStmt.all() ?? [];
+  return rows
     .map(({ id, name, season, egg, release, max_coop_size, coop_duration_seconds, egg_goal, minutes_per_token }) => ({
       id,
       name,
