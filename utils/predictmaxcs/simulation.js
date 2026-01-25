@@ -45,10 +45,12 @@ export function simulateScenario(options) {
       srWithStones: config?.srWithStones ?? 0,
       stoneLayout: config?.stoneLayout ?? null,
       siabPercent: config?.siabPercent ?? 0,
+      siabAlwaysOn: config?.siabAlwaysOn ?? false,
       eggsDelivered: 0,
       btv: 0,
       maxHab: false,
       timeToBoost: null,
+      timeToMaxHab: null,
     };
   });
 
@@ -121,6 +123,7 @@ export function runSimulationLoop(options) {
     const updateTotals = updatePlayers({
       states,
       updateRate,
+      tElapsed,
       baseIHR,
       elrPerChickenNoStones,
       elrPerChickenWithStones,
@@ -162,6 +165,7 @@ export function updatePlayers(options) {
   const {
     states,
     updateRate,
+    tElapsed,
     baseIHR,
     cxpMode,
   } = options;
@@ -174,6 +178,9 @@ export function updatePlayers(options) {
       player.chickens = Math.min(player.chickens + increase, player.maxChickens);
       if (player.chickens === player.maxChickens) {
         player.maxHab = true;
+        if (player.timeToMaxHab == null) {
+          player.timeToMaxHab = tElapsed;
+        }
       }
     }
 
@@ -182,7 +189,11 @@ export function updatePlayers(options) {
     const layRate = player.chickens * elrPerChicken * (1 + player.otherDefl / 100);
     const deliveryRate = Math.min(layRate, shipRate);
     player.eggsDelivered += updateRate * deliveryRate / 3600;
-    player.btv += updateRate * getBtvRate(player.deflector, player.siabPercent, cxpMode);
+    let activeSiabPercent = player.siabPercent;
+    if (!player.siabAlwaysOn) {
+      activeSiabPercent = player.maxHab ? 0 : player.siabPercent;
+    }
+    player.btv += updateRate * getBtvRate(player.deflector, activeSiabPercent, cxpMode);
 
     if (!player.maxHab) notMaxHabs += 1;
   });
@@ -204,6 +215,11 @@ export function buildPlayerSummary(options) {
 
   const contributionRatio = fairShare > 0 ? player.eggsDelivered / fairShare : 0;
   const btvRat = completionTime > 0 ? player.btv / completionTime : 0;
+  const maxHabTime = Number.isFinite(player.timeToMaxHab) ? player.timeToMaxHab : completionTime;
+  const siabWindow = completionTime > 0 ? Math.min(Math.max(maxHabTime, 0), completionTime) / completionTime : 0;
+  const effectiveSiabPercent = player.siabAlwaysOn
+    ? player.siabPercent
+    : player.siabPercent * siabWindow;
   const teamwork = getTeamwork(btvRat, players, durationDays, Math.min(players - 1, 20), 0, cxpMode);
   const cs = getCS(contributionRatio, durationSeconds, completionTime, teamwork);
 
@@ -216,7 +232,7 @@ export function buildPlayerSummary(options) {
     completionTime,
     timeToBoost: player.timeToBoost,
     stoneLayout: player.stoneLayout,
-    siabPercent: player.siabPercent,
+    siabPercent: effectiveSiabPercent,
   };
 }
 

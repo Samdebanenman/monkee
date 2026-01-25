@@ -1,7 +1,7 @@
 import {
   BASES,
   BOOSTED_SET,
-  COLLECTIBLES,
+  getDynamicColeggtibles,
   DEFLECTOR_TIERS,
   IHR_SET,
 } from './constants.js';
@@ -27,6 +27,7 @@ export function getAssumptions(averageTe = 100) {
 }
 
 export function buildModel(options) {
+  const COLEGGTIBLES = getDynamicColeggtibles();
   const {
     players,
     durationSeconds,
@@ -39,13 +40,13 @@ export function buildModel(options) {
   } = options;
   const maxChickens = BASES.baseChickens
     * BOOSTED_SET.gusset.chickMult
-    * COLLECTIBLES.chickenMult
+    * COLEGGTIBLES.chickenMult
     + (assumptions.swapBonus ? getSwapChickenJump(players) : 0);
-  const baseELR = BASES.baseELR * BOOSTED_SET.metro.elrMult * COLLECTIBLES.elrMult;
-  const baseShip = BASES.baseShip * BOOSTED_SET.compass.srMult * COLLECTIBLES.shipMult;
+  const baseELR = BASES.baseELR * BOOSTED_SET.metro.elrMult * COLEGGTIBLES.elrMult;
+  const baseShip = BASES.baseShip * BOOSTED_SET.compass.srMult * COLEGGTIBLES.shipMult;
   const baseIHR = BASES.baseIHR
     * Math.pow(1.01, assumptions.te)
-    * COLLECTIBLES.ihrMult
+    * COLEGGTIBLES.ihrMult
     * IHR_SET.chalice.ihrMult
     * IHR_SET.monocle.ihrMult
     * Math.pow(1.04, getIhrStoneSlots());
@@ -72,6 +73,7 @@ export function buildModel(options) {
 
   const buildVariant = usePlayer1Siab => {
     const playerConfigs = buildPlayerConfigs({
+      coleggtibles: COLEGGTIBLES,
       players,
       maxChickens,
       baseELR,
@@ -187,6 +189,7 @@ export function buildModel(options) {
 
 export function buildPlayerConfigs(options) {
   const {
+    coleggtibles,
     players,
     maxChickens,
     baseELR,
@@ -197,7 +200,7 @@ export function buildPlayerConfigs(options) {
   } = options;
 
   const gussetBonus = Math.max(0, (BOOSTED_SET.gusset.chickMult ?? 1) - 1);
-  const player1ChickenPenalty = BASES.baseChickens * COLLECTIBLES.chickenMult * gussetBonus;
+  const player1ChickenPenalty = BASES.baseChickens * (coleggtibles?.chickenMult ?? 1) * gussetBonus;
   const player1SlotPenalty = 1;
   const baseSiabPercent = Number.isFinite(IHR_SET.siabPercent) ? IHR_SET.siabPercent : 0;
 

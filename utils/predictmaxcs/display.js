@@ -17,8 +17,8 @@ function getStoneIcons(isThreeSlotOption) {
 
 function parseArtifactName(name) {
   const text = String(name ?? '');
-  const tierMatch = text.match(/T(\d)/i);
-  const rarityMatch = text.match(/T\d([LERC])/i);
+  const tierMatch = /T(\d)/i.exec(text);
+  const rarityMatch = /T\d([LERC])/i.exec(text);
   const tier = tierMatch ? Number(tierMatch[1]) : 4;
   const rarity = rarityMatch ? rarityMatch[1].toUpperCase() : '';
   const isSiab = /siab/i.test(text);

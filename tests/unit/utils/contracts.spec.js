@@ -25,6 +25,10 @@ vi.mock('../../../utils/database/index.js', () => ({
   upsertContracts: vi.fn(),
 }));
 
+vi.mock('../../../utils/coleggtibles.js', () => ({
+  fetchAndCacheColeggtibles: vi.fn(async () => []),
+}));
+
 import axios from 'axios';
 import { activeContracts, getAllContracts, refreshContractsCache } from '../../../utils/contracts.js';
 import { getStoredContracts, getMeta, setMeta } from '../../../utils/database/index.js';
