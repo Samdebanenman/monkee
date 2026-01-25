@@ -3,8 +3,11 @@ import {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  ModalBuilder,
   SlashCommandBuilder,
   StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } from 'discord.js';
 import { chunkContent, createTextComponentMessage } from '../services/discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
@@ -38,6 +41,7 @@ import {
   parseTe,
 } from '../utils/predictcs/artifacts.js';
 import { buildBoostOrder, buildPredictCsModel } from '../utils/predictcs/model.js';
+import { parseSandboxUrl } from '../utils/predictcs/sandbox.js';
 
 const sessions = new Map();
 
@@ -120,6 +124,7 @@ export async function execute(interaction) {
 
   const sessionId = interaction.id;
   sessions.set(sessionId, {
+    sessionId,
     userId: interaction.user?.id,
     contractLabel: contractMatch?.name || contractMatch?.id || contractInput,
     players,
@@ -130,6 +135,8 @@ export async function execute(interaction) {
     gg,
     boostOrderMode,
     siabEnabled,
+    contracts,
+    mode: 'select',
     playerArtifacts: Array.from({ length: players }, () => ({
       deflector: parseDeflector(DEFAULT_DEFLECTOR),
       metro: parseMetro(DEFAULT_METRO),
@@ -146,7 +153,7 @@ export async function execute(interaction) {
     playerStep: Array.from({ length: players }, () => 'artifacts'),
   });
 
-  const message = buildPlayerSelectionMessage(sessionId, 0, sessions.get(sessionId), { includeFlags: true });
+  const message = buildModeSelectionMessage(sessionId, sessions.get(sessionId));
   await interaction.reply(message);
 }
 
@@ -157,8 +164,75 @@ export async function handleComponentInteraction(interaction) {
   const context = parsePredictCsContext(customId);
   if (!context) return false;
 
-  const { action, sessionId, playerIndex, field } = context;
+  const { action, sessionId, playerIndex, field, mode } = context;
   const session = sessions.get(sessionId);
+  if (action === 'mode') {
+    const isValid = await validatePredictCsSessionOwnership(interaction, session);
+    if (!isValid) return true;
+
+    if (!interaction.isButton()) return true;
+
+    if (mode === 'manual') {
+      session.mode = 'manual';
+      session.playerStep[0] = 'artifacts';
+      const message = buildPlayerSelectionMessage(sessionId, 0, session, { includeFlags: false });
+      await interaction.update(message);
+      return true;
+    }
+
+    if (mode === 'sandbox') {
+      session.mode = 'sandbox';
+      const modal = buildSandboxModal(sessionId);
+      await interaction.showModal(modal);
+      return true;
+    }
+
+    return true;
+  }
+
+  if (action === 'contract') {
+    const isValid = await validatePredictCsSessionOwnership(interaction, session);
+    if (!isValid) return true;
+
+    if (!interaction.isButton()) return true;
+
+    const reminder = session?.sandboxData;
+    if (!reminder) {
+      await interaction.reply(createTextComponentMessage('Sandbox data expired. Please run the command again.', { flags: 64 }));
+      return true;
+    }
+
+    if (mode === 'selected') {
+      await runPredictCsSandbox(interaction, session, reminder, {
+        contractLabel: session.contractLabel,
+        durationSeconds: session.durationSeconds,
+        targetEggs: session.targetEggs,
+        tokenTimerMinutes: session.tokenTimerMinutes,
+      });
+      return true;
+    }
+
+    if (mode === 'sandbox') {
+      const override = resolveSandboxContractOverride(session);
+      await runPredictCsSandbox(interaction, session, reminder, override);
+      return true;
+    }
+
+    return true;
+  }
+
+  if (action === 'contractselect') {
+    const isValid = await validatePredictCsSessionOwnership(interaction, session);
+    if (!isValid) return true;
+
+    if (!interaction.isStringSelectMenu()) return true;
+    const selectedId = interaction.values?.[0];
+    session.sandboxContractSelection = selectedId;
+    const message = buildContractMismatchMessage(session, { includeFlags: false });
+    await interaction.update(message);
+    return true;
+  }
+
   const isValid = await validatePredictCsSession(interaction, session, playerIndex);
   if (!isValid) return true;
 
@@ -175,15 +249,84 @@ export async function handleComponentInteraction(interaction) {
   return false;
 }
 
+export async function handleModalSubmit(interaction) {
+  const customId = interaction.customId ?? '';
+  if (!customId.startsWith('predictcs:sandbox:')) return;
+
+  const sessionId = customId.split(':')[2];
+  const session = sessions.get(sessionId);
+  const isValid = await validatePredictCsSessionOwnership(interaction, session);
+  if (!isValid) return;
+
+  const sandboxUrl = interaction.fields.getTextInputValue('sandbox_url');
+  const sandbox = parseSandboxUrl(sandboxUrl);
+  if (sandbox.error) {
+    await interaction.reply(createTextComponentMessage(`Sandbox parse error: ${sandbox.error}`, { flags: 64 }));
+    return;
+  }
+
+  if (sandbox.players !== session.players) {
+    await interaction.reply(createTextComponentMessage(
+      `Sandbox player count (${sandbox.players}) does not match contract players (${session.players}).`,
+      { flags: 64 },
+    ));
+    return;
+  }
+
+  session.sandboxData = sandbox;
+
+  const mismatch = hasSandboxContractMismatch(session, sandbox.contractInfo);
+  if (mismatch) {
+    session.sandboxMatches = findSandboxContractMatches(session, sandbox.contractInfo);
+    session.sandboxContractSelection = session.sandboxMatches?.[0]?.id ?? null;
+    const message = buildContractMismatchMessage(session, { includeFlags: true });
+    await interaction.reply(message);
+    return;
+  }
+
+  await runPredictCsSandbox(interaction, session, sandbox, {
+    contractLabel: session.contractLabel,
+    durationSeconds: session.durationSeconds,
+    targetEggs: session.targetEggs,
+    tokenTimerMinutes: session.tokenTimerMinutes,
+  });
+}
+
 function parsePredictCsContext(customId) {
   if (!customId.startsWith('predictcs:')) return null;
-  const [, action, sessionId, indexText, field] = customId.split(':');
-  const playerIndex = Number(indexText);
+  const parts = customId.split(':');
+  const action = parts[1];
+  if (action === 'mode') {
+    return { action, sessionId: parts[2], mode: parts[3] };
+  }
+  if (action === 'contract') {
+    return { action, sessionId: parts[2], mode: parts[3] };
+  }
+  if (action === 'contractselect') {
+    return { action, sessionId: parts[2] };
+  }
+  const sessionId = parts[2];
+  const playerIndex = Number(parts[3]);
+  const field = parts[4];
   return { action, sessionId, playerIndex, field };
 }
 
 async function validatePredictCsSession(interaction, session, playerIndex) {
   if (!session || !Number.isInteger(playerIndex)) {
+    await interaction.reply(createTextComponentMessage('This form has expired. Please run the command again.', { flags: 64 }));
+    return false;
+  }
+
+  if (session.userId && interaction.user?.id && session.userId !== interaction.user.id) {
+    await interaction.reply(createTextComponentMessage('This form belongs to someone else.', { flags: 64 }));
+    return false;
+  }
+
+  return true;
+}
+
+async function validatePredictCsSessionOwnership(interaction, session) {
+  if (!session) {
     await interaction.reply(createTextComponentMessage('This form has expired. Please run the command again.', { flags: 64 }));
     return false;
   }
@@ -452,6 +595,209 @@ function buildPlayerSelectionMessage(sessionId, playerIndex, session, { includeF
     components,
     flags: includeFlags ? 64 : null,
   });
+}
+
+function buildModeSelectionMessage(sessionId, session) {
+  const manualButton = new ButtonBuilder()
+    .setCustomId(`predictcs:mode:${sessionId}:manual`)
+    .setLabel('Manual input')
+    .setStyle(ButtonStyle.Primary);
+
+  const sandboxButton = new ButtonBuilder()
+    .setCustomId(`predictcs:mode:${sessionId}:sandbox`)
+    .setLabel('Sandbox URL')
+    .setStyle(ButtonStyle.Secondary);
+
+  const row = new ActionRowBuilder().addComponents(manualButton, sandboxButton);
+  const summary = [
+    `Contract: ${session.contractLabel}`,
+    `Players: ${session.players}`,
+    'Choose a flow before starting player inputs.',
+  ];
+
+  return buildPlainComponentMessage(summary.join('\n'), {
+    components: [row],
+    flags: 64,
+  });
+}
+
+function buildSandboxModal(sessionId) {
+  const modal = new ModalBuilder()
+    .setCustomId(`predictcs:sandbox:${sessionId}`)
+    .setTitle('PredictCS Sandbox Import');
+
+  const input = new TextInputBuilder()
+    .setCustomId('sandbox_url')
+    .setLabel('Paste sandbox URL or data string')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true);
+
+  const row = new ActionRowBuilder().addComponents(input);
+  modal.addComponents(row);
+  return modal;
+}
+
+function hasSandboxContractMismatch(session, sandboxContract) {
+  if (!sandboxContract) return false;
+  const durationMatch = Number.isFinite(sandboxContract.durationSeconds)
+    ? sandboxContract.durationSeconds === session.durationSeconds
+    : true;
+  const targetMatch = Number.isFinite(sandboxContract.targetEggs)
+    ? sandboxContract.targetEggs === session.targetEggs
+    : true;
+  const tokenMatch = Number.isFinite(sandboxContract.tokenTimerMinutes)
+    ? sandboxContract.tokenTimerMinutes === session.tokenTimerMinutes
+    : true;
+  return !(durationMatch && targetMatch && tokenMatch);
+}
+
+function findSandboxContractMatches(session, sandboxContract) {
+  if (!sandboxContract || !Array.isArray(session.contracts)) return [];
+  return session.contracts.filter(contract => (
+    Number.isFinite(contract?.maxCoopSize)
+      ? contract.maxCoopSize === sandboxContract.players
+      : true
+  ) && (
+    Number.isFinite(contract?.coopDurationSeconds)
+      ? contract.coopDurationSeconds === sandboxContract.durationSeconds
+      : false
+  ) && (
+    Number.isFinite(contract?.eggGoal)
+      ? contract.eggGoal === sandboxContract.targetEggs
+      : false
+  ) && (
+    Number.isFinite(contract?.minutesPerToken)
+      ? contract.minutesPerToken === sandboxContract.tokenTimerMinutes
+      : false
+  ));
+}
+
+function resolveSandboxContractOverride(session) {
+  const matches = session.sandboxMatches ?? [];
+  const selectedId = session.sandboxContractSelection;
+  const picked = matches.find(contract => contract.id === selectedId) ?? matches[0];
+
+  if (picked) {
+    return {
+      contractLabel: picked.name ? `${picked.name} (${picked.id})` : picked.id,
+      durationSeconds: picked.coopDurationSeconds,
+      targetEggs: picked.eggGoal,
+      tokenTimerMinutes: picked.minutesPerToken,
+    };
+  }
+
+  return {
+    contractLabel: 'Custom (Sandbox)',
+    durationSeconds: session.sandboxData?.contractInfo?.durationSeconds ?? session.durationSeconds,
+    targetEggs: session.sandboxData?.contractInfo?.targetEggs ?? session.targetEggs,
+    tokenTimerMinutes: session.sandboxData?.contractInfo?.tokenTimerMinutes ?? session.tokenTimerMinutes,
+  };
+}
+
+function buildContractMismatchMessage(session, { includeFlags }) {
+  const sandboxInfo = session.sandboxData?.contractInfo ?? {};
+  const matches = session.sandboxMatches ?? [];
+
+  const lines = [
+    'Sandbox contract info does not match the selected contract.',
+    `Selected: ${session.contractLabel}`,
+    `Duration: ${secondsToHuman(session.durationSeconds)} | Target: ${formatEggs(session.targetEggs)} | Token: ${session.tokenTimerMinutes}m`,
+  ];
+
+  if (Number.isFinite(sandboxInfo.durationSeconds) && Number.isFinite(sandboxInfo.targetEggs) && Number.isFinite(sandboxInfo.tokenTimerMinutes)) {
+    lines.push(`Sandbox: ${secondsToHuman(sandboxInfo.durationSeconds)} | Target: ${formatEggs(sandboxInfo.targetEggs)} | Token: ${sandboxInfo.tokenTimerMinutes}m`);
+  }
+
+  const components = [];
+
+  if (matches.length > 0) {
+    const options = matches.slice(0, 25).map(contract => ({
+      label: contract.name ? `${contract.name} (${contract.id})` : contract.id,
+      value: contract.id,
+      default: contract.id === session.sandboxContractSelection,
+    }));
+
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(`predictcs:contractselect:${session.sessionId}`)
+      .setPlaceholder('Select matching contract')
+      .setMinValues(1)
+      .setMaxValues(1)
+      .addOptions(options);
+
+    components.push(new ActionRowBuilder().addComponents(select));
+  }
+
+  const selectedButton = new ButtonBuilder()
+    .setCustomId(`predictcs:contract:${session.sessionId}:selected`)
+    .setLabel('Use selected contract')
+    .setStyle(ButtonStyle.Primary);
+
+  const sandboxButton = new ButtonBuilder()
+    .setCustomId(`predictcs:contract:${session.sessionId}:sandbox`)
+    .setLabel(matches.length > 0 ? 'Use sandbox-matched contract' : 'Use sandbox values')
+    .setStyle(ButtonStyle.Secondary);
+
+  components.push(new ActionRowBuilder().addComponents(selectedButton, sandboxButton));
+
+  return buildPlainComponentMessage(lines.join('\n'), {
+    components,
+    flags: includeFlags ? 64 : null,
+  });
+}
+
+async function runPredictCsSandbox(interaction, session, sandboxData, contractOverride) {
+  const { players } = session;
+  const playerArtifacts = sandboxData.playerArtifacts;
+  const playerIhrArtifacts = sandboxData.playerIhrArtifacts;
+  const playerTe = sandboxData.playerTe;
+
+  const boostOrder = buildBoostOrder(session.boostOrderMode, playerTe);
+  const model = buildPredictCsModel({
+    players,
+    durationSeconds: contractOverride.durationSeconds,
+    targetEggs: contractOverride.targetEggs,
+    tokenTimerMinutes: contractOverride.tokenTimerMinutes,
+    giftMinutes: session.giftMinutes,
+    gg: session.gg,
+    playerArtifacts,
+    playerIhrArtifacts,
+    playerTe,
+    boostOrder,
+    siabEnabled: session.siabEnabled,
+  });
+
+  const avgTe = playerTe.reduce((sum, value) => sum + value, 0) / Math.max(1, playerTe.length);
+  const assumptions = {
+    te: Math.round(avgTe),
+    tokensPerPlayer: 0,
+    swapBonus: false,
+    cxpMode: true,
+    siabPercent: 0,
+  };
+
+  const outputLines = buildPlayerTableLines(model, assumptions);
+  outputLines.unshift(`Players: ${players} | Duration: ${secondsToHuman(contractOverride.durationSeconds)} | Target: ${formatEggs(contractOverride.targetEggs)}`);
+
+  const chunks = chunkContent(outputLines, { maxLength: 3800, separator: '\n' });
+  const embeds = chunks.map((chunk, index) => new EmbedBuilder()
+    .setTitle(index === 0
+      ? `PredictCS (${contractOverride.contractLabel})`
+      : 'PredictCS (cont.)')
+    .setDescription(chunk));
+
+  const [first, ...rest] = embeds;
+
+  if (interaction.deferred || interaction.replied) {
+    await interaction.followUp({ embeds: [first] });
+  } else {
+    await interaction.reply({ embeds: [first] });
+  }
+
+  for (const embed of rest) {
+    await interaction.followUp({ embeds: [embed] });
+  }
+
+  sessions.delete(session.sessionId);
 }
 
 function buildPlainComponentMessage(content, options = {}) {

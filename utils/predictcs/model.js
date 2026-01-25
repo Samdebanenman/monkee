@@ -49,6 +49,8 @@ export function buildPredictCsModel(options) {
     const monocle = ihrArtifacts.monocle ?? null;
     const ihrDeflector = ihrArtifacts.deflector ?? null;
     const ihrSiab = ihrArtifacts.siab ?? null;
+    const boostedSiabPercent = gusset.siabPercent ?? 0;
+    const ihrSiabPercent = ihrSiab?.siabPercent ?? 0;
     const te = Number.isFinite(playerTe?.[index]) ? playerTe[index] : 0;
 
     const maxChickens = BASES.baseChickens * COLLECTIBLES.chickenMult * gusset.chickMult;
@@ -75,8 +77,9 @@ export function buildPredictCsModel(options) {
       srWithStones: baseShip * Math.pow(1.05, stoneLayout.numQuant),
       stoneLayout,
       siabPercent: siabEnabled
-        ? Math.max(gusset.siabPercent ?? 0, ihrSiab?.siabPercent ?? 0)
+        ? Math.max(boostedSiabPercent, ihrSiabPercent)
         : 0,
+      siabAlwaysOn: siabEnabled && boostedSiabPercent > 0,
     };
   });
 
@@ -214,6 +217,8 @@ function optimizePredictCsTokens(options) {
     boostOrder,
   } = options;
 
+  const altTokensHigh = 8;
+
   const evaluateScenario = tokensByPlayer => {
     const scenario = simulateScenario({
       players,
@@ -242,7 +247,14 @@ function optimizePredictCsTokens(options) {
       scenario,
       adjusted,
       score: adjusted.adjustedMeanCS,
+      summaries: adjusted.adjustedSummaries,
     };
+  };
+
+  const hasAllPlayersImproved = (prevSummaries, nextSummaries) => {
+    if (!Array.isArray(prevSummaries) || !Array.isArray(nextSummaries)) return false;
+    if (prevSummaries.length !== nextSummaries.length) return false;
+    return nextSummaries.every((summary, index) => summary.cs >= (prevSummaries[index]?.cs ?? -Infinity));
   };
 
   const baseTokensByPlayer = Array.from({ length: players }, () => baseTokens);
@@ -250,66 +262,89 @@ function optimizePredictCsTokens(options) {
   let bestCount = 0;
   let bestTokensByPlayer = baseTokensByPlayer;
 
-  for (let count = 1; count <= players; count += 1) {
-    const tokensByPlayer = Array.from({ length: players }, (_, index) => {
-      const isLate = index >= players - count;
-      return isLate ? altTokens : baseTokens;
-    });
-    const current = evaluateScenario(tokensByPlayer);
-    if (current.score > best.score) {
-      best = current;
-      bestCount = count;
-      bestTokensByPlayer = tokensByPlayer;
-    } else {
-      break;
+  const tryLateTokens = (lateTokens, startBest, startCount, startTokens) => {
+    let currentBest = startBest;
+    let currentBestCount = startCount;
+    let currentBestTokens = startTokens;
+
+    for (let count = 1; count <= players; count += 1) {
+      const tokensByPlayer = Array.from({ length: players }, (_, index) => {
+        const isLate = index >= players - count;
+        return isLate ? lateTokens : baseTokens;
+      });
+      const current = evaluateScenario(tokensByPlayer);
+      const improvedAll = hasAllPlayersImproved(currentBest.summaries, current.summaries);
+      if (improvedAll && current.score > currentBest.score) {
+        currentBest = current;
+        currentBestCount = count;
+        currentBestTokens = tokensByPlayer;
+      } else {
+        break;
+      }
     }
+
+    return {
+      best: currentBest,
+      bestCount: currentBestCount,
+      bestTokensByPlayer: currentBestTokens,
+    };
+  };
+
+  const late4 = tryLateTokens(altTokens, best, bestCount, bestTokensByPlayer);
+  let lateBest = late4.best;
+  let lateBestCount = late4.bestCount;
+  let lateBestTokens = late4.bestTokensByPlayer;
+
+  if (Number.isFinite(altTokensHigh) && altTokensHigh !== altTokens) {
+    const late8 = tryLateTokens(altTokensHigh, lateBest, lateBestCount, lateBestTokens);
+    lateBest = late8.best;
+    lateBestCount = late8.bestCount;
+    lateBestTokens = late8.bestTokensByPlayer;
   }
 
-  let forwardBest = best;
-  let forwardTokensByPlayer = bestTokensByPlayer;
+  let forwardBest = lateBest;
+  let forwardTokensByPlayer = lateBestTokens;
   let forwardBestCount = 0;
 
-  if (players > 0 && baseTokens > altTokens) {
-    const tokensP1 = bestTokensByPlayer.map((tokens, index) => (index === 0 ? altTokens : tokens));
-    const attemptP1 = evaluateScenario(tokensP1);
-    if (attemptP1.score > forwardBest.score) {
-      forwardBest = attemptP1;
-      forwardTokensByPlayer = tokensP1;
-      forwardBestCount = 1;
+  const tryEarlyTokensFromIndex = startIndex => {
+    let localBest = forwardBest;
+    let localTokens = forwardTokensByPlayer;
+    let localCount = 0;
 
-      for (let count = 2; count <= players; count += 1) {
-        const tokensByPlayer = bestTokensByPlayer.map((tokens, index) => (index < count ? altTokens : tokens));
-        const current = evaluateScenario(tokensByPlayer);
-        if (current.score > forwardBest.score) {
-          forwardBest = current;
-          forwardTokensByPlayer = tokensByPlayer;
-          forwardBestCount = count;
-        } else {
-          break;
-        }
+    for (let count = 1; count <= players - startIndex; count += 1) {
+      const tokensByPlayer = lateBestTokens.map((tokens, index) => {
+        if (index < startIndex) return tokens;
+        if (index < startIndex + count) return altTokens;
+        return tokens;
+      });
+      const current = evaluateScenario(tokensByPlayer);
+      if (hasAllPlayersImproved(localBest.summaries, current.summaries) && current.score > localBest.score) {
+        localBest = current;
+        localTokens = tokensByPlayer;
+        localCount = count;
+      } else {
+        break;
       }
-    } else if (players > 1) {
-      for (let count = 1; count <= players - 1; count += 1) {
-        const tokensByPlayer = bestTokensByPlayer.map((tokens, index) => {
-          if (index === 0) return tokens;
-          return index < count + 1 ? altTokens : tokens;
-        });
-        const current = evaluateScenario(tokensByPlayer);
-        if (current.score > forwardBest.score) {
-          forwardBest = current;
-          forwardTokensByPlayer = tokensByPlayer;
-          forwardBestCount = count;
-        } else {
-          break;
-        }
+    }
+
+    return { localBest, localTokens, localCount };
+  };
+
+  if (players > 0 && baseTokens > altTokens) {
+    for (let startIndex = 0; startIndex < players; startIndex += 1) {
+      const { localBest, localTokens, localCount } = tryEarlyTokensFromIndex(startIndex);
+      if (localBest.score > forwardBest.score) {
+        forwardBest = localBest;
+        forwardTokensByPlayer = localTokens;
+        forwardBestCount = localCount;
       }
     }
   }
 
   return {
-    bestCount,
+    bestCount: lateBestCount,
     earlyBestCount: forwardBestCount,
-    baseCs: best.score,
+    baseCs: lateBest.score,
     bestCs: forwardBest.score,
     tokensByPlayer: forwardTokensByPlayer,
     scenario: forwardBest.scenario,

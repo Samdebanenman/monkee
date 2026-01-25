@@ -67,8 +67,6 @@ export function buildPlayerTableLines(model, assumptions) {
     hasFixedTokens,
     tokensByPlayer,
     tokenUpgrade,
-    usePlayer1Siab,
-    siabScoreDelta,
     deflectorDisplay,
     playerConfigs,
     playerArtifacts,
@@ -77,9 +75,7 @@ export function buildPlayerTableLines(model, assumptions) {
   const requiredOtherDeflector = Math.ceil(requiredDeflector);
   const {
     displayDeflectors,
-    recommendedPlan,
     unusedDeflector,
-    canQuantScrub,
   } = deflectorDisplay;
 
   const {
@@ -103,10 +99,6 @@ export function buildPlayerTableLines(model, assumptions) {
   const lateBoostText = tokenUpgrade?.bestCount
     ? ` | last ${tokenUpgrade.bestCount} use ${tokenUpgrade.tokensByPlayer[players - 1]} toks`
     : '';
-  const siabDeltaText = siabScoreDelta >= 0 ? `+${siabScoreDelta}` : `${siabScoreDelta}`;
-  const siabPlanText = usePlayer1Siab
-    ? `needed (~${siabDeltaText} CS vs no SIAB)`
-    : 'not needed';
   const ggText = gg ? 'on' : 'off';
 
   const displayRows = adjustedSummaries.map((summary, index) => ({
@@ -123,13 +115,11 @@ export function buildPlayerTableLines(model, assumptions) {
     `Average TE: ${assumptions.te}`,
     `Tokens to boost: ${tokenEmoji} ${tokensForPrediction}${hasFixedTokens ? '' : ' (fastest max-habs)'}${lateBoostText}`,
     `Deflector needed (other total): ~${requiredOtherDeflector}% | Unused: ~${Math.max(0, Math.floor(unusedDeflector))}%`,
-    `Player 1 SIAB: ${siabPlanText}`,
-    `Recommended: ${recommendedPlan}${canQuantScrub ? ' (quant-scrub OK)' : ''}`,
     `CS: max ${Math.round(adjustedMaxCS)} | mean ${Math.round(adjustedMeanCS)} | min ${Math.round(adjustedMinCS)}`,
     '',
     hasArtifacts
-      ? '`player  (cr b)|artifacts|tach|quant|tokens| cs`'
-      : '`player  (cr b)|siab|def|tach|quant|tokens| cs`',
+      ? '`player  (cr b) |   artifacts    |tach|quant|toks| cs`'
+      : '`player  (cr b) |siab|def|tach|quant|toks| cs`',
     ...displayRows.map(row => {
       const { summary, deflector, tokens, artifacts } = row;
       const isScrub = deflector === DEFLECTOR_TIERS[0].percent;
@@ -153,7 +143,8 @@ export function buildPlayerTableLines(model, assumptions) {
         players,
       });
       const crBillions = formatBillions(crRequestPop);
-      const playerText = `\`player${summary.index}${playerPad} (${crBillions})\``;
+      const crPad = crBillions.length <= 3 ? ' ' : '';
+      const playerText = `\`player${summary.index}${playerPad} (${crBillions})${crPad}\``;
       if (hasArtifacts) {
         return `${playerText} | ${artifactText} | ${tachText} | ${quantText} | ${tokenText} | ${Math.round(summary.cs)}`;
       }
