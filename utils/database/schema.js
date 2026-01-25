@@ -49,6 +49,29 @@ function ensureMetaTable() {
   `);
 }
 
+function ensureColeggtiblesTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS coleggtibles (
+      identifier TEXT PRIMARY KEY,
+      name TEXT,
+      icon_url TEXT
+    );
+  `);
+}
+
+function ensureColeggtibleBuffsTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS coleggtible_buffs (
+      egg_identifier TEXT NOT NULL,
+      rewardslevel INTEGER NOT NULL,
+      dimension INTEGER,
+      value REAL,
+      PRIMARY KEY (egg_identifier, rewardslevel),
+      FOREIGN KEY(egg_identifier) REFERENCES coleggtibles(identifier) ON DELETE CASCADE
+    );
+  `);
+}
+
 function ensureMembersTable() {
 
   db.exec(`
@@ -131,6 +154,8 @@ function ensureCoopsTable() {
 function bootstrap() {
   ensureContractsTable();
   ensureMetaTable();
+  ensureColeggtiblesTable();
+  ensureColeggtibleBuffsTable();
   ensureMembersTable();
   ensureMemberCoopsTable();
   return ensureCoopsTable();

@@ -41,34 +41,50 @@ const getAllContractsStmt = db.prepare(`
 
 const getContractReleaseStmt = db.prepare('SELECT release FROM contracts WHERE contract_id = ?');
 
+function normalizeId(value) {
+  return typeof value === 'string' ? value.trim() : String(value || '').trim();
+}
+
+function normalizeOptional(value) {
+  return value == null ? null : String(value);
+}
+
+function toNumberOrNull(value) {
+  return Number.isFinite(value) ? value : null;
+}
+
+function upsertContractRow(row) {
+  const id = normalizeId(row.id);
+  if (!id) return;
+
+  const name = normalizeOptional(row.name);
+  const release = typeof row.release === 'number' ? row.release : 0;
+  const season = normalizeOptional(row.season);
+  const egg = normalizeOptional(row.egg);
+  const maxCoopSize = toNumberOrNull(row.maxCoopSize);
+  const coopDurationSeconds = toNumberOrNull(row.coopDurationSeconds);
+  const eggGoal = toNumberOrNull(row.eggGoal);
+  const minutesPerToken = toNumberOrNull(row.minutesPerToken);
+
+  upsertContractStmt.run(
+    id,
+    name,
+    release,
+    season,
+    egg,
+    maxCoopSize,
+    coopDurationSeconds,
+    eggGoal,
+    minutesPerToken
+  );
+}
+
 export function upsertContracts(rows = []) {
   if (!Array.isArray(rows) || rows.length === 0) return;
 
   const tx = db.transaction((items) => {
     for (const row of items) {
-      const id = typeof row.id === 'string' ? row.id.trim() : String(row.id || '').trim();
-      if (!id) continue;
-
-      const name = row.name == null ? null : String(row.name);
-      const release = typeof row.release === 'number' ? row.release : 0;
-      const season = row.season == null ? null : String(row.season);
-      const egg = row.egg == null ? null : String(row.egg);
-      const maxCoopSize = Number.isFinite(row.maxCoopSize) ? row.maxCoopSize : null;
-      const coopDurationSeconds = Number.isFinite(row.coopDurationSeconds) ? row.coopDurationSeconds : null;
-      const eggGoal = Number.isFinite(row.eggGoal) ? row.eggGoal : null;
-      const minutesPerToken = Number.isFinite(row.minutesPerToken) ? row.minutesPerToken : null;
-
-      upsertContractStmt.run(
-        id,
-        name,
-        release,
-        season,
-        egg,
-        maxCoopSize,
-        coopDurationSeconds,
-        eggGoal,
-        minutesPerToken
-      );
+      upsertContractRow(row);
     }
   });
 

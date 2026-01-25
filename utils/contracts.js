@@ -2,6 +2,7 @@ import axios from 'axios';
 import protobuf from 'protobufjs';
 import { DateTime } from 'luxon';
 import { getStoredContracts, getMeta, setMeta, upsertContracts } from './database/index.js';
+import { fetchAndCacheColeggtibles } from './coleggtibles.js';
 
 const CONTRACT_ARCHIVE_URL = 'https://raw.githubusercontent.com/carpetsage/egg/main/periodicals/data/contracts.json';
 const META_LAST_FETCH_KEY = 'lastContractFetch';
@@ -91,6 +92,11 @@ async function fetchAndCacheContracts() {
 
   const rows = response.data.map(obj => mapRemoteContract(obj, ContractType, eggEnum));
   upsertContracts(rows);
+  try {
+    await fetchAndCacheColeggtibles();
+  } catch (err) {
+    console.error('Failed to refresh coleggtibles cache:', err?.message ?? String(err));
+  }
   return rows;
 }
 

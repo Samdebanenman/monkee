@@ -69,5 +69,22 @@ const ArtifactEmoji = {
     SIAB_4: `<:Afx_ship_in_a_bottle_4:1463866981991055565>`
 }
 
-export default { EggtoEmoji, ArtifactEmoji };
-export { EggtoEmoji, ArtifactEmoji };
+const GameDimension = {
+    INVALID: 0,
+    EARNINGS: 1,
+    AWAY_EARNINGS: 2,
+    INTERNAL_HATCHERY_RATE: 3,
+    EGG_LAYING_RATE: 4,
+    SHIPPING_CAPACITY: 5,
+    HAB_CAPACITY: 6,
+    VEHICLE_COST: 7,
+    HAB_COST: 8,
+    RESEARCH_COST: 9,
+};
+
+const GameDimensionLabels = Object.fromEntries(
+    Object.entries(GameDimension).map(([label, value]) => [value, label])
+);
+
+export default { EggtoEmoji, ArtifactEmoji, GameDimension, GameDimensionLabels };
+export { EggtoEmoji, ArtifactEmoji, GameDimension, GameDimensionLabels };
