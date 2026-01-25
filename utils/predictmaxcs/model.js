@@ -199,6 +199,7 @@ export function buildPlayerConfigs(options) {
   const gussetBonus = Math.max(0, (BOOSTED_SET.gusset.chickMult ?? 1) - 1);
   const player1ChickenPenalty = BASES.baseChickens * COLLECTIBLES.chickenMult * gussetBonus;
   const player1SlotPenalty = 1;
+  const baseSiabPercent = Number.isFinite(IHR_SET.siabPercent) ? IHR_SET.siabPercent : 0;
 
   return Array.from({ length: players }, (_, index) => {
     const isPlayer1 = index === 0 && usePlayer1Siab;
@@ -215,7 +216,8 @@ export function buildPlayerConfigs(options) {
       srNoStones: baseShip,
       srWithStones: baseShip * Math.pow(1.05, stoneLayout.numQuant),
       stoneLayout,
-      siabPercent: isPlayer1 ? 100 : 0,
+      siabPercent: baseSiabPercent,
+      siabAlwaysOn: isPlayer1 && usePlayer1Siab && baseSiabPercent > 0,
     };
   });
 }
