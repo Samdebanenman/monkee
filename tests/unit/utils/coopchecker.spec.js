@@ -36,6 +36,7 @@ import { checkCoop, checkAllFromContractID, fetchCoopContributors } from '../../
 beforeEach(() => {
   vi.clearAllMocks();
   state.responseQueue = [];
+  auxbrainMock.postAuxbrain.mockResolvedValue({ data: 'response' });
 });
 
 describe('utils/coopchecker', () => {

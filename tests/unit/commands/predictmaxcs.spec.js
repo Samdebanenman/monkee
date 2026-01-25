@@ -74,7 +74,8 @@ describe('commands/predictmaxcs', () => {
 
     await execute(interaction);
 
-    expect(interaction.reply).toHaveBeenCalled();
+    expect(interaction.deferReply).toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalled();
     expect(interaction.followUp).toHaveBeenCalled();
   });
 

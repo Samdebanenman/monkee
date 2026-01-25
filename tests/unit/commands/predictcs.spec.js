@@ -93,8 +93,9 @@ describe('commands/predictcs', () => {
 
     await execute(interaction);
 
-    expect(interaction.reply).toHaveBeenCalled();
-    const message = interaction.reply.mock.calls[0][0];
+    expect(interaction.deferReply).toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalled();
+    const message = interaction.editReply.mock.calls[0][0];
     expect(message.content).toContain('Contract:');
     expect(message.components.length).toBeGreaterThan(0);
   });
