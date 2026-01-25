@@ -219,7 +219,7 @@ export function buildPlayerConfigs(options) {
     const elrPerPlayer = playerMaxChickens * baseELR;
     const elrForStones = elrPerPlayer * (1 + baselineOtherDefl / 100);
     const stoneLayout = optimizeStones(elrForStones, baseShip, playerSlots);
-    const playerSiabPercent = isPlayer1 ? baseSiabPercent : 0;
+    const playerSiabPercent = baseSiabPercent;
 
     return {
       maxChickens: playerMaxChickens,
@@ -318,7 +318,6 @@ export function optimizeLateBoostTokensAfterDeflector(options) {
   const {
     players,
     baseTokens,
-    altTokens,
     baselineDeflectors,
     playerConfigs,
     durationSeconds,
@@ -331,6 +330,8 @@ export function optimizeLateBoostTokensAfterDeflector(options) {
     deflectorDisplay,
     assumptions,
   } = options;
+
+  const tokenCandidates = [0, 1, 2, 3, 4, 5, 6, 8];
 
   const evaluateScenario = tokensByPlayer => {
     const scenario = simulateScenario({
@@ -365,58 +366,60 @@ export function optimizeLateBoostTokensAfterDeflector(options) {
 
   const baseTokensByPlayer = Array.from({ length: players }, () => baseTokens);
   let best = evaluateScenario(baseTokensByPlayer);
-  let bestCount = 0;
   let bestTokensByPlayer = baseTokensByPlayer;
 
-  for (let count = 1; count <= players; count += 1) {
-    const tokensByPlayer = Array.from({ length: players }, (_, index) => {
-      const isLate = index >= players - count;
-      return isLate ? altTokens : baseTokens;
-    });
+  const tryCandidate = (index, candidate) => {
+    const tokensByPlayer = bestTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens));
     const current = evaluateScenario(tokensByPlayer);
     if (current.score > best.score) {
       best = current;
-      bestCount = count;
       bestTokensByPlayer = tokensByPlayer;
-    } else {
-      break;
+    }
+  };
+
+  for (let index = players - 1; index >= 0; index -= 1) {
+    for (const candidate of tokenCandidates) {
+      tryCandidate(index, candidate);
     }
   }
 
-  let earlyBest = best;
-  let earlyBestCount = 0;
-  let earlyBestTokensByPlayer = bestTokensByPlayer;
-  const earlyTokens = 4;
-
-  if (players > 1 && baseTokens > earlyTokens) {
-    for (let count = 1; count <= players - 1; count += 1) {
-      const tokensByPlayer = bestTokensByPlayer.map((tokens, index) => {
-        if (index === 0) return tokens;
-        return index <= count ? earlyTokens : tokens;
-      });
-
-      const current = evaluateScenario(tokensByPlayer);
-      const currentP1Score = current.adjusted.adjustedSummaries?.[0]?.cs ?? 0;
-      const bestP1Score = earlyBest.adjusted.adjustedSummaries?.[0]?.cs ?? 0;
-
-      if (currentP1Score > bestP1Score) {
-        earlyBest = current;
-        earlyBestCount = count;
-        earlyBestTokensByPlayer = tokensByPlayer;
-      } else {
-        break;
-      }
+  for (let index = 0; index < players; index += 1) {
+    for (const candidate of tokenCandidates) {
+      tryCandidate(index, candidate);
     }
   }
+
+  const bestCount = countTokensFromEnd(bestTokensByPlayer, 8);
+  const earlyBestCount = countTokensFromStart(bestTokensByPlayer, 4);
 
   return {
     bestCount,
     earlyBestCount,
-    baseCs: earlyBest.score,
-    bestCs: earlyBest.score,
-    tokensByPlayer: earlyBestTokensByPlayer,
-    scenario: earlyBest.scenario,
+    baseCs: best.score,
+    bestCs: best.score,
+    tokensByPlayer: bestTokensByPlayer,
+    scenario: best.scenario,
   };
+}
+
+function countTokensFromStart(tokensByPlayer, tokenValue) {
+  if (!Array.isArray(tokensByPlayer) || tokensByPlayer.length === 0) return 0;
+  let count = 0;
+  for (const tokens of tokensByPlayer) {
+    if (tokens !== tokenValue) break;
+    count += 1;
+  }
+  return count;
+}
+
+function countTokensFromEnd(tokensByPlayer, tokenValue) {
+  if (!Array.isArray(tokensByPlayer) || tokensByPlayer.length === 0) return 0;
+  let count = 0;
+  for (let i = tokensByPlayer.length - 1; i >= 0; i -= 1) {
+    if (tokensByPlayer[i] !== tokenValue) break;
+    count += 1;
+  }
+  return count;
 }
 
 export function optimizeStones(elr, sr, totalSlots) {

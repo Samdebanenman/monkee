@@ -51,21 +51,18 @@ function formatArtifactColumn(artifacts) {
   return `${deflectorText} ${metroText} ${compassText} ${gussetText}`.trim();
 }
 
-function buildTokenBoostText({ tokenUpgrade, tokensForPrediction, players }) {
-  const lateBoostCount = tokenUpgrade?.bestCount ?? 0;
-  const earlyBoostCount = tokenUpgrade?.earlyBestCount ?? 0;
-  const tokensByPlayer = Array.isArray(tokenUpgrade?.tokensByPlayer)
-    ? tokenUpgrade.tokensByPlayer
-    : [];
-  const lastTokens = tokensByPlayer[players - 1] ?? tokensForPrediction;
-  const earlyTokens = tokensByPlayer[1] ?? 4;
-  const earlyBoostText = earlyBoostCount > 0
-    ? ` | first ${earlyBoostCount} use ${earlyTokens} toks`
-    : '';
-  const lateBoostText = lateBoostCount > 0
-    ? ` | last ${lateBoostCount} use ${lastTokens} toks`
-    : '';
-  return `${earlyBoostText}${lateBoostText}`;
+function buildTokenBoostText(tokensByPlayer) {
+  if (!Array.isArray(tokensByPlayer) || tokensByPlayer.length === 0) return '';
+  const firstCount = countTokensFromStart(tokensByPlayer, 4);
+  const lastCount = countTokensFromEnd(tokensByPlayer, 8);
+  const parts = [];
+  if (firstCount > 0) {
+    parts.push(`first ${firstCount} use 4 toks`);
+  }
+  if (lastCount > 0) {
+    parts.push(`last ${lastCount} use 8 toks`);
+  }
+  return parts.length ? ` | ${parts.join(' | ')}` : '';
 }
 
 function buildSiabDeltaLine(usePlayer1Siab, siabScoreDelta) {
@@ -79,6 +76,24 @@ function buildModifierLine(modifierType, modifierValue) {
   if (!modifierType) return null;
   const valueText = Number.isFinite(modifierValue) ? ` x${modifierValue}` : '';
   return `Contract modifier: ${modifierType}${valueText}`;
+}
+
+function countTokensFromStart(tokensByPlayer, tokenValue) {
+  let count = 0;
+  for (const tokens of tokensByPlayer) {
+    if (tokens !== tokenValue) break;
+    count += 1;
+  }
+  return count;
+}
+
+function countTokensFromEnd(tokensByPlayer, tokenValue) {
+  let count = 0;
+  for (let i = tokensByPlayer.length - 1; i >= 0; i -= 1) {
+    if (tokensByPlayer[i] !== tokenValue) break;
+    count += 1;
+  }
+  return count;
 }
 
 export function buildPlayerTableLines(model, assumptions) {
@@ -96,7 +111,6 @@ export function buildPlayerTableLines(model, assumptions) {
     tokensForPrediction,
     hasFixedTokens,
     tokensByPlayer,
-    tokenUpgrade,
     deflectorDisplay,
     playerConfigs,
     playerArtifacts,
@@ -131,7 +145,7 @@ export function buildPlayerTableLines(model, assumptions) {
     ? tokensByPlayer
     : Array.from({ length: players }, () => tokensForPrediction);
   const ggText = gg ? 'on' : 'off';
-  const boostText = buildTokenBoostText({ tokenUpgrade, tokensForPrediction, players });
+  const boostText = buildTokenBoostText(effectiveTokens);
   const siabDeltaText = buildSiabDeltaLine(usePlayer1Siab, siabScoreDelta);
   const modifierText = buildModifierLine(modifierType, modifierValue);
 
@@ -166,7 +180,8 @@ export function buildPlayerTableLines(model, assumptions) {
       const tachText = `${ArtifactEmoji.TACHYON_4} ${baseTach + extraTach}`;
       const quantText = `${ArtifactEmoji.QUANTUM_4} ${baseQuant + extraQuant}`;
       const tokenText = `${tokenEmoji} ${tokens}`;
-      const siabText = summary.siabPercent > 0 ? ArtifactEmoji.SIAB_4 : '---';
+      const hasPostBoostSiab = Boolean(playerConfigs?.[summary.index - 1]?.siabAlwaysOn);
+      const siabText = hasPostBoostSiab ? ArtifactEmoji.SIAB_4 : '---';
       const artifactText = formatArtifactColumn(artifacts);
       const playerPad = players >= 10 && summary.index < 10 ? ' ' : '';
       const boostMulti = calcBoostMulti(Number.isFinite(tokens) ? tokens : tokensForPrediction);

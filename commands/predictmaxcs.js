@@ -85,6 +85,8 @@ export async function execute(interaction) {
     return interaction.reply(createTextComponentMessage('Average TE must be between 0 and 490.', { flags: 64 }));
   }
 
+  await interaction.deferReply();
+
   const assumptions = getAssumptions(avgTe);
   const model = buildModel({
     players,
@@ -110,7 +112,7 @@ export async function execute(interaction) {
     .setDescription(chunk));
 
   const [first, ...rest] = embeds;
-  await interaction.reply({ embeds: [first] });
+  await interaction.editReply({ embeds: [first] });
   for (const embed of rest) {
     await interaction.followUp({ embeds: [embed] });
   }

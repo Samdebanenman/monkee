@@ -208,7 +208,6 @@ function optimizePredictCsTokens(options) {
   const {
     players,
     baseTokens,
-    altTokens,
     baselineDeflectors,
     playerConfigs,
     durationSeconds,
@@ -222,8 +221,7 @@ function optimizePredictCsTokens(options) {
     assumptions,
     boostOrder,
   } = options;
-
-  const altTokensHigh = 8;
+  const tokenCandidates = [0, 1, 2, 3, 4, 5, 6, 8];
 
   const evaluateScenario = tokensByPlayer => {
     const scenario = simulateScenario({
@@ -265,96 +263,60 @@ function optimizePredictCsTokens(options) {
 
   const baseTokensByPlayer = Array.from({ length: players }, () => baseTokens);
   let best = evaluateScenario(baseTokensByPlayer);
-  let bestCount = 0;
   let bestTokensByPlayer = baseTokensByPlayer;
 
-  const tryLateTokens = (lateTokens, startBest, startCount, startTokens) => {
-    let currentBest = startBest;
-    let currentBestCount = startCount;
-    let currentBestTokens = startTokens;
-
-    for (let count = 1; count <= players; count += 1) {
-      const tokensByPlayer = Array.from({ length: players }, (_, index) => {
-        const isLate = index >= players - count;
-        return isLate ? lateTokens : baseTokens;
-      });
-      const current = evaluateScenario(tokensByPlayer);
-      const improvedAll = hasAllPlayersImproved(currentBest.summaries, current.summaries);
-      if (improvedAll && current.score > currentBest.score) {
-        currentBest = current;
-        currentBestCount = count;
-        currentBestTokens = tokensByPlayer;
-      } else {
-        break;
-      }
+  const tryCandidate = (index, candidate) => {
+    const tokensByPlayer = bestTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens));
+    const current = evaluateScenario(tokensByPlayer);
+    if (current.score > best.score) {
+      best = current;
+      bestTokensByPlayer = tokensByPlayer;
     }
-
-    return {
-      best: currentBest,
-      bestCount: currentBestCount,
-      bestTokensByPlayer: currentBestTokens,
-    };
   };
 
-  const late4 = tryLateTokens(altTokens, best, bestCount, bestTokensByPlayer);
-  let lateBest = late4.best;
-  let lateBestCount = late4.bestCount;
-  let lateBestTokens = late4.bestTokensByPlayer;
-
-  if (Number.isFinite(altTokensHigh) && altTokensHigh !== altTokens) {
-    const late8 = tryLateTokens(altTokensHigh, lateBest, lateBestCount, lateBestTokens);
-    lateBest = late8.best;
-    lateBestCount = late8.bestCount;
-    lateBestTokens = late8.bestTokensByPlayer;
-  }
-
-  let forwardBest = lateBest;
-  let forwardTokensByPlayer = lateBestTokens;
-  let forwardBestCount = 0;
-
-  const tryEarlyTokensFromIndex = startIndex => {
-    let localBest = forwardBest;
-    let localTokens = forwardTokensByPlayer;
-    let localCount = 0;
-
-    for (let count = 1; count <= players - startIndex; count += 1) {
-      const tokensByPlayer = lateBestTokens.map((tokens, index) => {
-        if (index < startIndex) return tokens;
-        if (index < startIndex + count) return altTokens;
-        return tokens;
-      });
-      const current = evaluateScenario(tokensByPlayer);
-      if (hasAllPlayersImproved(localBest.summaries, current.summaries) && current.score > localBest.score) {
-        localBest = current;
-        localTokens = tokensByPlayer;
-        localCount = count;
-      } else {
-        break;
-      }
-    }
-
-    return { localBest, localTokens, localCount };
-  };
-
-  if (players > 0 && baseTokens > altTokens) {
-    for (let startIndex = 0; startIndex < players; startIndex += 1) {
-      const { localBest, localTokens, localCount } = tryEarlyTokensFromIndex(startIndex);
-      if (localBest.score > forwardBest.score) {
-        forwardBest = localBest;
-        forwardTokensByPlayer = localTokens;
-        forwardBestCount = localCount;
-      }
+  for (let index = players - 1; index >= 0; index -= 1) {
+    for (const candidate of tokenCandidates) {
+      tryCandidate(index, candidate);
     }
   }
+
+  for (let index = 0; index < players; index += 1) {
+    for (const candidate of tokenCandidates) {
+      tryCandidate(index, candidate);
+    }
+  }
+
+  const bestCount = countTokensFromEnd(bestTokensByPlayer, 8);
+  const earlyBestCount = countTokensFromStart(bestTokensByPlayer, 4);
 
   return {
-    bestCount: lateBestCount,
-    earlyBestCount: forwardBestCount,
-    baseCs: lateBest.score,
-    bestCs: forwardBest.score,
-    tokensByPlayer: forwardTokensByPlayer,
-    scenario: forwardBest.scenario,
+    bestCount,
+    earlyBestCount,
+    baseCs: best.score,
+    bestCs: best.score,
+    tokensByPlayer: bestTokensByPlayer,
+    scenario: best.scenario,
   };
+}
+
+function countTokensFromStart(tokensByPlayer, tokenValue) {
+  if (!Array.isArray(tokensByPlayer) || tokensByPlayer.length === 0) return 0;
+  let count = 0;
+  for (const tokens of tokensByPlayer) {
+    if (tokens !== tokenValue) break;
+    count += 1;
+  }
+  return count;
+}
+
+function countTokensFromEnd(tokensByPlayer, tokenValue) {
+  if (!Array.isArray(tokensByPlayer) || tokensByPlayer.length === 0) return 0;
+  let count = 0;
+  for (let i = tokensByPlayer.length - 1; i >= 0; i -= 1) {
+    if (tokensByPlayer[i] !== tokenValue) break;
+    count += 1;
+  }
+  return count;
 }
 
 export function buildBoostOrder(mode, playerTe) {

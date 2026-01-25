@@ -122,6 +122,8 @@ export async function execute(interaction) {
     return interaction.reply(createTextComponentMessage('Invalid token speed input.', { flags: 64 }));
   }
 
+  await interaction.deferReply();
+
   const sessionId = interaction.id;
   sessions.set(sessionId, {
     sessionId,
@@ -156,7 +158,7 @@ export async function execute(interaction) {
   });
 
   const message = buildModeSelectionMessage(sessionId, sessions.get(sessionId));
-  await interaction.reply(message);
+  await interaction.editReply(message);
 }
 
 export async function handleComponentInteraction(interaction) {
@@ -166,89 +168,113 @@ export async function handleComponentInteraction(interaction) {
   const context = parsePredictCsContext(customId);
   if (!context) return false;
 
-  const { action, sessionId, playerIndex, field, mode } = context;
-  const session = sessions.get(sessionId);
-  if (action === 'mode') {
-    const isValid = await validatePredictCsSessionOwnership(interaction, session);
-    if (!isValid) return true;
+  const session = sessions.get(context.sessionId);
+  const handler = getPredictCsHandler(context.action);
+  if (!handler) return false;
 
-    if (!interaction.isButton()) return true;
+  await handler({ interaction, session, context });
+  return true;
+}
 
-    if (mode === 'manual') {
-      session.mode = 'manual';
-      session.playerStep[0] = 'artifacts';
-      const message = buildPlayerSelectionMessage(sessionId, 0, session, { includeFlags: false });
-      await interaction.update(message);
-      return true;
-    }
-
-    if (mode === 'sandbox') {
-      session.mode = 'sandbox';
-      const modal = buildSandboxModal(sessionId);
-      await interaction.showModal(modal);
-      return true;
-    }
-
-    return true;
+function getPredictCsHandler(action) {
+  switch (action) {
+    case 'mode':
+      return handlePredictCsModeInteraction;
+    case 'contract':
+      return handlePredictCsContractInteraction;
+    case 'contractselect':
+      return handlePredictCsContractSelectInteraction;
+    case 'select':
+    case 'next':
+      return handlePredictCsPlayerInteraction;
+    default:
+      return null;
   }
+}
 
-  if (action === 'contract') {
-    const isValid = await validatePredictCsSessionOwnership(interaction, session);
-    if (!isValid) return true;
+async function handlePredictCsModeInteraction({ interaction, session, context }) {
+  const { sessionId, mode } = context;
+  const isValid = await validatePredictCsSessionOwnership(interaction, session);
+  if (!isValid) return;
 
-    if (!interaction.isButton()) return true;
+  if (!interaction.isButton()) return;
 
-    const reminder = session?.sandboxData;
-    if (!reminder) {
-      await interaction.reply(createTextComponentMessage('Sandbox data expired. Please run the command again.', { flags: 64 }));
-      return true;
-    }
-
-    if (mode === 'selected') {
-      await runPredictCsSandbox(interaction, session, reminder, {
-        contractLabel: session.contractLabel,
-        durationSeconds: session.durationSeconds,
-        targetEggs: session.targetEggs,
-        tokenTimerMinutes: session.tokenTimerMinutes,
-      });
-      return true;
-    }
-
-    if (mode === 'sandbox') {
-      const override = resolveSandboxContractOverride(session);
-      await runPredictCsSandbox(interaction, session, reminder, override);
-      return true;
-    }
-
-    return true;
-  }
-
-  if (action === 'contractselect') {
-    const isValid = await validatePredictCsSessionOwnership(interaction, session);
-    if (!isValid) return true;
-
-    if (!interaction.isStringSelectMenu()) return true;
-    const selectedId = interaction.values?.[0];
-    session.sandboxContractSelection = selectedId;
-    const message = buildContractMismatchMessage(session, { includeFlags: false });
+  if (mode === 'manual') {
+    session.mode = 'manual';
+    session.playerStep[0] = 'artifacts';
+    const message = buildPlayerSelectionMessage(sessionId, 0, session, { includeFlags: false });
     await interaction.update(message);
-    return true;
+    return;
   }
 
+  if (mode === 'sandbox') {
+    session.mode = 'sandbox';
+    const modal = buildSandboxModal(sessionId);
+    await interaction.showModal(modal);
+    return;
+  }
+}
+
+async function handlePredictCsContractInteraction({ interaction, session, context }) {
+  const { mode } = context;
+  const isValid = await validatePredictCsSessionOwnership(interaction, session);
+  if (!isValid) return;
+
+  if (!interaction.isButton()) return;
+
+  const reminder = session?.sandboxData;
+  if (!reminder) {
+    await interaction.reply(createTextComponentMessage('Sandbox data expired. Please run the command again.', { flags: 64 }));
+    return;
+  }
+
+  if (mode === 'selected') {
+    await runPredictCsSandbox(interaction, session, reminder, {
+      contractLabel: session.contractLabel,
+      durationSeconds: session.durationSeconds,
+      targetEggs: session.targetEggs,
+      tokenTimerMinutes: session.tokenTimerMinutes,
+    });
+    return;
+  }
+
+  if (mode === 'sandbox') {
+    const override = resolveSandboxContractOverride(session);
+    await runPredictCsSandbox(interaction, session, reminder, override);
+    return;
+  }
+}
+
+async function handlePredictCsContractSelectInteraction({ interaction, session }) {
+  const isValid = await validatePredictCsSessionOwnership(interaction, session);
+  if (!isValid) return;
+
+  if (!interaction.isStringSelectMenu()) return;
+  const selectedId = interaction.values?.[0];
+  session.sandboxContractSelection = selectedId;
+  const message = buildContractMismatchMessage(session, { includeFlags: false });
+  await interaction.update(message);
+}
+
+async function handlePredictCsPlayerInteraction({ interaction, session, context }) {
+  const {
+    sessionId,
+    action,
+    playerIndex,
+    field,
+  } = context;
   const isValid = await validatePredictCsSession(interaction, session, playerIndex);
-  if (!isValid) return true;
+  if (!isValid) return;
 
   if (action === 'select' && interaction.isStringSelectMenu()) {
     await handlePredictCsSelect({ interaction, sessionId, playerIndex, field, session });
-    return true;
+    return;
   }
 
   if (action === 'next' && interaction.isButton()) {
     await handlePredictCsNext({ interaction, sessionId, playerIndex, session });
-    return true;
+    return;
   }
-
-  return false;
 }
 
 export async function handleModalSubmit(interaction) {
@@ -626,19 +652,19 @@ function buildModeSelectionMessage(sessionId, session) {
 }
 
 function buildSandboxModal(sessionId) {
-  const modal = new ModalBuilder()
-    .setCustomId(`predictcs:sandbox:${sessionId}`)
-    .setTitle('PredictCS Sandbox Import');
-
-  const input = new TextInputBuilder()
-    .setCustomId('sandbox_url')
-    .setLabel('Paste sandbox URL or data string')
-    .setStyle(TextInputStyle.Paragraph)
-    .setRequired(true);
+  const input = new TextInputBuilder({
+    customId: 'sandbox_url',
+    label: 'Paste sandbox URL or data string',
+    style: TextInputStyle.Paragraph,
+    required: true,
+  });
 
   const row = new ActionRowBuilder().addComponents(input);
-  modal.addComponents(row);
-  return modal;
+  return new ModalBuilder({
+    customId: `predictcs:sandbox:${sessionId}`,
+    title: 'PredictCS Sandbox Import',
+    components: [row],
+  });
 }
 
 function hasSandboxContractMismatch(session, sandboxContract) {
