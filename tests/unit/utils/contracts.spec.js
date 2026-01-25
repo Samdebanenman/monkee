@@ -7,15 +7,13 @@ vi.mock('axios', () => ({
   },
 }));
 
-vi.mock('protobufjs', () => ({
-  default: {
-    load: vi.fn(async () => ({
-      lookupType: () => ({
-        decode: () => ({}),
-      }),
-      lookupEnum: () => ({ valuesById: {} }),
-    })),
-  },
+vi.mock('../../../utils/auxbrain.js', () => ({
+  getProtoRoot: vi.fn(async () => ({
+    lookupType: () => ({
+      decode: () => ({}),
+    }),
+    lookupEnum: () => ({ valuesById: {} }),
+  })),
 }));
 
 vi.mock('../../../utils/database/index.js', () => ({

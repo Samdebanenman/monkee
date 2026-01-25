@@ -1,30 +1,20 @@
-import axios from 'axios';
-import protobuf from 'protobufjs';
+import {
+  AUXBRAIN_ENDPOINTS,
+  decodeAuthenticatedPayload,
+  encodeProtoRequest,
+  getProtoType,
+  postAuxbrain,
+} from './auxbrain.js';
 
-const PROTO_PATH = 'ei.proto';
-const STATUS_ENDPOINT = 'https://www.auxbrain.com/ei/coop_status';
 const DEFAULT_USER_ID = process.env.EID;
-const REQUEST_TIMEOUT_MS = 80_000;
 const COOP_CODES = Object.freeze([
   ...Array.from({ length: 26 }, (_, index) => `${String.fromCodePoint(97 + index)}oo`),
   '-oo',
 ]);
 
-let cachedProto = null;
-
-async function loadProtoTypes() {
-  if (cachedProto) return cachedProto;
-  const root = await protobuf.load(PROTO_PATH);
-  cachedProto = {
-    ContractCoopStatusRequest: root.lookupType('ei.ContractCoopStatusRequest'),
-    AuthenticatedMessage: root.lookupType('ei.AuthenticatedMessage'),
-    ContractCoopStatusResponse: root.lookupType('ei.ContractCoopStatusResponse'),
-  };
-  return cachedProto;
-}
-
 async function postCoopStatus(contractIdentifier, coopCode) {
-  const { ContractCoopStatusRequest, AuthenticatedMessage, ContractCoopStatusResponse } = await loadProtoTypes();
+  const ContractCoopStatusRequest = await getProtoType('ei.ContractCoopStatusRequest');
+  const ContractCoopStatusResponse = await getProtoType('ei.ContractCoopStatusResponse');
 
   const payload = ContractCoopStatusRequest.create({
     contractIdentifier,
@@ -32,27 +22,10 @@ async function postCoopStatus(contractIdentifier, coopCode) {
     userId: DEFAULT_USER_ID,
   });
 
-  const errMsg = ContractCoopStatusRequest.verify(payload);
-  if (errMsg) {
-    throw new Error(`Payload verify failed: ${errMsg}`);
-  }
-
-  const requestBuffer = ContractCoopStatusRequest.encode(payload).finish();
-  const requestBase64 = Buffer.from(requestBuffer).toString('base64');
-
-  const response = await axios.post(
-    STATUS_ENDPOINT,
-    { data: requestBase64 },
-    {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      responseType: 'text',
-      timeout: REQUEST_TIMEOUT_MS,
-    },
-  );
-
-  const responseBuffer = Buffer.from(response.data, 'base64');
-  const authenticated = AuthenticatedMessage.decode(responseBuffer);
-  return ContractCoopStatusResponse.decode(authenticated.message);
+  const requestBase64 = encodeProtoRequest(ContractCoopStatusRequest, payload);
+  const response = await postAuxbrain(AUXBRAIN_ENDPOINTS.COOP_STATUS, requestBase64);
+  const { messageBuffer } = await decodeAuthenticatedPayload(response.data, { decompress: false });
+  return ContractCoopStatusResponse.decode(messageBuffer);
 }
 
 export async function checkCoop(contractIdentifier, coopCode) {

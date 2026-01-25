@@ -1,30 +1,12 @@
-import axios from 'axios';
-import protobuf from 'protobufjs';
-import zlib from 'node:zlib';
+import {
+  AUXBRAIN_ENDPOINTS,
+  CLIENT_INFO,
+  decodeAuthenticatedPayload,
+  encodeProtoRequest,
+  getProtoType,
+  postAuxbrain,
+} from './auxbrain.js';
 import { upsertColeggtibles } from './database/index.js';
-
-const PROTO_PATH = './ei.proto';
-const PERIODICALS_ENDPOINT = 'https://www.auxbrain.com/ei/get_periodicals';
-const REQUEST_TIMEOUT_MS = 80_000;
-
-const REQUEST_CLIENT_VERSION = 999;
-const REQUEST_BUILD = '111313';
-const REQUEST_VERSION = '1.35';
-const REQUEST_PLATFORM = 'DROID';
-const REQUEST_RINFO_CLIENT_VERSION = 70;
-
-let cachedProto = null;
-
-async function loadProtoTypes() {
-  if (cachedProto) return cachedProto;
-  const root = await protobuf.load(PROTO_PATH);
-  cachedProto = {
-    GetPeriodicalsRequest: root.lookupType('ei.GetPeriodicalsRequest'),
-    AuthenticatedMessage: root.lookupType('ei.AuthenticatedMessage'),
-    PeriodicalsResponse: root.lookupType('ei.PeriodicalsResponse'),
-  };
-  return cachedProto;
-}
 
 function mapBuffs(buffs = []) {
   if (!Array.isArray(buffs)) return [];
@@ -55,45 +37,26 @@ async function fetchPeriodicalsResponse() {
     throw new Error('EID is not set');
   }
 
-  const { GetPeriodicalsRequest, AuthenticatedMessage, PeriodicalsResponse } = await loadProtoTypes();
+  const GetPeriodicalsRequest = await getProtoType('ei.GetPeriodicalsRequest');
+  const PeriodicalsResponse = await getProtoType('ei.PeriodicalsResponse');
 
   const payload = GetPeriodicalsRequest.create({
     userId,
-    currentClientVersion: REQUEST_CLIENT_VERSION,
+    currentClientVersion: CLIENT_INFO.CLIENT_VERSION,
     contractsUnlocked: true,
     artifactsUnlocked: true,
     rinfo: {
       eiUserId: userId,
-      clientVersion: REQUEST_RINFO_CLIENT_VERSION,
-      version: REQUEST_VERSION,
-      build: REQUEST_BUILD,
-      platform: REQUEST_PLATFORM,
+      clientVersion: CLIENT_INFO.RINFO_CLIENT_VERSION,
+      version: CLIENT_INFO.VERSION,
+      build: CLIENT_INFO.BUILD,
+      platform: CLIENT_INFO.PLATFORM,
     },
   });
 
-  const errMsg = GetPeriodicalsRequest.verify(payload);
-  if (errMsg) {
-    throw new Error(`Payload verify failed: ${errMsg}`);
-  }
-
-  const requestBuffer = GetPeriodicalsRequest.encode(payload).finish();
-  const requestBase64 = Buffer.from(requestBuffer).toString('base64');
-
-  const response = await axios.post(
-    PERIODICALS_ENDPOINT,
-    { data: requestBase64 },
-    {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      responseType: 'text',
-      timeout: REQUEST_TIMEOUT_MS,
-    }
-  );
-
-  const responseBuffer = Buffer.from(String(response.data), 'base64');
-  const authenticated = AuthenticatedMessage.decode(responseBuffer);
-  const messageBuffer = authenticated?.compressed
-    ? zlib.inflateSync(Buffer.from(authenticated.message ?? []))
-    : Buffer.from(authenticated.message ?? []);
+  const requestBase64 = encodeProtoRequest(GetPeriodicalsRequest, payload);
+  const response = await postAuxbrain(AUXBRAIN_ENDPOINTS.GET_PERIODICALS, requestBase64);
+  const { messageBuffer } = await decodeAuthenticatedPayload(response.data, { decompress: true });
   return PeriodicalsResponse.decode(messageBuffer);
 }
 

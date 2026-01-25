@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import zlib from 'node:zlib';
-
-const { postMock, loadProto, state } = vi.hoisted(() => {
-  const state = { responseQueue: [], authMessage: null };
-  const postMock = vi.fn();
+const { auxbrainMock, state } = vi.hoisted(() => {
+  const state = { responseQueue: [], messageBuffer: Buffer.from('') };
 
   const makeRequestType = () => ({
     create: (payload) => payload,
@@ -11,36 +8,34 @@ const { postMock, loadProto, state } = vi.hoisted(() => {
     encode: () => ({ finish: () => Buffer.from('req') }),
   });
 
-  const makeAuthenticatedType = () => ({
-    decode: () => state.authMessage ?? { compressed: false, message: Buffer.from('') },
-  });
-
   const makeResponseType = () => ({
     decode: () => state.responseQueue.shift() ?? {},
   });
 
-  const lookupType = (name) => {
+  const getProtoType = vi.fn(async (name) => {
     if (name === 'ei.GetPeriodicalsRequest') return makeRequestType();
-    if (name === 'ei.AuthenticatedMessage') return makeAuthenticatedType();
     return makeResponseType();
+  });
+
+  const auxbrainMock = {
+    getProtoType,
+    encodeProtoRequest: vi.fn(() => 'encoded'),
+    postAuxbrain: vi.fn(async () => ({ data: 'response' })),
+    decodeAuthenticatedPayload: vi.fn(async () => ({ messageBuffer: state.messageBuffer })),
+    AUXBRAIN_ENDPOINTS: { GET_PERIODICALS: 'https://example.test' },
+    CLIENT_INFO: {
+      CLIENT_VERSION: 999,
+      BUILD: '111313',
+      VERSION: '1.35',
+      PLATFORM: 'DROID',
+      RINFO_CLIENT_VERSION: 70,
+    },
   };
 
-  const loadProto = vi.fn(async () => ({ lookupType }));
-
-  return { postMock, loadProto, state };
+  return { auxbrainMock, state };
 });
 
-vi.mock('axios', () => ({
-  default: {
-    post: (...args) => postMock(...args),
-  },
-}));
-
-vi.mock('protobufjs', () => ({
-  default: {
-    load: loadProto,
-  },
-}));
+vi.mock('../../../utils/auxbrain.js', () => auxbrainMock);
 
 vi.mock('../../../utils/database/index.js', () => ({
   upsertColeggtibles: vi.fn(),
@@ -64,8 +59,7 @@ afterEach(() => {
 
 describe('utils/coleggtibles', () => {
   it('fetches and caches coleggtibles', async () => {
-    const compressed = zlib.deflateSync(Buffer.from('payload'));
-    state.authMessage = { compressed: true, message: compressed };
+    state.messageBuffer = Buffer.from('payload');
     state.responseQueue.push({
       contracts: {
         customEggs: [
@@ -82,8 +76,6 @@ describe('utils/coleggtibles', () => {
       },
     });
 
-    postMock.mockResolvedValue({ data: Buffer.from('resp').toString('base64') });
-
     const result = await fetchAndCacheColeggtibles();
 
     expect(result.length).toBe(1);
@@ -94,9 +86,8 @@ describe('utils/coleggtibles', () => {
   });
 
   it('returns empty list when no custom eggs exist', async () => {
-    state.authMessage = { compressed: false, message: Buffer.from('') };
+    state.messageBuffer = Buffer.from('');
     state.responseQueue.push({ contracts: { customEggs: [] } });
-    postMock.mockResolvedValue({ data: Buffer.from('resp').toString('base64') });
 
     const result = await fetchAndCacheColeggtibles();
 

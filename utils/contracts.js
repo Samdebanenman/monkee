@@ -1,8 +1,8 @@
 import axios from 'axios';
-import protobuf from 'protobufjs';
 import { DateTime } from 'luxon';
 import { getStoredContracts, getMeta, setMeta, upsertContracts } from './database/index.js';
 import { fetchAndCacheColeggtibles } from './coleggtibles.js';
+import { getProtoRoot } from './auxbrain.js';
 
 const CONTRACT_ARCHIVE_URL = 'https://raw.githubusercontent.com/carpetsage/egg/main/periodicals/data/contracts.json';
 const META_LAST_FETCH_KEY = 'lastContractFetch';
@@ -10,8 +10,6 @@ const REFRESH_ZONE = 'America/Los_Angeles';
 const REFRESH_HOUR = 9;
 const REFRESH_MINUTE = 3;
 const REFRESH_WEEKDAYS = new Set([1, 3, 5]); // Monday, Wednesday, Friday
-
-let cachedProtoRoot = null;
 
 const SEASON_ORDER = ['winter', 'spring', 'summer', 'fall'];
 const THREE_WEEKS = { weeks: 3 };
@@ -29,12 +27,6 @@ function toNumber(value) {
 }
 
 const SEASON_REGEX = /^(winter|spring|summer|fall)[ _-]?(\d{4})$/;
-
-async function loadContractProto() {
-  if (cachedProtoRoot) return cachedProtoRoot;
-  cachedProtoRoot = await protobuf.load('./ei.proto');
-  return cachedProtoRoot;
-}
 
 function mapRemoteContract(obj, ContractType, eggEnum) {
   const decoded = ContractType.decode(Buffer.from(obj.proto, 'base64'));
@@ -86,7 +78,7 @@ async function fetchAndCacheContracts() {
   const response = await axios.get(CONTRACT_ARCHIVE_URL);
   if (!Array.isArray(response.data)) return [];
 
-  const root = await loadContractProto();
+  const root = await getProtoRoot();
   const ContractType = root.lookupType('Contract');
   const eggEnum = root.lookupEnum('Egg');
 
@@ -269,7 +261,7 @@ export async function getAllContracts({ forceRefresh = false } = {}) {
   const now = DateTime.now().setZone(REFRESH_ZONE);
   const lastFetchISO = getMeta(META_LAST_FETCH_KEY);
   const lastFetchValue = lastFetchISO ? DateTime.fromISO(lastFetchISO).setZone(REFRESH_ZONE) : null;
-  const lastFetch = lastFetchValue && lastFetchValue.isValid ? lastFetchValue : null;
+  const lastFetch = lastFetchValue?.isValid ? lastFetchValue : null;
 
   if (!forceRefresh && !shouldRefreshContracts(now, lastFetch)) {
     return getStoredContracts();

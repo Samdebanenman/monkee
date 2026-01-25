@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { postMock, loadProto, state } = vi.hoisted(() => {
+const { auxbrainMock, state } = vi.hoisted(() => {
   const state = { responseQueue: [] };
-  const postMock = vi.fn();
 
   const makeRequestType = () => ({
     create: (payload) => payload,
@@ -10,42 +9,27 @@ const { postMock, loadProto, state } = vi.hoisted(() => {
     encode: () => ({ finish: () => Buffer.from('req') }),
   });
 
-  const makeAuthenticatedType = () => ({
-    decode: () => ({ message: Buffer.from('resp') }),
-  });
-
   const makeResponseType = () => ({
     decode: () => state.responseQueue.shift() ?? {},
   });
 
-  const lookupType = (name) => {
-    if (name === 'ei.ContractCoopStatusRequest') {
-      return makeRequestType();
-    }
-
-    if (name === 'ei.AuthenticatedMessage') {
-      return makeAuthenticatedType();
-    }
-
+  const getProtoType = vi.fn(async (name) => {
+    if (name === 'ei.ContractCoopStatusRequest') return makeRequestType();
     return makeResponseType();
+  });
+
+  const auxbrainMock = {
+    getProtoType,
+    encodeProtoRequest: vi.fn(() => 'encoded'),
+    postAuxbrain: vi.fn(async () => ({ data: 'response' })),
+    decodeAuthenticatedPayload: vi.fn(async () => ({ messageBuffer: Buffer.from('resp') })),
+    AUXBRAIN_ENDPOINTS: { COOP_STATUS: 'https://example.test' },
   };
 
-  const loadProto = vi.fn(async () => ({ lookupType }));
-
-  return { postMock, loadProto, state };
+  return { auxbrainMock, state };
 });
 
-vi.mock('axios', () => ({
-  default: {
-    post: (...args) => postMock(...args),
-  },
-}));
-
-vi.mock('protobufjs', () => ({
-  default: {
-    load: loadProto,
-  },
-}));
+vi.mock('../../../utils/auxbrain.js', () => auxbrainMock);
 
 import { checkCoop, checkAllFromContractID, fetchCoopContributors } from '../../../utils/coopchecker.js';
 
@@ -57,14 +41,13 @@ beforeEach(() => {
 describe('utils/coopchecker', () => {
   it('returns free status when coop is not created', async () => {
     state.responseQueue.push({});
-    postMock.mockResolvedValue({ data: 'ignored' });
 
     const result = await checkCoop('c1', 'aa');
     expect(result.free).toBe(true);
   });
 
   it('returns errors when request fails', async () => {
-    postMock.mockRejectedValue(new Error('boom'));
+    auxbrainMock.postAuxbrain.mockRejectedValue(new Error('boom'));
 
     const result = await checkCoop('c1', 'aa');
     expect(result.error).toContain('boom');
@@ -72,7 +55,6 @@ describe('utils/coopchecker', () => {
 
   it('filters free coops when checking multiple', async () => {
     state.responseQueue.push({ totalAmount: 1 }, {});
-    postMock.mockResolvedValue({ data: 'ignored' });
 
     const result = await checkAllFromContractID('c1', ['aa', 'bb']);
     expect(result.filteredResults).toEqual(['bb']);
@@ -80,7 +62,6 @@ describe('utils/coopchecker', () => {
 
   it('fetches contributors', async () => {
     state.responseQueue.push({ contributors: [{ userName: 'Ace' }] });
-    postMock.mockResolvedValue({ data: 'ignored' });
 
     const contributors = await fetchCoopContributors('c1', 'aa');
     expect(contributors.length).toBe(1);
