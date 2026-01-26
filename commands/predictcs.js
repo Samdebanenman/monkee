@@ -444,7 +444,7 @@ async function handlePredictCsNext({ interaction, sessionId, playerIndex, sessio
     await interaction.deferUpdate();
   }
 
-  const totalSteps = 1 + session.players * TOKEN_CANDIDATES.length * 2;
+  const totalSteps = 1 + session.players * TOKEN_CANDIDATES.length;
   const progressReporter = createDiscordProgressReporter(interaction, {
     prefix: 'PredictCS',
     width: 20,
@@ -831,7 +831,7 @@ async function runPredictCsSandbox(interaction, session, sandboxData, contractOv
     await interaction.editReply(buildPlainComponentMessage('Preparing PredictCS...', { components: [] }));
   }
 
-  const totalSteps = 1 + players * TOKEN_CANDIDATES.length * 2;
+  const totalSteps = 1 + players * TOKEN_CANDIDATES.length;
   const progressReporter = createDiscordProgressReporter(interaction, {
     prefix: 'PredictCS',
     width: 20,

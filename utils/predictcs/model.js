@@ -297,23 +297,6 @@ async function optimizePredictCsTokens(options) {
   let best = buildScoreEntry(baseBatch.results[0]);
   let bestTokensByPlayer = baseTokensByPlayer;
 
-  for (let index = players - 1; index >= 0; index -= 1) {
-    const candidateTokens = tokenCandidates.map(candidate =>
-      bestTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens)));
-    const batch = await evaluateBatch(candidateTokens, completedOffset);
-    completedOffset = batch.completedOffset;
-
-    const scored = batch.results.map(buildScoreEntry);
-    const bestCandidate = scored.reduce((top, entry, idx) =>
-      (entry.score > top.entry.score ? { entry, idx } : top),
-    { entry: best, idx: -1 });
-
-    if (bestCandidate.entry.score > best.score) {
-      best = bestCandidate.entry;
-      bestTokensByPlayer = candidateTokens[bestCandidate.idx];
-    }
-  }
-
   for (let index = 0; index < players; index += 1) {
     const candidateTokens = tokenCandidates.map(candidate =>
       bestTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens)));

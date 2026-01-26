@@ -91,7 +91,7 @@ export async function execute(interaction) {
 
   await interaction.deferReply();
 
-  const totalSteps = 2 * (1 + players * TOKEN_CANDIDATES.length * 2);
+  const totalSteps = 2 * (1 + players * TOKEN_CANDIDATES.length);
   const progressReporter = createDiscordProgressReporter(interaction, {
     prefix: 'PredictMaxCS',
     width: 20,

@@ -4,7 +4,7 @@ import os from 'node:os';
 import { Worker } from 'node:worker_threads';
 import readline from 'node:readline';
 
-const DEFAULT_MAX_WORKERS = Math.min(8, Math.max(1, os.cpus()?.length ?? 1));
+const DEFAULT_MAX_WORKERS = Math.min(16, Math.max(1, os.cpus()?.length ?? 1));
 
 function runScenarioWorker(options) {
   return new Promise((resolve, reject) => {

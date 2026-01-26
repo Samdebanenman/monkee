@@ -78,7 +78,9 @@ export async function buildModel(options) {
     : getTokensForPrediction(tokenTimerMinutes, giftMinutes, gg, players, baseIHR, maxChickens);
   const tokensByPlayer = Array.from({ length: players }, () => tokensForPrediction);
 
-  const variantSteps = 1 + players * TOKEN_CANDIDATES.length * 2;
+  const variantSteps = 1 + players * TOKEN_CANDIDATES.length;
+  const uniformTokenCandidates = [2, 4, 6, 8];
+  const shouldRunQuickSiabCheck = siabOverride == null;
   const makeVariantProgress = offset => (progress && typeof progress.update === 'function'
     ? {
       update: ({ completed, active, queued } = {}) => progress.update({
@@ -89,8 +91,7 @@ export async function buildModel(options) {
     }
     : null);
 
-  const buildVariant = async (usePlayer1Siab, progressOffset = 0) => {
-    const variantProgress = makeVariantProgress(progressOffset);
+  const buildVariantBase = usePlayer1Siab => {
     const playerConfigs = buildPlayerConfigs({
       coleggtibles: COLEGGTIBLES,
       players,
@@ -110,6 +111,73 @@ export async function buildModel(options) {
       requiredOtherDeflector: Math.ceil(requiredDeflector),
       playerConfigs,
     });
+
+    return { playerConfigs, requiredDeflector, deflectorDisplay };
+  };
+
+  const buildScenarioOptions = (playerConfigs, tokensByPlayer) => ({
+    players,
+    playerDeflectors: baselineDeflectors,
+    playerConfigs,
+    durationSeconds,
+    targetEggs,
+    tokenTimerMinutes,
+    giftMinutes,
+    gg,
+    baseIHR,
+    tokensPerPlayer: tokensByPlayer,
+    cxpMode: assumptions.cxpMode,
+  });
+
+  const runUniformTokenSims = async (usePlayer1Siab, completedOffset) => {
+    const { playerConfigs, requiredDeflector, deflectorDisplay } = buildVariantBase(usePlayer1Siab);
+    const tokensByPlayerList = uniformTokenCandidates.map(tokens =>
+      Array.from({ length: players }, () => tokens));
+    const scenarios = tokensByPlayerList.map(tokensByPlayer =>
+      buildScenarioOptions(playerConfigs, tokensByPlayer));
+
+    const canUpdateProgress = typeof progress?.update === 'function';
+    const onProgress = canUpdateProgress
+      ? ({ completed, active, queued }) => progress.update({
+        completed: completedOffset + (Number.isFinite(completed) ? completed : 0),
+        active,
+        queued,
+      })
+      : null;
+
+    const results = await simulateScenariosParallel(scenarios, { onProgress });
+
+    if (canUpdateProgress) {
+      progress.update({
+        completed: completedOffset + scenarios.length,
+        active: 0,
+      });
+    }
+
+    const scores = results.map(scenario => {
+      const adjusted = computeAdjustedSummaries({
+        summaries: scenario.summaries,
+        displayDeflectors: deflectorDisplay.displayDeflectors,
+        durationSeconds,
+        players,
+        assumptions,
+      });
+      return adjusted.adjustedSummaries?.[0]?.cs ?? 0;
+    });
+
+    const bestScore = scores.reduce((max, score) => Math.max(max, score), 0);
+    return {
+      bestScore,
+      playerConfigs,
+      requiredDeflector,
+      deflectorDisplay,
+      completedOffset: completedOffset + scenarios.length,
+    };
+  };
+
+  const buildVariant = async (usePlayer1Siab, progressOffset = 0) => {
+    const variantProgress = makeVariantProgress(progressOffset);
+    const { playerConfigs, requiredDeflector, deflectorDisplay } = buildVariantBase(usePlayer1Siab);
 
     const tokenUpgrade = await optimizeLateBoostTokensAfterDeflector({
       players,
@@ -155,18 +223,79 @@ export async function buildModel(options) {
     };
   };
 
-  const baseVariant = await buildVariant(false, 0);
-  const siabVariant = await buildVariant(true, variantSteps);
-  let selectedVariant = baseVariant;
+  let completedOffset = 0;
+  let quickBaseScore = null;
+  let quickSiabScore = null;
+
+  if (shouldRunQuickSiabCheck) {
+    const quickTotal = uniformTokenCandidates.length * 2;
+    if (progress && Number.isFinite(progress.total)) {
+      progress.total = quickTotal + (2 * variantSteps);
+    }
+    const quickBase = await runUniformTokenSims(false, completedOffset);
+    completedOffset = quickBase.completedOffset;
+    quickBaseScore = quickBase.bestScore;
+    const quickSiab = await runUniformTokenSims(true, completedOffset);
+    completedOffset = quickSiab.completedOffset;
+    quickSiabScore = quickSiab.bestScore;
+  }
+
+  let runBaseVariant = true;
+  let runSiabVariant = true;
   if (siabOverride === true) {
-    selectedVariant = siabVariant;
+    runBaseVariant = false;
+    runSiabVariant = true;
   } else if (siabOverride === false) {
-    selectedVariant = baseVariant;
-  } else if (siabVariant.score > baseVariant.score) {
+    runBaseVariant = true;
+    runSiabVariant = false;
+  } else if (shouldRunQuickSiabCheck) {
+    const quickDelta = (quickSiabScore ?? 0) - (quickBaseScore ?? 0);
+    if (Math.abs(quickDelta) < 200) {
+      runBaseVariant = true;
+      runSiabVariant = true;
+    } else if (quickDelta > 200) {
+      runBaseVariant = false;
+      runSiabVariant = true;
+    } else if (quickDelta < -200) {
+      runBaseVariant = true;
+      runSiabVariant = false;
+    } else {
+      runBaseVariant = true;
+      runSiabVariant = true;
+    }
+  }
+
+  const totalSteps = completedOffset + ((runBaseVariant ? 1 : 0) + (runSiabVariant ? 1 : 0)) * variantSteps;
+  if (progress && Number.isFinite(progress.total)) {
+    progress.total = totalSteps;
+    if (typeof progress.update === 'function') {
+      progress.update({ completed: completedOffset, active: 0 });
+    }
+  }
+
+  const baseVariant = runBaseVariant ? await buildVariant(false, completedOffset) : null;
+  if (runBaseVariant) completedOffset += variantSteps;
+  const siabVariant = runSiabVariant ? await buildVariant(true, completedOffset) : null;
+  if (runSiabVariant) completedOffset += variantSteps;
+  if (typeof progress?.update === 'function' && Number.isFinite(progress.total)) {
+    await progress.update({ completed: Math.min(progress.total, completedOffset), active: 0 });
+  }
+
+  let selectedVariant = baseVariant ?? siabVariant;
+  if (siabOverride === true) {
+    selectedVariant = siabVariant ?? selectedVariant;
+  } else if (siabOverride === false) {
+    selectedVariant = baseVariant ?? selectedVariant;
+  } else if (baseVariant && siabVariant && siabVariant.score > baseVariant.score) {
     selectedVariant = siabVariant;
   }
-  const usePlayer1Siab = selectedVariant.usePlayer1Siab;
-  const siabScoreDelta = Math.round((siabVariant.score ?? 0) - (baseVariant.score ?? 0));
+
+  const usePlayer1Siab = selectedVariant?.usePlayer1Siab ?? false;
+  const siabScoreDelta = baseVariant && siabVariant
+    ? Math.round((siabVariant.score ?? 0) - (baseVariant.score ?? 0))
+    : (shouldRunQuickSiabCheck && Number.isFinite(quickSiabScore) && Number.isFinite(quickBaseScore)
+      ? Math.round(quickSiabScore - quickBaseScore)
+      : null);
   const selectedPlayerConfigs = selectedVariant.playerConfigs;
   const requiredDeflector = selectedVariant.requiredDeflector;
   const deflectorDisplay = selectedVariant.deflectorDisplay;
@@ -413,23 +542,7 @@ export async function optimizeLateBoostTokensAfterDeflector(options) {
   completedOffset = baseBatch.completedOffset;
   let best = buildScoreEntry(baseBatch.results[0]);
   let bestTokensByPlayer = baseTokensByPlayer;
-
-  for (let index = players - 1; index >= 0; index -= 1) {
-    const candidateTokens = tokenCandidates.map(candidate =>
-      bestTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens)));
-    const batch = await evaluateBatch(candidateTokens, completedOffset);
-    completedOffset = batch.completedOffset;
-
-    const scored = batch.results.map(buildScoreEntry);
-    const bestCandidate = scored.reduce((top, entry, idx) =>
-      (entry.score > top.entry.score ? { entry, idx } : top),
-    { entry: best, idx: -1 });
-
-    if (bestCandidate.entry.score > best.score) {
-      best = bestCandidate.entry;
-      bestTokensByPlayer = candidateTokens[bestCandidate.idx];
-    }
-  }
+  let frontSweepBestScore = best.score;
 
   for (let index = 0; index < players; index += 1) {
     const candidateTokens = tokenCandidates.map(candidate =>
@@ -446,7 +559,12 @@ export async function optimizeLateBoostTokensAfterDeflector(options) {
       best = bestCandidate.entry;
       bestTokensByPlayer = candidateTokens[bestCandidate.idx];
     }
+    if (best.score > frontSweepBestScore) {
+      frontSweepBestScore = best.score;
+    }
   }
+
+  console.log(`front swoop result: player 1 ${frontSweepBestScore} cs`);
 
   const bestCount = countTokensFromEnd(bestTokensByPlayer, 8);
   const earlyBestCount = countTokensFromStart(bestTokensByPlayer, 4);
