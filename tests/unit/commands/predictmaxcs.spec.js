@@ -19,7 +19,7 @@ vi.mock('../../../utils/predictmaxcs/display.js', () => ({
 
 vi.mock('../../../utils/predictmaxcs/model.js', () => ({
   buildModel: vi.fn(() => ({ mock: true })),
-  getAssumptions: vi.fn(() => ({ te: 100 })),
+  getAssumptions: vi.fn((teValues = [100]) => ({ te: 100, teValues })),
   TOKEN_CANDIDATES: [0, 1, 2, 3, 4, 5, 6, 8],
 }));
 
@@ -31,11 +31,14 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-const createOptions = ({ contract = 'c1', tokenSpeed = 5, avgTe = null, gg = null, siab = null, focused = '' } = {}) => ({
-  getString: (name) => (name === 'contract' ? contract : null),
+const createOptions = ({ contract = 'c1', tokenSpeed = 5, te = null, gg = null, siab = null, focused = '' } = {}) => ({
+  getString: (name) => {
+    if (name === 'contract') return contract;
+    if (name === 'te') return te;
+    return null;
+  },
   getNumber: (name) => {
     if (name === 'token_speed') return tokenSpeed;
-    if (name === 'avg_te') return avgTe;
     return null;
   },
   getBoolean: (name) => {
@@ -72,13 +75,24 @@ describe('commands/predictmaxcs', () => {
     fetchContractSummaries.mockResolvedValue([
       { id: 'c1', name: 'Test', maxCoopSize: 2, coopDurationSeconds: 3600, eggGoal: 1000, minutesPerToken: 4 },
     ]);
-    const interaction = createInteraction({ options: createOptions({ gg: true, avgTe: 120, siab: false }) });
+    const interaction = createInteraction({ options: createOptions({ gg: true, te: '120', siab: false }) });
 
     await execute(interaction);
 
     expect(interaction.deferReply).toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalled();
     expect(interaction.followUp).toHaveBeenCalled();
+  });
+
+  it('rejects TE lists that do not match player count', async () => {
+    fetchContractSummaries.mockResolvedValue([
+      { id: 'c1', name: 'Test', maxCoopSize: 3, coopDurationSeconds: 3600, eggGoal: 1000, minutesPerToken: 4 },
+    ]);
+    const interaction = createInteraction({ options: createOptions({ te: '100,200' }) });
+
+    await execute(interaction);
+
+    expect(interaction.reply).toHaveBeenCalled();
   });
 
   it('filters autocomplete suggestions', async () => {

@@ -63,7 +63,7 @@ const baseModel = {
   ],
 };
 
-const assumptions = { te: 100 };
+const assumptions = { te: 150, teValues: [100, 200] };
 
 describe('utils/predictmaxcs/display', () => {
   it('builds player table lines', () => {

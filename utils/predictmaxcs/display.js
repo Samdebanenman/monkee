@@ -96,6 +96,19 @@ function countTokensFromEnd(tokensByPlayer, tokenValue) {
   return count;
 }
 
+function formatTeValues(teValues, averageTe) {
+  const values = Array.isArray(teValues) ? teValues.filter(value => Number.isFinite(value)) : [];
+  if (!values.length && Number.isFinite(averageTe)) return `${Math.round(averageTe)}`;
+  if (!values.length) return 'N/A';
+  const rounded = values.map(value => Math.round(value));
+  const unique = new Set(rounded);
+  if (unique.size === 1) {
+    return `${rounded[0]} (all)`;
+  }
+  const avgText = Number.isFinite(averageTe) ? ` (avg ${Math.round(averageTe)})` : '';
+  return `${rounded.join(', ')}${avgText}`;
+}
+
 export function buildPlayerTableLines(model, assumptions) {
   const {
     players,
@@ -160,7 +173,7 @@ export function buildPlayerTableLines(model, assumptions) {
 
   const lines = [
     `Token timer: ${formatMinutes(tokenTimerMinutes)} | gift speed: ${formatMinutes(giftMinutes)} | GG: ${ggText}`,
-    `Average TE: ${assumptions.te}`,
+    `TE: ${formatTeValues(assumptions?.teValues, assumptions?.te)}`,
     `Tokens to boost: ${tokenEmoji} ${tokensForPrediction}${hasFixedTokens ? '' : ' (fastest max-habs)'}${boostText}`,
     `Deflector needed (other total): ~${requiredOtherDeflector}% | Unused: ~${Math.max(0, Math.floor(unusedDeflector))}%`,
     `CS: max ${Math.round(adjustedMaxCS)} | mean ${Math.round(adjustedMeanCS)} | min ${Math.round(adjustedMinCS)}`,

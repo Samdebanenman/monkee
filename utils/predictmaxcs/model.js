@@ -19,14 +19,47 @@ import {
 
 export const TOKEN_CANDIDATES = [0, 1, 2, 3, 4, 5, 6, 8];
 
-export function getAssumptions(averageTe = 100) {
+export function getAssumptions(teInput = 100) {
+  const teArray = Array.isArray(teInput) ? teInput : [teInput];
+  const sanitized = teArray.map(value => (Number.isFinite(value) ? value : 0));
+  const avgTe = sanitized.reduce((sum, value) => sum + value, 0) / Math.max(1, sanitized.length);
+
   return {
-    te: averageTe,
+    te: avgTe,
+    teValues: sanitized,
     tokensPerPlayer: 6,
     swapBonus: false,
     cxpMode: true,
     siabPercent: 0,
   };
+}
+
+function buildPlayerIhrs(teValues, bases, coleggtibles) {
+  const safeValues = Array.isArray(teValues) && teValues.length ? teValues : [0];
+  return safeValues.map(value => bases.baseIHR
+    * Math.pow(1.01, value)
+    * coleggtibles.ihrMult
+    * IHR_SET.chalice.ihrMult
+    * IHR_SET.monocle.ihrMult
+    * Math.pow(1.04, getIhrStoneSlots()));
+}
+
+function normalizeTeValues(values, players, fallbackTe = 0) {
+  const playerCount = Number.isFinite(players) && players > 0 ? Math.floor(players) : 0;
+  if (!Array.isArray(values) || values.length === 0) {
+    return Array.from({ length: playerCount }, () => fallbackTe);
+  }
+  if (values.length === playerCount) return values;
+  if (values.length === 1) {
+    return Array.from({ length: playerCount }, () => values[0]);
+  }
+  if (playerCount > 0) {
+    return Array.from({ length: playerCount }, (_, index) => {
+      const value = values[index];
+      return Number.isFinite(value) ? value : fallbackTe;
+    });
+  }
+  return values;
 }
 
 export async function buildModel(options) {
@@ -45,18 +78,16 @@ export async function buildModel(options) {
     progress = null,
   } = options;
   const bases = getContractAdjustedBases({ modifierType, modifierValue });
+  const teValues = normalizeTeValues(assumptions?.teValues, players, assumptions?.te ?? 0);
+  const playerIHRs = buildPlayerIhrs(teValues, bases, COLEGGTIBLES);
+  const baseIHR = playerIHRs.reduce((sum, value) => sum + value, 0) / Math.max(1, playerIHRs.length);
+
   const maxChickensBase = bases.baseChickens
     * BOOSTED_SET.gusset.chickMult
     * COLEGGTIBLES.chickenMult
     + (assumptions.swapBonus ? getSwapChickenJump(players) : 0);
   const baseELR = bases.baseELR * BOOSTED_SET.metro.elrMult * COLEGGTIBLES.elrMult;
   const baseShip = bases.baseShip * BOOSTED_SET.compass.srMult * COLEGGTIBLES.shipMult;
-  const baseIHR = bases.baseIHR
-    * Math.pow(1.01, assumptions.te)
-    * COLEGGTIBLES.ihrMult
-    * IHR_SET.chalice.ihrMult
-    * IHR_SET.monocle.ihrMult
-    * Math.pow(1.04, getIhrStoneSlots());
 
   const baseElrPerPlayer = maxChickensBase * baseELR;
   const baseSrPerPlayer = baseShip;
@@ -101,6 +132,7 @@ export async function buildModel(options) {
       baseShip,
       totalSlots,
       baselineOtherDefl,
+      playerIHRs,
       usePlayer1Siab,
     });
 
@@ -318,6 +350,7 @@ export async function buildModel(options) {
     modifierValue,
     maxChickens: maxChickensBase,
     baseIHR,
+    playerIHRs,
     baseElrPerPlayer,
     baseSrPerPlayer,
     elrPerChickenWithStones,
@@ -349,6 +382,7 @@ export function buildPlayerConfigs(options) {
     baseShip,
     totalSlots,
     baselineOtherDefl,
+    playerIHRs = null,
     usePlayer1Siab,
   } = options;
 
@@ -365,9 +399,13 @@ export function buildPlayerConfigs(options) {
     const elrForStones = elrPerPlayer * (1 + baselineOtherDefl / 100);
     const stoneLayout = optimizeStones(elrForStones, baseShip, playerSlots);
     const playerSiabPercent = baseSiabPercent;
+    const ihr = Array.isArray(playerIHRs) && Number.isFinite(playerIHRs[index])
+      ? playerIHRs[index]
+      : null;
 
     return {
       maxChickens: playerMaxChickens,
+      ihr,
       elrPerChickenNoStones: baseELR,
       elrPerChickenWithStones: baseELR * Math.pow(1.05, stoneLayout.numTach),
       srNoStones: baseShip,
