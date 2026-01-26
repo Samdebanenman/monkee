@@ -1,13 +1,40 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
 import { checkCoopForKnownPlayers, findFreeCoopCodes, listCoops } from '../services/coopService.js';
-import { chunkContent, createTextComponentMessage } from '../services/discord.js';
+import {
+  chunkContent,
+  createDiscordProgressReporter,
+  createTextComponentMessage,
+} from '../services/discord.js';
 
 const CODE_OPTION_DEFAULT = 'default';
 const CODE_OPTION_EXTENDED = 'extended';
 const CODE_OPTION_EXTENDED_PLUS = 'extended_plus';
 const CONTRACT_OPTION = 'contract';
 const SEARCHLIST_OPTION = 'searchlist';
+const ALL_DB_OPTION = '__ALL_DB__';
+
+const DEFAULT_CONCURRENCY = 12;
+
+async function asyncPool(limit, items, iterator) {
+  const results = [];
+  const executing = new Set();
+
+  for (const item of items) {
+    const task = Promise.resolve().then(() => iterator(item));
+    results.push(task);
+    executing.add(task);
+
+    const cleanup = () => executing.delete(task);
+    task.then(cleanup).catch(cleanup);
+
+    if (executing.size >= limit) {
+      await Promise.race(executing);
+    }
+  }
+
+  return Promise.all(results);
+}
 
 function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
   const letters = Array.from({ length: 26 }, (_, index) => String.fromCharCode(97 + index));
@@ -56,16 +83,61 @@ export async function execute(interaction) {
 
   const coopCodesToCheck = buildCoopCodes(codesOption);
   const summaries = await fetchContractSummaries();
-  const nameById = new Map(summaries.map(c => [c.id, c.name || c.id]));
+  const sortedContracts = [...summaries].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
+  const nameById = new Map(sortedContracts.map(c => [c.id, c.name || c.id]));
 
   await interaction.deferReply();
 
-  const displayName = nameById.get(contractInput) || contractInput;
-  const selectedContracts = [[displayName, contractInput]];
+  let selectedContracts;
+  if (contractInput === ALL_DB_OPTION) {
+    selectedContracts = sortedContracts
+      .filter(contract => contract?.id)
+      .map(contract => [contract.name || contract.id, contract.id]);
+  } else {
+    const displayName = nameById.get(contractInput) || contractInput;
+    selectedContracts = [[displayName, contractInput]];
+  }
 
   if (!selectedContracts.length) {
     await interaction.editReply(createTextComponentMessage('No contracts matched your selection.', { flags: 64 }));
     return;
+  }
+
+  const totalSteps = selectedContracts.length * coopCodesToCheck.length;
+  const progressReporter = createDiscordProgressReporter(interaction, {
+    prefix: 'CheckIfPC',
+    width: 20,
+    intervalMs: 1500,
+  });
+  const progress = totalSteps > 0
+    ? {
+        total: totalSteps,
+        completed: 0,
+        async update({ completed, active } = {}) {
+          if (Number.isFinite(completed)) {
+            this.completed = Math.min(this.total, completed);
+          }
+          const activeCount = Number.isFinite(active) ? active : 0;
+          const queuedCount = Math.max(0, this.total - this.completed - activeCount);
+          await progressReporter({
+            completed: this.completed,
+            total: this.total,
+            active: activeCount,
+            queued: queuedCount,
+          });
+        },
+      }
+    : null;
+
+  let completedCount = 0;
+  const updateProgress = async (increment = 0) => {
+    if (!progress) return;
+    completedCount = Math.min(progress.total, completedCount + increment);
+    await progress.update({ completed: completedCount, active: 0 });
+  };
+
+  if (progress) {
+    await progress.update({ completed: 0, active: 0 });
   }
 
   const resultsLines = [];
@@ -77,6 +149,7 @@ export async function execute(interaction) {
     const existingSet = new Set(existing.map(coop => String(coop).toLowerCase()));
     const candidates = nonFree.filter(code => !existingSet.has(code.toLowerCase()));
     const skippedCount = nonFree.length - candidates.length;
+    await updateProgress(filteredResults.length + skippedCount);
 
     resultsLines.push(`**${name}**`);
 
@@ -91,13 +164,15 @@ export async function execute(interaction) {
     }
 
     const matches = [];
-    for (const coop of candidates) {
+
+    await asyncPool(DEFAULT_CONCURRENCY, candidates, async coop => {
       const matchResult = await checkCoopForKnownPlayers(id, coop);
-      if (!matchResult.ok) continue;
+      await updateProgress(1);
+      if (!matchResult.ok) return;
       if (matchResult.matched.length > 0) {
         matches.push({ coop, matched: matchResult.matched });
       }
-    }
+    });
 
     if (matches.length === 0) {
       const skippedText = skippedCount ? ` (skipped ${skippedCount} saved)` : '';
@@ -138,11 +213,14 @@ async function buildStaticContractOptions() {
   const contracts = await fetchContractSummaries();
   const sorted = [...contracts].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
 
-  const options = sorted.map(contract => ({
-    name: contract.name || contract.id,
-    value: contract.id,
-    description: contract.name ? contract.id : undefined,
-  }));
+  const options = [
+    { name: 'All (Database)', value: ALL_DB_OPTION, description: 'All contracts in the database' },
+    ...sorted.map(contract => ({
+      name: contract.name || contract.id,
+      value: contract.id,
+      description: contract.name ? contract.id : undefined,
+    })),
+  ];
 
   return options.slice(0, 25);
 }
@@ -181,4 +259,3 @@ export async function autocomplete(interaction) {
 }
 
 export default { data, execute, autocomplete };
-

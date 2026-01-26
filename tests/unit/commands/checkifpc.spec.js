@@ -4,10 +4,10 @@ import { createInteraction, createOptions } from './helpers.js';
 vi.mock('../../../services/discord.js', () => ({
   createTextComponentMessage: (content, options = {}) => ({ content, ...options }),
   chunkContent: (input) => [Array.isArray(input) ? input.join('\n') : String(input)],
+  createDiscordProgressReporter: () => async () => {},
 }));
 
 vi.mock('../../../services/contractService.js', () => ({
-  fetchActiveContracts: vi.fn(),
   fetchContractSummaries: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ vi.mock('../../../services/coopService.js', () => ({
 }));
 
 import { execute } from '../../../commands/checkifpc.js';
-import { fetchActiveContracts, fetchContractSummaries } from '../../../services/contractService.js';
+import { fetchContractSummaries } from '../../../services/contractService.js';
 import { checkCoopForKnownPlayers, findFreeCoopCodes, listCoops } from '../../../services/coopService.js';
 
 beforeEach(() => {
@@ -38,9 +38,8 @@ describe('commands/checkifpc', () => {
   });
 
   it('reports cooptracker link when known players are found', async () => {
-    fetchActiveContracts.mockResolvedValue({ seasonal: [['Name', 'c1']], leggacy: [] });
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'Contract 1' }]);
-    findFreeCoopCodes.mockResolvedValue({ filteredResults: [], coopCodes: [] });
+    findFreeCoopCodes.mockResolvedValue({ filteredResults: [], coopCodes: ['aoo'] });
     listCoops.mockReturnValue([]);
     checkCoopForKnownPlayers
       .mockResolvedValueOnce({ ok: true, matched: [{ ign: 'Player1', discordId: '123' }], missing: [] })
@@ -60,4 +59,3 @@ describe('commands/checkifpc', () => {
     expect(content).toContain('https://eicoop-carpet.netlify.app/c1/');
   });
 });
-
