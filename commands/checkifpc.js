@@ -1,9 +1,8 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
 import { checkCoopForKnownPlayers, findFreeCoopCodes, listCoops } from '../services/coopService.js';
 import {
   chunkContent,
-  createDiscordProgressReporter,
   createTextComponentMessage,
 } from '../services/discord.js';
 
@@ -50,6 +49,34 @@ function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
   return prefixes.flatMap(prefix => suffixes.map(suffix => `${prefix}${suffix}`));
 }
 
+function resolveSendableChannel(interaction) {
+  const channel = interaction?.channel ?? null;
+  if (!channel || typeof channel.isTextBased !== 'function' || !channel.isTextBased()) {
+    return { ok: false, reason: 'unsupported-channel' };
+  }
+
+  if (typeof channel.isDMBased === 'function' && channel.isDMBased()) {
+    return { ok: true, channel };
+  }
+
+  const permissions = channel.permissionsFor?.(interaction.client?.user ?? null) ?? null;
+  if (!permissions) {
+    return { ok: false, reason: 'missing-permissions' };
+  }
+
+  if (!permissions.has(PermissionsBitField.Flags.ViewChannel) || !permissions.has(PermissionsBitField.Flags.SendMessages)) {
+    return { ok: false, reason: 'missing-send-permissions' };
+  }
+
+  if (typeof channel.isThread === 'function' && channel.isThread()) {
+    if (!permissions.has(PermissionsBitField.Flags.SendMessagesInThreads)) {
+      return { ok: false, reason: 'missing-thread-permissions' };
+    }
+  }
+
+  return { ok: true, channel };
+}
+
 export const data = new SlashCommandBuilder()
   .setName('checkifpc')
   .setDescription('Check non-free coops for known players')
@@ -81,12 +108,24 @@ export async function execute(interaction) {
     return;
   }
 
+  const channelCheck = resolveSendableChannel(interaction);
+  if (!channelCheck.ok) {
+    await interaction.reply(createTextComponentMessage(
+      'I cannot send messages in this channel. Please run this in a channel where I have permission to post.',
+      { flags: 64 }
+    ));
+    return;
+  }
+
+  await interaction.reply(createTextComponentMessage(
+    'Starting check. Progress will be logged to console; results will be posted here when finished.',
+    { flags: 64 }
+  ));
+
   const coopCodesToCheck = buildCoopCodes(codesOption);
   const summaries = await fetchContractSummaries();
   const sortedContracts = [...summaries].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
   const nameById = new Map(sortedContracts.map(c => [c.id, c.name || c.id]));
-
-  await interaction.deferReply();
 
   let selectedContracts;
   if (contractInput === ALL_DB_OPTION) {
@@ -99,32 +138,23 @@ export async function execute(interaction) {
   }
 
   if (!selectedContracts.length) {
-    await interaction.editReply(createTextComponentMessage('No contracts matched your selection.', { flags: 64 }));
+    await channelCheck.channel.send(createTextComponentMessage('No contracts matched your selection.'));
     return;
   }
 
   const totalSteps = selectedContracts.length * coopCodesToCheck.length;
-  const progressReporter = createDiscordProgressReporter(interaction, {
-    prefix: 'CheckIfPC',
-    width: 20,
-    intervalMs: 1500,
-  });
   const progress = totalSteps > 0
     ? {
         total: totalSteps,
         completed: 0,
-        async update({ completed, active } = {}) {
-          if (Number.isFinite(completed)) {
-            this.completed = Math.min(this.total, completed);
-          }
-          const activeCount = Number.isFinite(active) ? active : 0;
-          const queuedCount = Math.max(0, this.total - this.completed - activeCount);
-          await progressReporter({
-            completed: this.completed,
-            total: this.total,
-            active: activeCount,
-            queued: queuedCount,
-          });
+        lastLoggedAt: 0,
+        intervalMs: 15000,
+        log(force = false) {
+          const now = Date.now();
+          if (!force && now - this.lastLoggedAt < this.intervalMs) return;
+          this.lastLoggedAt = now;
+          const percent = Math.round((this.completed / this.total) * 100);
+          console.log(`[CheckIfPC] ${percent}% (${this.completed}/${this.total})`);
         },
       }
     : null;
@@ -133,11 +163,12 @@ export async function execute(interaction) {
   const updateProgress = async (increment = 0) => {
     if (!progress) return;
     completedCount = Math.min(progress.total, completedCount + increment);
-    await progress.update({ completed: completedCount, active: 0 });
+    progress.completed = completedCount;
+    progress.log();
   };
 
   if (progress) {
-    await progress.update({ completed: 0, active: 0 });
+    progress.log(true);
   }
 
   const resultsLines = [];
@@ -203,9 +234,9 @@ export async function execute(interaction) {
   const chunks = chunkContent(message.split('\n'));
   const [first, ...rest] = chunks;
 
-  await interaction.editReply(createTextComponentMessage(first));
+  await channelCheck.channel.send(createTextComponentMessage(first));
   for (const chunk of rest) {
-    await interaction.followUp(createTextComponentMessage(chunk));
+    await channelCheck.channel.send(createTextComponentMessage(chunk));
   }
 }
 
