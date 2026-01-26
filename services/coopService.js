@@ -449,6 +449,32 @@ export async function autoPopulateCoopMembers(contract, coop) {
   return { ok: true, matched: matchedDetailed, missing, departedCount };
 }
 
+export async function checkCoopForKnownPlayers(contract, coop) {
+  const normalized = normalizeCoopIdentifiers(contract, coop);
+  if (!normalized.ok) {
+    return { ok: false, reason: normalized.reason, matched: [], missing: [] };
+  }
+
+  let contributors;
+  try {
+    contributors = await fetchCoopContributors(normalized.contract, normalized.coop);
+  } catch (err) {
+    console.error('Failed to fetch coop contributors', normalized.contract, normalized.coop, err);
+    return { ok: false, reason: 'fetch-failed', matched: [], missing: [] };
+  }
+
+  const { uniqueIgns, departedCount } = extractUniqueIgns(contributors);
+  if (uniqueIgns.length === 0) {
+    return { ok: true, matched: [], missing: [], departedCount };
+  }
+
+  const memberRows = getMembersByIgns(uniqueIgns.map(entry => entry.ign));
+  const membersByIgn = mapMembersByIgn(memberRows);
+  const { matched, missing } = splitMatches(uniqueIgns, membersByIgn);
+
+  return { ok: true, matched, missing, departedCount };
+}
+
 export async function findFreeCoopCodes(contractId, coopCodes = []) {
   if (!contractId) {
     return { filteredResults: [], coopCodes: [] };
@@ -474,4 +500,5 @@ export default {
   listAllCoops,
   findFreeCoopCodes,
   autoPopulateCoopMembers,
+  checkCoopForKnownPlayers,
 };
