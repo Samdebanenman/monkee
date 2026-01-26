@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInteraction, createOptions } from './helpers.js';
 
 vi.mock('../../../services/discord.js', () => ({
