@@ -1,4 +1,4 @@
-﻿import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
 import { checkCoopForKnownPlayers, findFreeCoopCodes, listCoops } from '../services/coopService.js';
 import { chunkContent, createTextComponentMessage } from '../services/discord.js';
