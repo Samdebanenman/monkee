@@ -5,9 +5,14 @@ import zlib from 'node:zlib';
 export const PROTO_PATH = 'ei.proto';
 
 export const AUXBRAIN_ENDPOINTS = {
-  COOP_STATUS: 'https://www.auxbrain.com/ei/coop_status',
-  GET_PERIODICALS: 'https://www.auxbrain.com/ei/get_periodicals',
+  COOP_STATUS: '/ei/coop_status',
+  GET_PERIODICALS: '/ei/get_periodicals',
 };
+
+export const AUXBRAIN_BASE_URLS = [
+  'https://ctx-dot-auxbrainhome.appspot.com',
+  'https://www.auxbrain.com',
+];
 
 export const AUXBRAIN_TIMEOUT_MS = 80_000;
 
@@ -54,16 +59,38 @@ export function encodeProtoRequest(type, payload) {
   return Buffer.from(requestBuffer).toString('base64');
 }
 
+function buildAuxbrainUrl(baseUrl, endpoint) {
+  if (endpoint?.startsWith?.('http')) {
+    const parsed = new URL(endpoint);
+    return `${baseUrl}${parsed.pathname}${parsed.search}`;
+  }
+  return `${baseUrl}${endpoint ?? ''}`;
+}
+
 export async function postAuxbrain(endpoint, requestBase64, { timeout = AUXBRAIN_TIMEOUT_MS } = {}) {
-  return axios.post(
-    endpoint,
-    { data: requestBase64 },
-    {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      responseType: 'text',
-      timeout,
-    },
-  );
+  const primaryIndex = Math.random() < 0.5 ? 0 : 1;
+  const fallbackIndex = primaryIndex === 0 ? 1 : 0;
+  const attemptOrder = [primaryIndex, fallbackIndex];
+  let lastError;
+
+  for (const index of attemptOrder) {
+    const url = buildAuxbrainUrl(AUXBRAIN_BASE_URLS[index], endpoint);
+    try {
+      return await axios.post(
+        url,
+        { data: requestBase64 },
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          responseType: 'text',
+          timeout,
+        },
+      );
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
 }
 
 export async function decodeAuthenticatedPayload(responseData, { decompress = true } = {}) {
