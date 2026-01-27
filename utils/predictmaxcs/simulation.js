@@ -255,6 +255,8 @@ export function runSimulationLoop(options) {
         tokensUsed,
         tElapsed,
         boostOrder,
+        players,
+        baseIHR,
       });
       numberBoosting = boostResult.numberBoosting;
       tokensUsed = boostResult.tokensUsed;

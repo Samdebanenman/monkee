@@ -1,3 +1,5 @@
+import { getChickenRunAskPop } from './chickenRun.js';
+
 export function calcBoostMulti(tokens) {
   switch (tokens) {
     case 1:
@@ -88,6 +90,28 @@ export function computeTotalTokens(options) {
   return totalTokens;
 }
 
+function getBoostTargetPlayer(states, numberBoosting, boostOrder) {
+  const nextIndex = Array.isArray(boostOrder)
+    ? boostOrder[numberBoosting]
+    : numberBoosting;
+  return Number.isInteger(nextIndex) ? states[nextIndex] : states[numberBoosting];
+}
+
+function applyCrRequestChickens(player, { players, baseIHR }) {
+  const effectiveIHR = Number.isFinite(player.ihr) ? player.ihr : baseIHR;
+  const crRequestPop = getChickenRunAskPop({
+    maxChickens: player.maxChickens,
+    baseIHR: effectiveIHR,
+    boostMulti: player.boostMulti,
+    players,
+  });
+  const coopMembers = Number.isFinite(players) ? Math.max(0, players) : 0;
+  const extraChickens = crRequestPop * 0.05 * Math.max(0, coopMembers - 1);
+  if (extraChickens > 0) {
+    player.chickens = Math.min(player.maxChickens, player.chickens + extraChickens);
+  }
+}
+
 export function applyNextBoost(options) {
   const {
     states,
@@ -96,29 +120,29 @@ export function applyNextBoost(options) {
     tokensUsed,
     tElapsed,
     boostOrder,
+    players,
+    baseIHR,
   } = options;
 
-  const nextIndex = Array.isArray(boostOrder)
-    ? boostOrder[numberBoosting]
-    : numberBoosting;
-  const currentPlayer = Number.isInteger(nextIndex) ? states[nextIndex] : states[numberBoosting];
+  const currentPlayer = getBoostTargetPlayer(states, numberBoosting, boostOrder);
   if (!currentPlayer) {
     return { numberBoosting, tokensUsed };
   }
 
-  if (currentPlayer.tokens <= (totalTokens - tokensUsed)) {
-    currentPlayer.boostMulti = calcBoostMulti(currentPlayer.tokens);
-    if (currentPlayer.timeToBoost == null) {
-      currentPlayer.timeToBoost = tElapsed;
-    }
-    if (!currentPlayer.crRequested) {
-      currentPlayer.crRequested = true;
-    }
-    return {
-      numberBoosting: numberBoosting + 1,
-      tokensUsed: tokensUsed + currentPlayer.tokens,
-    };
+  if (currentPlayer.tokens > (totalTokens - tokensUsed)) {
+    return { numberBoosting, tokensUsed };
   }
 
-  return { numberBoosting, tokensUsed };
+  currentPlayer.boostMulti = calcBoostMulti(currentPlayer.tokens);
+  if (currentPlayer.timeToBoost == null) {
+    currentPlayer.timeToBoost = tElapsed;
+  }
+  if (!currentPlayer.crRequested) {
+    currentPlayer.crRequested = true;
+    applyCrRequestChickens(currentPlayer, { players, baseIHR });
+  }
+  return {
+    numberBoosting: numberBoosting + 1,
+    tokensUsed: tokensUsed + currentPlayer.tokens,
+  };
 }

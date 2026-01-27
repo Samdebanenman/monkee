@@ -492,6 +492,7 @@ async function handlePredictCsNext({ interaction, sessionId, playerIndex, sessio
   const avgTe = session.playerTe.reduce((sum, value) => sum + value, 0) / Math.max(1, session.playerTe.length);
   const assumptions = {
     te: Math.round(avgTe),
+    teValues: session.playerTe,
     tokensPerPlayer: 0,
     swapBonus: false,
     cxpMode: true,
@@ -879,6 +880,7 @@ async function runPredictCsSandbox(interaction, session, sandboxData, contractOv
   const avgTe = playerTe.reduce((sum, value) => sum + value, 0) / Math.max(1, playerTe.length);
   const assumptions = {
     te: Math.round(avgTe),
+    teValues: playerTe,
     tokensPerPlayer: 0,
     swapBonus: false,
     cxpMode: true,
