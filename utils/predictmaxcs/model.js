@@ -582,12 +582,17 @@ export async function optimizeLateBoostTokensAfterDeflector(options) {
     };
   };
 
-  const baseTokensByPlayer = Array.from({ length: players }, () => baseTokens);
+  const uniformTokensByPlayerList = tokenCandidates.map(candidate =>
+    Array.from({ length: players }, () => candidate));
   let completedOffset = 0;
-  const baseBatch = await evaluateBatch([baseTokensByPlayer], completedOffset);
+  const baseBatch = await evaluateBatch(uniformTokensByPlayerList, completedOffset);
   completedOffset = baseBatch.completedOffset;
-  let best = buildScoreEntry(baseBatch.results[0]);
-  let bestTokensByPlayer = baseTokensByPlayer;
+  const baseScores = baseBatch.results.map(buildScoreEntry);
+  const bestUniform = baseScores.reduce((top, entry, idx) =>
+    (entry.score > top.entry.score ? { entry, idx } : top),
+  { entry: baseScores[0], idx: 0 });
+  let best = bestUniform.entry;
+  let bestTokensByPlayer = uniformTokensByPlayerList[bestUniform.idx];
   let frontSweepBestScore = best.score;
 
   for (let index = 0; index < players; index += 1) {
