@@ -1,7 +1,7 @@
 import db from './client.js';
 import { DEFAULT_MAMABIRD_IDS } from './schema.js';
 
-const findMemberStmt = db.prepare('SELECT internal_id, discord_id, ign, main_id, sheet_tab, is_mamabird, is_active FROM members WHERE discord_id = ?');
+const findMemberStmt = db.prepare('SELECT internal_id, discord_id, discord_name, ign, main_id, sheet_tab, is_mamabird, is_active FROM members WHERE discord_id = ?');
 const findMemberSheetTabNameStmt = db.prepare('SELECT sheet_tab FROM members WHERE discord_id = ?');
 const insertMemberStmt = db.prepare('INSERT INTO members (discord_id) VALUES (?)');
 const countMemberChildrenStmt = db.prepare('SELECT COUNT(*) AS cnt FROM members WHERE main_id = ?');
@@ -11,7 +11,7 @@ const setMamaBirdStmt = db.prepare('UPDATE members SET is_mamabird = ? WHERE int
 const listMamaBirdsStmt = db.prepare('SELECT discord_id FROM members WHERE is_mamabird = 1 ORDER BY discord_id ASC');
 const listMembersWithoutIgnStmt = db.prepare('SELECT discord_id FROM members WHERE ign IS NULL AND is_active = 1 ORDER BY discord_id ASC');
 const listMembersWithIgnStmt = db.prepare('SELECT discord_id, ign FROM members WHERE ign IS NOT NULL AND is_active = 1 ORDER BY discord_id ASC');
-const listAllMemberStmt = db.prepare('SELECT * FROM members WHERE is_active = 1 ORDER BY sheet_tab ASC');
+const listAllMemberStmt = db.prepare('SELECT * FROM members ORDER BY sheet_tab ASC');
 const updateMemberIgnStmt = db.prepare('UPDATE members SET ign = ? WHERE internal_id = ?');
 const setMemberActiveStmt = db.prepare('UPDATE members SET is_active = ? WHERE internal_id = ?');
 const setMemberPushedStmt = db.prepare('UPDATE members SET is_pushed = ? WHERE discord_id = ?');
