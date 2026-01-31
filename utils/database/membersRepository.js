@@ -13,6 +13,7 @@ const listMembersWithoutIgnStmt = db.prepare('SELECT discord_id FROM members WHE
 const listMembersWithIgnStmt = db.prepare('SELECT discord_id, ign FROM members WHERE ign IS NOT NULL AND is_active = 1 ORDER BY discord_id ASC');
 const listAllMemberStmt = db.prepare('SELECT * FROM members ORDER BY sheet_tab ASC');
 const updateMemberIgnStmt = db.prepare('UPDATE members SET ign = ? WHERE internal_id = ?');
+const updateMemberDiscordNameStmt = db.prepare('UPDATE members SET discord_name = ? WHERE discord_id = ?');
 const setMemberActiveStmt = db.prepare('UPDATE members SET is_active = ? WHERE internal_id = ?');
 const setMemberPushedStmt = db.prepare('UPDATE members SET is_pushed = ? WHERE discord_id = ?');
 const upsertBnPlayersStmt = db.prepare(`
@@ -110,6 +111,16 @@ export function updateMemberIgnByInternalId(internalId, ignValue) {
 
   const normalizedIgn = normalizeIgn(ignValue) || null;
   const info = updateMemberIgnStmt.run(normalizedIgn, internalId);
+  return { changes: info.changes ?? 0 };
+}
+
+export function updateMemberDiscordNameByDiscordId(discordId, discordName) {
+  if (!discordId) {
+    return { changes: 0 };
+  }
+
+  const normalizedName = discordName == null ? null : String(discordName).trim();
+  const info = updateMemberDiscordNameStmt.run(normalizedName, discordId);
   return { changes: info.changes ?? 0 };
 }
 
