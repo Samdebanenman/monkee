@@ -26,10 +26,12 @@ export const data = new SlashCommandBuilder()
 					.setDescription('Your best deflector.')
 					.addChoices(...DEFLECTOR_CHOICES),
 			)
-			.addStringOption((option) =>
+			.addIntegerOption((option) =>
 				option
 					.setName('te')
-					.setDescription('Your TE amount (e.g., 45, 100).')
+					.setDescription('Your TE amount (0-490).')
+					.setMinValue(0)
+					.setMaxValue(490)
 			)
 			.addBooleanOption((option) =>
 				option
@@ -129,7 +131,7 @@ async function handleUpdatePlayerInfos(interaction) {
 			tabName: member.sheet_tab,
 			discordId: interaction.user.id,
 			discordName: interaction.user.username,
-			te: interaction.options.getString('te'),
+			te: interaction.options.getInteger('te'),
 			deflector: interaction.options.getString('def'),
 			hasUltra: interaction.options.getBoolean('ultra'),
 		};
