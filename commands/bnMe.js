@@ -127,6 +127,15 @@ export async function execute(interaction) {
 async function handleUpdatePlayerInfos(interaction) {
 	try {
 		const member = getMemberTabName(interaction.user.id);
+		if (!member?.sheet_tab) {
+			await interaction.reply(
+				createTextComponentMessage(
+					'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
+					{ ephemeral: true },
+				),
+			);
+			return;
+		}
 		const user = {
 			tabName: member.sheet_tab,
 			discordId: interaction.user.id,
@@ -168,9 +177,19 @@ async function handleUpdatePlayerContracts(interaction) {
 	try {
 		const wanted = interaction.options.getBoolean('wanted', true);
 		const contractId = interaction.options.getString('contract', true);
+		const member = getMemberTabName(interaction.user.id);
+		if (!member?.sheet_tab) {
+			await interaction.reply(
+				createTextComponentMessage(
+					'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
+					{ ephemeral: true },
+				),
+			);
+			return;
+		}
 
 		await updateContractsInSheet(
-			getMemberTabName(interaction.user.id).sheet_tab,
+			member.sheet_tab,
 			contractId,
 			wanted,
 		);
@@ -203,7 +222,17 @@ async function handleUpdatePlayerContracts(interaction) {
 async function handleUpdatePlayerSchedule(interaction) {
 	await interaction.deferReply({ ephemeral: true });
 	let selectedDay = 1;
-	const tabName = getMemberTabName(interaction.user.id).sheet_tab;
+	const member = getMemberTabName(interaction.user.id);
+	if (!member?.sheet_tab) {
+		await interaction.editReply(
+			createTextComponentMessage(
+				'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
+				{ ephemeral: true },
+			),
+		);
+		return;
+	}
+	const tabName = member.sheet_tab;
 	let schedule = await getUserSchedule(tabName);
 
 	const reply = await interaction.editReply({
