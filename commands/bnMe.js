@@ -182,6 +182,15 @@ async function handleUpdatePlayerContracts(interaction) {
 		);
 	} catch (error) {
 		console.error('Error on handleUpdatePlayerContracts:', error);
+		if (error?.message?.toLowerCase().includes('contract not found')) {
+			await interaction.reply(
+				createTextComponentMessage(
+					'Contract not found. Please select a valid contract from the list.',
+					{ ephemeral: true },
+				),
+			);
+			return;
+		}
 		await interaction.reply(
 			createTextComponentMessage(
 				'An error occurred while updating your contracts. Please try again later.',

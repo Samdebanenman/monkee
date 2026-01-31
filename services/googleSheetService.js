@@ -369,10 +369,12 @@ export async function updateContractsInSheet(sheetTab, contract, wanted) {
 
 		const contractMap = await getContractMapFromSheet();
 		const data = [];
+		let found = false;
 
 		for (const userRowIndex in contractMap) {
 			const contractId = contractMap[userRowIndex];
 			if (contractId == contract) {
+				found = true;
 				const rowIndex = parseInt(userRowIndex, 10);
 				const cell = `H${rowIndex + 1}`; // H2, H3, H4
 				data.push({
@@ -380,6 +382,9 @@ export async function updateContractsInSheet(sheetTab, contract, wanted) {
 					values: [[wanted ? 'TRUE' : 'FALSE']],
 				});
 			}
+		}
+		if (!found) {
+			throw new Error('Contract not found.');
 		}
 		await sheetsClient.spreadsheets.values.batchUpdate({
 			spreadsheetId: SPREADSHEET_ID,
