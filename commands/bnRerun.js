@@ -200,7 +200,8 @@ export async function execute(interaction) {
 
 	if (isPush) {
 		finalSlots.sort((a, b) => b.totalTE - a.totalTE);
-        title = `Rerun Slots to push \`${requiredUser.discord_name}\` for \`${contract.name}\``;
+		const pushLabel = requiredUser.discord_name ?? requiredUser.discord_id ?? 'Unknown';
+        title = `Rerun Slots to push \`${pushLabel}\` for \`${contract.name}\``;
 	} else {
 		finalSlots.sort((a, b) => b.playerCount - a.playerCount);
 	}
@@ -289,12 +290,12 @@ export async function autocomplete(interaction) {
 				.filter(
 					(member) =>
 						member.is_pushed &&
-						member.discord_name
+						String(member.discord_name ?? member.discord_id ?? '')
 							.toLowerCase()
 							.includes(focusedValue),
 				)
 				.map((member) => ({
-					name: member.discord_name,
+					name: member.discord_name ?? member.discord_id ?? 'Unknown',
 					value: member.discord_id,
 				}))
 				.slice(0, 25);

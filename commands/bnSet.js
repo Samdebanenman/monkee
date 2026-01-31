@@ -152,11 +152,14 @@ export async function autocomplete(interaction) {
 		try {
 			const players = listAllMembers();
 			const filtered = players
-				.filter((player) =>
-					player.discord_name.toLowerCase().includes(focusedValue),
-				)
+				.filter((player) => {
+					const label = String(
+						player.discord_name ?? player.discord_id ?? '',
+					).toLowerCase();
+					return label.includes(focusedValue);
+				})
 				.map((player) => ({
-					name: player.discord_name,
+					name: player.discord_name ?? player.discord_id ?? 'Unknown',
 					value: player.discord_id,
 				}))
 				.slice(0, 25);
