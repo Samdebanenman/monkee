@@ -85,7 +85,7 @@ async function handleUpdatePlayerPushed(interaction) {
 		await interaction.reply(
 			createTextComponentMessage(
 				`✅ <@${targetUserId}>'s pushed status has been set to **${isPushed}**.`,
-				{ ephemeral: true },
+				{ flags: 64 },
 			),
 		);
 	} catch (error) {
@@ -93,7 +93,7 @@ async function handleUpdatePlayerPushed(interaction) {
 		await interaction.reply(
 			createTextComponentMessage(
 				'An error occurred while setting the pushed status.',
-				{ ephemeral: true },
+				{ flags: 64 },
 			),
 		);
 	}
@@ -116,14 +116,14 @@ async function handleSetPlayerTabName(interaction) {
 	  `;
 
 		await interaction.reply(
-			createTextComponentMessage(replyMessage, { ephemeral: true }),
+			createTextComponentMessage(replyMessage, { flags: 64 }),
 		);
 	} catch (error) {
 		console.error('Error on handleUpdatePlayerInfos:', error);
 		await interaction.reply(
 			createTextComponentMessage(
 				'Failed to import player infos from Google Sheets. Please ensure tab name is set correctly and try again.',
-				{ ephemeral: true },
+				{ flags: 64 },
 			),
 		);
 	}

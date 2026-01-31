@@ -100,7 +100,7 @@ export async function execute(interaction) {
 	const user = getMemberRecord(interaction.user.id);
 	if (!user) {
 		await interaction.reply(
-			createTextComponentMessage(`You isn't a monkee member, please ask to a MamaBird to add you`, { ephemeral: true }),
+			createTextComponentMessage(`You isn't a monkee member, please ask to a MamaBird to add you`, { flags: 64 }),
 		);
 		return;
 	}
@@ -131,7 +131,7 @@ async function handleUpdatePlayerInfos(interaction) {
 			await interaction.reply(
 				createTextComponentMessage(
 					'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
-					{ ephemeral: true },
+					{ flags: 64 },
 				),
 			);
 			return;
@@ -146,7 +146,7 @@ async function handleUpdatePlayerInfos(interaction) {
 		};
 		if (!user.deflector && !user.te && !user.hasUltra) {
 			await interaction.reply(
-				createTextComponentMessage(`You need to update at least one field.`, { ephemeral: true }),
+				createTextComponentMessage(`You need to update at least one field.`, { flags: 64 }),
 			);
 			return;
 		}
@@ -160,14 +160,14 @@ async function handleUpdatePlayerInfos(interaction) {
 
 
 		await interaction.reply(
-			createTextComponentMessage(replyMessage, { ephemeral: true }),
+			createTextComponentMessage(replyMessage, { flags: 64 }),
 		);
 	} catch (error) {
 		console.error('Error on handleUpdatePlayerInfos:', error);
 		await interaction.reply(
 			createTextComponentMessage(
 				'An error occurred while trying to save your infos. Please try again later.',
-				{ ephemeral: true },
+				{ flags: 64 },
 			),
 		);
 	}
@@ -182,7 +182,7 @@ async function handleUpdatePlayerContracts(interaction) {
 			await interaction.reply(
 				createTextComponentMessage(
 					'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
-					{ ephemeral: true },
+					{ flags: 64 },
 				),
 			);
 			return;
@@ -197,14 +197,14 @@ async function handleUpdatePlayerContracts(interaction) {
 		const replyMessage = `## ✅ **${interaction.user.username}**, your selected contracts have been updated!`;
 
 		await interaction.reply(
-			createTextComponentMessage(replyMessage, { ephemeral: true }),
+			createTextComponentMessage(replyMessage, { flags: 64 }),
 		);
 	} catch (error) {
 		if (error?.message?.toLowerCase().includes('contract not found')) {
 			await interaction.reply(
 				createTextComponentMessage(
 					'Contract not found. Please select a valid contract from the list.',
-					{ ephemeral: true },
+					{ flags: 64 },
 				),
 			);
 			return;
@@ -213,21 +213,21 @@ async function handleUpdatePlayerContracts(interaction) {
 		await interaction.reply(
 			createTextComponentMessage(
 				'An error occurred while updating your contracts. Please try again later.',
-				{ ephemeral: true },
+				{ flags: 64 },
 			),
 		);
 	}
 }
 
 async function handleUpdatePlayerSchedule(interaction) {
-	await interaction.deferReply({ ephemeral: true });
+	await interaction.deferReply({ flags: 64 });
 	let selectedDay = 1;
 	const member = getMemberTabName(interaction.user.id);
 	if (!member?.sheet_tab) {
 		await interaction.editReply(
 			createTextComponentMessage(
 				'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
-				{ ephemeral: true },
+				{ flags: 64 },
 			),
 		);
 		return;
@@ -286,7 +286,7 @@ async function handleUpdatePlayerSchedule(interaction) {
 			const errorPayload = {
 				content: 'An error occurred while processing your request.',
 				components: [],
-				ephemeral: true,
+				flags: 64,
 			};
 			if (i.replied || i.deferred) {
 				await i
