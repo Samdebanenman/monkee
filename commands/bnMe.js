@@ -11,7 +11,7 @@ import {
   updatePlayerInfoInSheet,
   updateScheduleInSheet,
 } from '../services/googleSheetService.js';
-import { getMemberTabName } from '../utils/database/membersRepository.js';
+import { getMemberRecord, getMemberTabName } from '../utils/database/membersRepository.js';
 
 export const data = new SlashCommandBuilder()
 	.setName('bn-me')
@@ -24,20 +24,17 @@ export const data = new SlashCommandBuilder()
 				option
 					.setName('def')
 					.setDescription('Your best deflector.')
-					.setRequired(true)
 					.addChoices(...DEFLECTOR_CHOICES),
 			)
 			.addStringOption((option) =>
 				option
 					.setName('te')
 					.setDescription('Your TE amount (e.g., 45, 100).')
-					.setRequired(true),
 			)
 			.addBooleanOption((option) =>
 				option
 					.setName('ultra')
 					.setDescription('Do you have Ultra? (Yes/No)')
-					.setRequired(true),
 			),
 	)
 	.addSubcommand((subcommand) =>
@@ -98,6 +95,13 @@ export async function autocomplete(interaction) {
 
 export async function execute(interaction) {
 	const subcommand = interaction.options.getSubcommand();
+	const user = getMemberRecord(interaction.user.id);
+	if (!user) {
+		await interaction.reply(
+			createTextComponentMessage(`You isn't a monkee member, please ask to a MamaBird to add you`, { ephemeral: true }),
+		);
+		return;
+	}
 	switch (subcommand) {
 		case 'update':
 			await handleUpdatePlayerInfos(interaction);
@@ -125,19 +129,24 @@ async function handleUpdatePlayerInfos(interaction) {
 			tabName: member.sheet_tab,
 			discordId: interaction.user.id,
 			discordName: interaction.user.username,
-			te: interaction.options.getString('te', true),
-			deflector: interaction.options.getString('def', true),
-			hasUltra: interaction.options.getBoolean('ultra', true),
+			te: interaction.options.getString('te'),
+			deflector: interaction.options.getString('def'),
+			hasUltra: interaction.options.getBoolean('ultra'),
 		};
+		if (!user.deflector && !user.te && !user.hasUltra) {
+			await interaction.reply(
+				createTextComponentMessage(`You need to update at least one field.`, { ephemeral: true }),
+			);
+			return;
+		}
 
 		await updatePlayerInfoInSheet(user);
 
-		const replyMessage = `
-            ## ✅ **${user.discordName}**, your BN info has been saved successfully!
-            - TE: **${user.te}**
-            - Deflector: **${user.deflector}**
-            - Ultra: **${user.hasUltra ? 'Yes' : 'No'}**
-        `;
+		let replyMessage = `## ✅ **${user.discordName}**, your BN info has been saved successfully!`;
+		if (user.te) replyMessage += `\n- TE: **${user.te}**`;
+		if (user.deflector) replyMessage += `\n- Deflector: **${user.deflector}**`;
+		if (user.hasUltra != null) replyMessage += `\n- Ultra: **${user.hasUltra ? 'Yes' : 'No'}**`;
+
 
 		await interaction.reply(
 			createTextComponentMessage(replyMessage, { ephemeral: true }),

@@ -321,7 +321,7 @@ export async function updatePlayerInfoInSheet({
 		}
 
 		// Ultra status goes in B5
-		if (hasUltra !== undefined) {
+		if (hasUltra != null) {
 			data.push({
 				range: `${tabName}!B5`,
 				values: [[hasUltra ? 'Yes' : 'No']],
