@@ -200,7 +200,6 @@ async function handleUpdatePlayerContracts(interaction) {
 			createTextComponentMessage(replyMessage, { ephemeral: true }),
 		);
 	} catch (error) {
-		console.error('Error on handleUpdatePlayerContracts:', error);
 		if (error?.message?.toLowerCase().includes('contract not found')) {
 			await interaction.reply(
 				createTextComponentMessage(
@@ -210,6 +209,7 @@ async function handleUpdatePlayerContracts(interaction) {
 			);
 			return;
 		}
+		console.error('Error on handleUpdatePlayerContracts:', error);
 		await interaction.reply(
 			createTextComponentMessage(
 				'An error occurred while updating your contracts. Please try again later.',
