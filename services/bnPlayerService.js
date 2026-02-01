@@ -33,7 +33,7 @@ export const MAX_EPIC_DEFLECTORS = new Map([
     [12, 11],
 ]);
 
-function getHourOptions() {
+function getHourOptions({ timeMode = 'egg', localHourLabels = new Map() } = {}) {
 	const hours = [];
 	const orderedHours = [
 		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -41,16 +41,24 @@ function getHourOptions() {
 	];
 	for (const estHour of orderedHours) {
 		const utcHour = (REFERENCE_HOUR_UTC + estHour + 24) % 24;
+		const eggLabel = `${estHour > 0 ? '+' : ''}${estHour}`;
+		const localLabel = localHourLabels.get(estHour) || eggLabel;
 		hours.push({
 			value: `${utcHour}`,
-			label: `${estHour > 0 ? '+' : ''}${estHour}`,
-			description: `Time: ${utcHour.toString().padStart(2, '0')}:00 UTC`,
+			label: timeMode === 'local' ? localLabel : eggLabel,
+			description: timeMode === 'local'
+				? `Egg time: ${eggLabel} (UTC ${utcHour.toString().padStart(2, '0')}:00)`
+				: `Time: ${utcHour.toString().padStart(2, '0')}:00 UTC`,
 		});
 	}
 	return hours.slice(0, 25);
 }
 
-export async function createScheduleComponents(selectedDay, schedule) {
+export async function createScheduleComponents(
+	selectedDay,
+	schedule,
+	{ timeMode = 'egg', localHourLabels = new Map() } = {},
+) {
 	const dayButtons = WEEK_DAYS.map((day) =>
 		new ButtonBuilder()
 			.setCustomId(`day_${day.value}`)
@@ -70,7 +78,7 @@ export async function createScheduleComponents(selectedDay, schedule) {
 		dayButtons.slice(5),
 	);
 
-	const hourOptions = getHourOptions();
+	const hourOptions = getHourOptions({ timeMode, localHourLabels });
 	const savedHoursForDay = schedule.get(selectedDay) || new Set();
 
 	const hourSelect = new ActionRowBuilder().addComponents(
@@ -91,6 +99,10 @@ export async function createScheduleComponents(selectedDay, schedule) {
 			.setCustomId('finish_schedule')
 			.setLabel('Finish')
 			.setStyle(ButtonStyle.Success),
+		new ButtonBuilder()
+			.setCustomId('toggle_time')
+			.setLabel(timeMode === 'local' ? 'Show egg time' : 'Show local time')
+			.setStyle(ButtonStyle.Secondary),
 	);
 
 	return [dayButtonRow1, dayButtonRow2, hourSelect, finishButton];

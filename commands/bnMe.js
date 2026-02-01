@@ -6,6 +6,7 @@ import {
 import { fetchActiveContracts } from '../services/contractService.js';
 import { createTextComponentMessage } from '../services/discord.js';
 import {
+	fetchLocalTimeLabelsFromSheet,
   getUserSchedule,
   updateContractsInSheet,
   updatePlayerInfoInSheet,
@@ -222,6 +223,7 @@ async function handleUpdatePlayerContracts(interaction) {
 async function handleUpdatePlayerSchedule(interaction) {
 	await interaction.deferReply({ flags: 64 });
 	let selectedDay = 1;
+	let timeMode = 'egg';
 	const member = getMemberTabName(interaction.user.id);
 	if (!member?.sheet_tab) {
 		await interaction.editReply(
@@ -234,10 +236,22 @@ async function handleUpdatePlayerSchedule(interaction) {
 	}
 	const tabName = member.sheet_tab;
 	let schedule = await getUserSchedule(tabName);
+	const orderedHours = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, -4, -3, -2, -1];
+	const localLabelMap = new Map();
+	const localLabels = await fetchLocalTimeLabelsFromSheet(tabName);
+	orderedHours.forEach((hour, index) => {
+		const label = localLabels[index];
+		if (label) {
+			localLabelMap.set(hour, label);
+		}
+	});
 
 	const reply = await interaction.editReply({
 		content: `Hey ${interaction.user.toString()}, select a day to set your available hours.`,
-		components: await createScheduleComponents(selectedDay, schedule),
+		components: await createScheduleComponents(selectedDay, schedule, {
+			timeMode,
+			localHourLabels: localLabelMap,
+		}),
 	});
 
 	const collector = reply.createMessageComponentCollector({
@@ -256,6 +270,7 @@ async function handleUpdatePlayerSchedule(interaction) {
 					components: await createScheduleComponents(
 						selectedDay,
 						schedule,
+						{ timeMode, localHourLabels: localLabelMap },
 					),
 				});
 			} else if (i.customId === 'hour_select') {
@@ -272,6 +287,17 @@ async function handleUpdatePlayerSchedule(interaction) {
 					components: await createScheduleComponents(
 						selectedDay,
 						schedule,
+						{ timeMode, localHourLabels: localLabelMap },
+					),
+				});
+			} else if (i.customId === 'toggle_time') {
+				timeMode = timeMode === 'local' ? 'egg' : 'local';
+				await i.update({
+					content: `Hey ${interaction.user.toString()}, select a day to set your available hours.`,
+					components: await createScheduleComponents(
+						selectedDay,
+						schedule,
+						{ timeMode, localHourLabels: localLabelMap },
 					),
 				});
 			} else if (i.customId === 'finish_schedule') {

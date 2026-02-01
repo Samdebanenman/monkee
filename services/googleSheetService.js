@@ -84,6 +84,27 @@ async function getSheetsClient() {
 	}
 }
 
+export async function fetchLocalTimeLabelsFromSheet(tabName) {
+	try {
+		const sheetsClient = await getSheetsClient();
+		if (!sheetsClient) {
+			throw new Error('Sheets client is invalid.');
+		}
+		if (!tabName) {
+			throw new Error('Sheet tab name is invalid.');
+		}
+		const response = await sheetsClient.spreadsheets.values.get({
+			spreadsheetId: SPREADSHEET_ID,
+			range: `${tabName}!I12:I26`,
+		});
+		const rows = response.data.values ?? [];
+		return rows.map((row) => String(row?.[0] ?? '').trim());
+	} catch (error) {
+		console.error('Error fetching local time labels from sheet:', error);
+		return [];
+	}
+}
+
 async function getContractMapFromSheet() {
 	try {
 		const sheetsClient = await getSheetsClient();
@@ -434,6 +455,7 @@ export async function updateScheduleInSheet(sheetTab, dayOfWeek, utcHours) {
 }
 
 export default {
+	fetchLocalTimeLabelsFromSheet,
 	getUserSchedule,
 	updatePlayerInfoInSheet,
 	findPlayersForRerun,
