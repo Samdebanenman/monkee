@@ -35,9 +35,11 @@ export const MAX_EPIC_DEFLECTORS = new Map([
 
 function getHourOptions() {
 	const hours = [];
-	// From -4 to +10 relative to +0
-	for (let i = -4; i <= 10; i++) {
-		const estHour = i;
+	const orderedHours = [
+		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+		-4, -3, -2, -1,
+	];
+	for (const estHour of orderedHours) {
 		const utcHour = (REFERENCE_HOUR_UTC + estHour + 24) % 24;
 		hours.push({
 			value: `${utcHour}`,
