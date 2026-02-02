@@ -2,7 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { fetchPushReports } from '../services/coopService.js';
 import { listSeasons } from '../services/seasonService.js';
 import { chunkContent, MAX_DISCORD_COMPONENT_LENGTH, createTextComponentMessage } from '../services/discord.js';
-import EggtoEmoji from '../Enums.js';
+import { EggtoEmoji } from '../Enums.js';
 
 function formatLine({ egg, name, contract, coop, report }) {
   const eggKey = String(egg || 'UNKNOWN').trim().toUpperCase();
