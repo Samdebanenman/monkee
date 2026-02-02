@@ -67,7 +67,7 @@ export async function execute(interaction) {
 	const pushedUserId = interaction.options.getString('pushed');
 	const hoursInput = interaction.options.getString('hours') || '';
 	const isUltraOnly = interaction.options.getBoolean('ultra_only') || false;
-	const hours = hoursInput.split(',').map((h) => parseInt(h.trim(), 10)).filter((h) => !isNaN(h));
+	const hours = hoursInput.split(',').map((h) => Number.parseInt(h.trim(), 10)).filter((h) => !Number.isNaN(h));
 	const isPush = !!pushedUserId;
 
 	const requiredUser = getMemberRecord(pushedUserId || interaction.user.id);
@@ -111,13 +111,13 @@ export async function execute(interaction) {
 			continue;
 		}
 
-		let finalPlayers = hourPlayers;
 		const requiredPlayer = hourPlayers.find(
 			(p) => p.sheet_tab == requiredUser.sheet_tab,
 		);
 		const otherPlayers = hourPlayers.filter(
 			(p) => p.sheet_tab != requiredUser.sheet_tab,
 		);
+		let finalPlayers;
 
 		if (isPush) {
 			// Filter only T4L;
@@ -127,7 +127,7 @@ export async function execute(interaction) {
 			const maxEpics = MAX_EPIC_DEFLECTORS.get(contract.max_coop_size);
 			const epicPlayers = otherPlayers
 				.filter((p) => p.deflector === 'T4E')
-				.sort((a, b) => (parseInt(b.te, 10) || 0) - (parseInt(a.te, 10) || 0))
+				.sort((a, b) => (Number.parseInt(b.te, 10) || 0) - (Number.parseInt(a.te, 10) || 0))
 				.slice(0, maxEpics);
 			
 			// Form players to pushRun
@@ -138,7 +138,7 @@ export async function execute(interaction) {
 			
 			// Push run: sort by TE, keeping the push user on top.
 			filteredPushPlayers.sort(
-				(a, b) => (parseInt(b.te, 10) || 0) - (parseInt(a.te, 10) || 0),
+				(a, b) => (Number.parseInt(b.te, 10) || 0) - (Number.parseInt(a.te, 10) || 0),
 			);
 			finalPlayers = [requiredPlayer, ...filteredPushPlayers].filter(
 				Boolean,
@@ -161,7 +161,7 @@ export async function execute(interaction) {
 				players: finalPlayers,
 				playerCount: finalPlayers.length,
 				totalTE: finalPlayers.slice(0, contract.max_coop_size).reduce(
-					(sum, p) => sum + (parseInt(p.te, 10) || 0),
+					(sum, p) => sum + (Number.parseInt(p.te, 10) || 0),
 					0,
 				),
 			});

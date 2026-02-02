@@ -264,7 +264,7 @@ async function handleUpdatePlayerSchedule(interaction) {
 	collector.on('collect', async (i) => {
 		try {
 			if (i.customId.startsWith('day_')) {
-				selectedDay = parseInt(i.customId.split('_')[1], 10);
+				selectedDay = Number.parseInt(i.customId.split('_')[1], 10);
 				await i.update({
 					content: `Hey ${interaction.user.toString()}, select a day to set your available hours.`,
 					components: await createScheduleComponents(
@@ -274,7 +274,7 @@ async function handleUpdatePlayerSchedule(interaction) {
 					),
 				});
 			} else if (i.customId === 'hour_select') {
-				const selectedHours = i.values.map((v) => parseInt(v, 10));
+				const selectedHours = i.values.map((v) => Number.parseInt(v, 10));
 				await updateScheduleInSheet(
 					tabName,
 					selectedDay,

@@ -31,7 +31,7 @@ const DEFLECTOR_MAP = {
 	E: 'T4E',
 	L: 'T4L',
 };
-const IGNORED_TABS = [
+const IGNORED_TABS = new Set([
 	'Instructions',
 	'Filter',
 	'Current Contracts',
@@ -45,7 +45,7 @@ const IGNORED_TABS = [
 	'Friday',
 	'Saturday',
 	'Sunday',
-];
+]);
 
 const EST_TO_ROW = {
 	0: 11,
@@ -64,7 +64,7 @@ const EST_TO_ROW = {
 	'-2': 24,
 	'-1': 25,
 };
-const ALL_EST_HOURS = Object.keys(EST_TO_ROW).map((k) => parseInt(k, 10));
+const ALL_EST_HOURS = Object.keys(EST_TO_ROW).map((k) => Number.parseInt(k, 10));
 
 async function getSheetsClient() {
 	if (!fs.existsSync(CREDENTIALS_PATH)) {
@@ -135,9 +135,8 @@ async function getContractMapFromSheet() {
 async function getPlayerFromSheet(tabName, contractId, day, hours, isUltraOnly) {
 	try {
 		const sheetsClient = await getSheetsClient();
-		if (!sheetsClient || !tabName) {
-			return null;
-		}
+		if (!sheetsClient || !tabName) return null;
+		
 
 		const response = await sheetsClient.spreadsheets.values.batchGet({
 			spreadsheetId: SPREADSHEET_ID,
@@ -147,27 +146,11 @@ async function getPlayerFromSheet(tabName, contractId, day, hours, isUltraOnly) 
 		const [userValueRange, contractsValueRange] = response.data.valueRanges;
 
 		const userRows = userValueRange.values;
-		if (!userRows || userRows.length === 0) {
-			return null;
-		}
-
-		if (!contractsValueRange || contractsValueRange.values.length === 0) {
-			return null;
-		}
-
-		if (!userRows || userRows.length === 0) {
-			return null;
-		}
-
-		if (userRows.length < 5) {
-			return null;
-		}
-
 		const contractRowsData = contractsValueRange.values;
-		if (!contractRowsData || contractRowsData.length < 5) {
-			return null;
-		}
 
+		if (!userRows || userRows.length < 5) return null;
+		if (!contractRowsData || contractRowsData.length < 5) return null
+		
 		// --- Get Selected Contracts ---
 		// Contract IDs are in 'Current Contracts'!E3, E4, E5
 		// Participation flags are in user's sheet at H2, H3, H4
@@ -223,8 +206,8 @@ async function getPlayerFromSheet(tabName, contractId, day, hours, isUltraOnly) 
 		// Columns B to H correspond to Monday to Sunday
 		const userHours = [];
 		for (const rowIndexStr in ROW_TO_EST) {
-			const rowIndex = parseInt(rowIndexStr, 10);
-			const dayIdx = parseInt(day, 10);
+			const rowIndex = Number.parseInt(rowIndexStr, 10);
+			const dayIdx = Number.parseInt(day, 10);
 			if (
 				userRows[rowIndex] &&
 				String(userRows[rowIndex][dayIdx]).toUpperCase() === 'TRUE' &&
@@ -272,15 +255,7 @@ export async function getUserSchedule(tabName) {
 		const [userValueRange] = response.data.valueRanges;
 
 		const userRows = userValueRange.values;
-		if (!userRows || userRows.length === 0) {
-			throw new Error('No data found in the specified tab.');
-		}
-
-		if (!userRows || userRows.length === 0) {
-			throw new Error('No data found in the specified tab.');
-		}
-
-		if (userRows.length < 5) {
+		if (!userRows || userRows.length === 0 || userRows.length < 5) {
 			throw new Error('No data found in the specified tab.');
 		}
 
@@ -289,7 +264,7 @@ export async function getUserSchedule(tabName) {
 		// Columns B to H correspond to Monday to Sunday
 		for (let i = 1; i <= 7; i++) {
 			for (const rowIndexStr in ROW_TO_EST) {
-				const rowIndex = parseInt(rowIndexStr, 10);
+				const rowIndex = Number.parseInt(rowIndexStr, 10);
 				if (
 					userRows[rowIndex] &&
 					String(userRows[rowIndex][i]).toUpperCase() === 'TRUE'
@@ -304,6 +279,7 @@ export async function getUserSchedule(tabName) {
 		}
 		return schedule;
 	} catch (error) {
+		console.error('Error fetching user schedule:', error);
 		throw error;
 	}
 }
@@ -356,6 +332,7 @@ export async function updatePlayerInfoInSheet({
 			requestBody: { valueInputOption: 'USER_ENTERED', data },
 		});
 	} catch (error) {
+		console.error('Error updating player info in sheet:', error);
 		throw error;
 	}
 }
@@ -375,9 +352,10 @@ export async function fetchUserTabNames() {
 		const allTabs = spreadsheetInfo.data.sheets.map(
 			(sheet) => sheet.properties.title,
 		);
-		return allTabs.filter((tab) => !IGNORED_TABS.includes(tab));
+		return allTabs.filter((tab) => !IGNORED_TABS.has(tab));
 	} catch (error) {
-		throw error;
+			console.error('Error fetching user tab names:', error);
+			throw error;
 	}
 }
 
@@ -396,7 +374,7 @@ export async function updateContractsInSheet(sheetTab, contract, wanted) {
 			const contractId = contractMap[userRowIndex];
 			if (contractId == contract) {
 				found = true;
-				const rowIndex = parseInt(userRowIndex, 10);
+				const rowIndex = Number.parseInt(userRowIndex, 10);
 				const cell = `H${rowIndex + 1}`; // H2, H3, H4
 				data.push({
 					range: `${sheetTab}!${cell}`,
@@ -415,6 +393,7 @@ export async function updateContractsInSheet(sheetTab, contract, wanted) {
 			},
 		});
 	} catch (e) {
+		console.error('Error updating contracts in sheet:', e);
 		throw e;
 	}
 }
@@ -433,8 +412,8 @@ export async function updateScheduleInSheet(sheetTab, dayOfWeek, utcHours) {
 			const rowIndex = EST_TO_ROW[estHour];
 			const value = availableHours.has(estHour) ? 'TRUE' : 'FALSE';
 			// Using A1 notation. Column B is Monday, C is Tuesday, etc.
-			const columnLetter = String.fromCharCode(
-				'A'.charCodeAt(0) + dayOfWeek,
+			const columnLetter = String.fromCharCodePoint(
+				'A'.charCodePointAt(0) + dayOfWeek,
 			);
 			const cell = `${columnLetter}${rowIndex + 1}`;
 			data.push({
@@ -450,6 +429,7 @@ export async function updateScheduleInSheet(sheetTab, dayOfWeek, utcHours) {
 			},
 		});
 	} catch (e) {
+		console.error('Error updating schedule in sheet:', e);
 		throw e;
 	}
 }

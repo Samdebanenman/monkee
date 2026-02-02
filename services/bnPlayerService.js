@@ -64,7 +64,7 @@ export async function createScheduleComponents(
 			.setCustomId(`day_${day.value}`)
 			.setLabel(day.label)
 			.setStyle(
-				parseInt(day.value, 10) === selectedDay
+				Number.parseInt(day.value, 10) === selectedDay
 					? ButtonStyle.Primary
 					: ButtonStyle.Secondary,
 			),
@@ -90,7 +90,7 @@ export async function createScheduleComponents(
 			.addOptions(
 				hourOptions.map((opt) => ({
 					...opt,
-					default: savedHoursForDay.has(parseInt(opt.value, 10)),
+					default: savedHoursForDay.has(Number.parseInt(opt.value, 10)),
 				})),
 			),
 	);

@@ -35,7 +35,7 @@ export const data = new SlashCommandBuilder()
 		subcommand
 			.setName('player_tab')
 			.setDescription(
-				"Sets a player's tab name from Quail\'s Sheet for BN reruns.",
+				"Sets a player's tab name from Quail's Sheet for BN reruns.",
 			)
 			.addUserOption((option) =>
 				option
