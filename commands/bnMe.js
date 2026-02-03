@@ -175,12 +175,13 @@ async function handleUpdatePlayerInfos(interaction) {
 }
 
 async function handleUpdatePlayerContracts(interaction) {
+	await interaction.deferReply({ flags: 64 });
 	try {
 		const wanted = interaction.options.getBoolean('wanted', true);
 		const contractId = interaction.options.getString('contract', true);
 		const member = getMemberTabName(interaction.user.id);
 		if (!member?.sheet_tab) {
-			await interaction.reply(
+			await interaction.editReply(
 				createTextComponentMessage(
 					'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
 					{ flags: 64 },
@@ -197,12 +198,12 @@ async function handleUpdatePlayerContracts(interaction) {
 
 		const replyMessage = `## ✅ **${interaction.user.username}**, your selected contracts have been updated!`;
 
-		await interaction.reply(
+		await interaction.editReply(
 			createTextComponentMessage(replyMessage, { flags: 64 }),
 		);
 	} catch (error) {
 		if (error?.message?.toLowerCase().includes('contract not found')) {
-			await interaction.reply(
+			await interaction.editReply(
 				createTextComponentMessage(
 					'Contract not found. Please select a valid contract from the list.',
 					{ flags: 64 },
@@ -211,7 +212,7 @@ async function handleUpdatePlayerContracts(interaction) {
 			return;
 		}
 		console.error('Error on handleUpdatePlayerContracts:', error);
-		await interaction.reply(
+		await interaction.editReply(
 			createTextComponentMessage(
 				'An error occurred while updating your contracts. Please try again later.',
 				{ flags: 64 },
