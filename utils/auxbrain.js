@@ -1,11 +1,15 @@
 import axios from 'axios';
 import protobuf from 'protobufjs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 
-export const PROTO_PATH = 'ei.proto';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const PROTO_PATH = path.join(__dirname, '..', 'ei.proto');
 
 export const AUXBRAIN_ENDPOINTS = {
   COOP_STATUS: '/ei/coop_status',
+  QUERY_COOP: '/ei/query_coop',
   GET_PERIODICALS: '/ei/get_periodicals',
 };
 

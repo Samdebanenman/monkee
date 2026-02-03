@@ -15,6 +15,7 @@ const { auxbrainMock, state } = vi.hoisted(() => {
 
   const getProtoType = vi.fn(async (name) => {
     if (name === 'ei.ContractCoopStatusRequest') return makeRequestType();
+    if (name === 'ei.QueryCoopRequest') return makeRequestType();
     return makeResponseType();
   });
 
@@ -23,7 +24,14 @@ const { auxbrainMock, state } = vi.hoisted(() => {
     encodeProtoRequest: vi.fn(() => 'encoded'),
     postAuxbrain: vi.fn(async () => ({ data: 'response' })),
     decodeAuthenticatedPayload: vi.fn(async () => ({ messageBuffer: Buffer.from('resp') })),
-    AUXBRAIN_ENDPOINTS: { COOP_STATUS: 'https://example.test' },
+    AUXBRAIN_ENDPOINTS: { COOP_STATUS: 'https://example.test', QUERY_COOP: 'https://example.test' },
+    CLIENT_INFO: {
+      CLIENT_VERSION: 123,
+      BUILD: '111313',
+      VERSION: '1.35',
+      PLATFORM: 'DROID',
+      RINFO_CLIENT_VERSION: 70,
+    },
   };
 
   return { auxbrainMock, state };
@@ -41,7 +49,7 @@ beforeEach(() => {
 
 describe('utils/coopchecker', () => {
   it('returns free status when coop is not created', async () => {
-    state.responseQueue.push({});
+    state.responseQueue.push({ exists: false });
 
     const result = await checkCoop('c1', 'aa');
     expect(result.free).toBe(true);
@@ -55,7 +63,7 @@ describe('utils/coopchecker', () => {
   });
 
   it('filters free coops when checking multiple', async () => {
-    state.responseQueue.push({ totalAmount: 1 }, {});
+    state.responseQueue.push({ exists: true }, { exists: false });
 
     const result = await checkAllFromContractID('c1', ['aa', 'bb']);
     expect(result.filteredResults).toEqual(['bb']);

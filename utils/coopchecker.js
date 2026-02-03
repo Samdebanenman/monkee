@@ -1,5 +1,6 @@
 import {
   AUXBRAIN_ENDPOINTS,
+  CLIENT_INFO,
   decodeAuthenticatedPayload,
   encodeProtoRequest,
   getProtoType,
@@ -28,11 +29,39 @@ async function postCoopStatus(contractIdentifier, coopCode) {
   return ContractCoopStatusResponse.decode(messageBuffer);
 }
 
+async function postQueryCoop(contractIdentifier, coopCode) {
+  const QueryCoopRequest = await getProtoType('ei.QueryCoopRequest');
+  const QueryCoopResponse = await getProtoType('ei.QueryCoopResponse');
+
+  const rinfo = {
+    clientVersion: CLIENT_INFO.RINFO_CLIENT_VERSION ?? CLIENT_INFO.CLIENT_VERSION,
+    version: CLIENT_INFO.VERSION,
+    build: CLIENT_INFO.BUILD,
+    platform: CLIENT_INFO.PLATFORM,
+  };
+
+  if (DEFAULT_USER_ID) {
+    rinfo.eiUserId = DEFAULT_USER_ID;
+  }
+
+  const payload = QueryCoopRequest.create({
+    rinfo,
+    contractIdentifier,
+    coopIdentifier: coopCode,
+    clientVersion: CLIENT_INFO.CLIENT_VERSION,
+  });
+
+  const requestBase64 = encodeProtoRequest(QueryCoopRequest, payload);
+  const response = await postAuxbrain(AUXBRAIN_ENDPOINTS.QUERY_COOP, requestBase64);
+  const { messageBuffer } = await decodeAuthenticatedPayload(response.data, { decompress: false });
+  return QueryCoopResponse.decode(messageBuffer);
+}
+
 export async function checkCoop(contractIdentifier, coopCode) {
   try {
-    const status = await postCoopStatus(contractIdentifier, coopCode);
-    const isCreated = Object.hasOwn(status, 'totalAmount');
-    return { coopCode, free: !isCreated };
+    const status = await postQueryCoop(contractIdentifier, coopCode);
+    const exists = Boolean(status?.exists);
+    return { coopCode, free: !exists };
   } catch (err) {
     return { coopCode, error: err?.message ?? String(err) };
   }
