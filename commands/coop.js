@@ -5,6 +5,7 @@ import {
   removeCoop as removeCoopRecord,
   updatePushFlag,
   addPlayersToCoop,
+  addPlayersToCoopWithDetails,
   addCoopIfMissing,
   listCoops,
   saveCoopReport,
@@ -41,6 +42,11 @@ export const data = new SlashCommandBuilder()
         option
           .setName('coop')
           .setDescription('Coop id')
+      )
+      .addStringOption(option =>
+        option
+          .setName('members')
+          .setDescription('Optional Discord mentions or IDs to add')
       )
       .addBooleanOption(option =>
         option
@@ -209,6 +215,37 @@ async function handleAddCoop(interaction) {
     return;
   }
 
+  if (options.membersInput) {
+    const memberResult = await addPlayersToCoopWithDetails({
+      contract: result.contract,
+      coop: result.coop,
+      userInput: options.membersInput,
+    });
+
+    if (!memberResult.ok) {
+      let message = `Failed to link players: ${memberResult.reason ?? 'unknown error'}`;
+      if (memberResult.reason === 'no-users') {
+        message = 'No valid Discord IDs provided.';
+      } else if (memberResult.reason === 'unknown-contract') {
+        message = `Invalid contract ID: ${result.contract}`;
+      } else if (memberResult.reason === 'coop-not-found') {
+        message = `Coop ${result.contract}/${result.coop} does not exist. Add it first with </coop addcoop:1427617464535089254>.`;
+      }
+
+      await interaction.editReply(createTextComponentMessage(message, { allowedMentions: { users: [] } }));
+      return;
+    }
+
+    const lines = buildManualAddCoopLines(result, memberResult);
+
+    if (options.pushFlag) {
+      lines.push('', 'This coop was added as a push coop, add a report after the coop finishes with </coop addreport:1427617464535089254>');
+    }
+
+    await sendChunkedReply(interaction, lines);
+    return;
+  }
+  
   if (true) return interaction.editReply(createTextComponentMessage(`Added coop: \`${result.contract}/${result.coop}\`. coop_status is locked down, so I can't check who's in the coop right now.`, { allowedMentions: { users: [] } }));
 
   const autoResult = await autoPopulateCoopMembers(result.contract, result.coop);
@@ -222,10 +259,32 @@ async function handleAddCoop(interaction) {
   await sendChunkedReply(interaction, lines);
 }
 
+function buildManualAddCoopLines(result, memberResult) {
+  const lines = [`Added coop: \`${result.contract}/${result.coop}\``];
+  lines.push('', 'members:');
+
+  const memberDetails = memberResult.memberDetails ?? [];
+  if (memberDetails.length === 0) {
+    lines.push('(none)');
+    return lines;
+  }
+
+  const already = new Set(memberResult.alreadyLinked ?? []);
+
+  for (const entry of memberDetails) {
+    const ign = entry.ign ? `\`${entry.ign}\`` : '`(no ign)`';
+    const status = already.has(entry.discordId) ? ' (already linked)' : '';
+    lines.push(`<@${entry.discordId}> ${ign}${status}`);
+  }
+
+  return lines;
+}
+
 function parseAddCoopOptions(interaction) {
   const url = normalizeText(interaction.options.getString('url'));
   const contract = normalizeText(interaction.options.getString(CONTRACT_OPTION));
   const coop = normalizeText(interaction.options.getString(COOP_OPTION));
+  const membersInput = normalizeText(interaction.options.getString('members'));
   const pushFlag = interaction.options.getBoolean('push') ?? false;
 
   let rawInput = url;
@@ -245,7 +304,7 @@ function parseAddCoopOptions(interaction) {
     return { ok: false, message: 'Provide a coop URL or contract/coop pair.' };
   }
 
-  return { ok: true, rawInput, pushFlag };
+  return { ok: true, rawInput, pushFlag, membersInput };
 }
 
 function buildAddCoopFailureMessage(result) {

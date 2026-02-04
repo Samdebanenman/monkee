@@ -16,6 +16,7 @@ import {
   getPastCoops,
   getPastCoopsByCoop,
   getMembersByIgns,
+  getMemberRecord,
 } from '../utils/database/index.js';
 import { extractDiscordIds, extractDiscordId, isValidHttpUrl } from './discord.js';
 import { isKnownContract, refreshContracts, listCoops as listCoopsForContract } from './contractService.js';
@@ -155,6 +156,27 @@ export async function addPlayersToCoop({ contract, coop, userInput }) {
     alreadyLinked: linkResult.alreadyIds ?? [],
     contract: normalizedContract,
     coop: normalizedCoop,
+  };
+}
+
+export async function addPlayersToCoopWithDetails({ contract, coop, userInput }) {
+  const result = await addPlayersToCoop({ contract, coop, userInput });
+  if (!result.ok) {
+    return result;
+  }
+
+  const allIds = [...new Set([...(result.newlyLinked ?? []), ...(result.alreadyLinked ?? [])])];
+  const memberDetails = allIds.map(discordId => {
+    const record = getMemberRecord(discordId);
+    return {
+      discordId,
+      ign: record?.ign ?? null,
+    };
+  });
+
+  return {
+    ...result,
+    memberDetails,
   };
 }
 
@@ -501,4 +523,5 @@ export default {
   findFreeCoopCodes,
   autoPopulateCoopMembers,
   checkCoopForKnownPlayers,
+  addPlayersToCoopWithDetails,
 };
