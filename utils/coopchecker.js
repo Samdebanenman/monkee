@@ -22,6 +22,7 @@ async function postCoopStatus(contractIdentifier, coopCode) {
     contractIdentifier,
     coopIdentifier: coopCode,
     userId: COOP_STATUS_ACCESS_CODE,
+    clientTimestamp: Math.floor(Date.now() / 1000),
   });
 
   const requestBase64 = encodeProtoRequest(ContractCoopStatusRequest, payload);

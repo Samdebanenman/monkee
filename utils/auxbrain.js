@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const PROTO_PATH = path.join(__dirname, '..', 'ei.proto');
 
 export const AUXBRAIN_ENDPOINTS = {
-  COOP_STATUS: '/ei/coop_status',
+  COOP_STATUS: '/ei/coop_status_bot',
   QUERY_COOP: '/ei/query_coop',
   GET_PERIODICALS: '/ei/get_periodicals',
 };
