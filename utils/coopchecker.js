@@ -8,6 +8,7 @@ import {
 } from './auxbrain.js';
 
 const DEFAULT_USER_ID = process.env.EID;
+const COOP_STATUS_ACCESS_CODE = process.env.COOP_STATUS_ACCESS_CODE;
 const COOP_CODES = Object.freeze([
   ...Array.from({ length: 26 }, (_, index) => `${String.fromCodePoint(97 + index)}oo`),
   '-oo',
@@ -20,7 +21,7 @@ async function postCoopStatus(contractIdentifier, coopCode) {
   const payload = ContractCoopStatusRequest.create({
     contractIdentifier,
     coopIdentifier: coopCode,
-    userId: DEFAULT_USER_ID,
+    userId: COOP_STATUS_ACCESS_CODE,
   });
 
   const requestBase64 = encodeProtoRequest(ContractCoopStatusRequest, payload);

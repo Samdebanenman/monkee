@@ -246,8 +246,6 @@ async function handleAddCoop(interaction) {
     return;
   }
   
-  if (true) return interaction.editReply(createTextComponentMessage(`Added coop: \`${result.contract}/${result.coop}\`. coop_status is locked down, so I can't check who's in the coop right now.`, { allowedMentions: { users: [] } }));
-
   const autoResult = await autoPopulateCoopMembers(result.contract, result.coop);
   const lines = buildAddCoopSuccessLines(result, autoResult);
 

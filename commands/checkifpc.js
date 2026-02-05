@@ -115,8 +115,6 @@ export async function execute(interaction) {
     return;
   }
 
-  if (true) return interaction.reply(createTextComponentMessage('coop_status is locked down, so I can\'t check who\'s in the coop right now.', { flags: 64 }));
-
   await interaction.reply(createTextComponentMessage(
     'Starting check. Progress will be logged to console; results will be posted here when finished.',
     { flags: 64 }

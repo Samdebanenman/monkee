@@ -48,6 +48,7 @@ SPREADSHEET_ID=your_spreadsheet_id
 
 # Egg, Inc.
 EID=EIxxxxxxxxxxxxxxxx     # Egg, Inc. user ID (starts with EI)
+COOP_STATUS_ACCESS_CODE=your_access_code  # Required for coop_status endpoint
 
 # Optional
 # OpenAI (needed for Monkee replies and /test embedding matcher)
@@ -60,6 +61,7 @@ NODE_ENV=production             # Set if you want explicit mode
 Notes:
 - Without `OPENAI_API_KEY`, Monkee replies and the embedding-based `/test` command will not run; the bot will warn once in-channel instead of crashing.
 - The SQLite file is created automatically. If `COOPS_DB_PATH` is set, the directory will be created as needed.
+- `COOP_STATUS_ACCESS_CODE` is used only for coop status requests; other endpoints keep using `EID`.
 
 ## Commands overview
 - `/monkee on|off` — toggle the Monkee AI responder (authorized to user `659339631564947456`).
