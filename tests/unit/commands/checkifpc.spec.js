@@ -3,7 +3,6 @@ import { createInteraction, createOptions } from './helpers.js';
 
 vi.mock('../../../services/discord.js', () => ({
   createTextComponentMessage: (content, options = {}) => ({ content, ...options }),
-  chunkContent: (input) => [Array.isArray(input) ? input.join('\n') : String(input)],
 }));
 
 vi.mock('../../../services/contractService.js', () => ({
@@ -55,9 +54,9 @@ describe('commands/checkifpc', () => {
     expect(interaction.reply).toHaveBeenCalled();
     expect(checkCoopForKnownPlayers).toHaveBeenCalled();
 
-    const sent = interaction.channel.send.mock.calls
+    const edits = interaction.editReply.mock.calls
       .map(call => call?.[0]?.content ?? '')
       .join('\n');
-    expect(sent).toContain('https://eicoop-carpet.netlify.app/c1/');
+    expect(edits).toContain('https://eicoop-carpet.netlify.app/c1/');
   });
 });
