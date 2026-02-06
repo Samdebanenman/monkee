@@ -116,7 +116,7 @@ async function buildStaticContractOptions() {
   const options = [
     { name: 'All (Seasonal + Leggacy)', value: '__ALL__', description: 'Includes seasonal and leggacy' },
     { name: 'All Seasonal', value: '__ALL_SEASONAL__', description: 'Seasonal contracts only' },
-    ...combined.map(([name, id]) => ({ name, value: id, description: id })),
+    ...combined.map(([name, id]) => ({ name: `${name} (${id})`, value: id, description: id })),
   ];
 
   return options.slice(0, 25);
@@ -134,7 +134,7 @@ async function respondWithContracts(interaction, focused) {
     })
     .slice(0, 15)
     .map(contract => {
-      const label = contract.name || contract.id;
+      const label = contract.name ? `${contract.name} (${contract.id})` : contract.id;
       const description = contract.name ? contract.id : undefined;
       return { name: label, value: contract.id, description };
     });

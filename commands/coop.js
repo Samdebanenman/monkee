@@ -612,7 +612,7 @@ async function respondWithContracts(interaction, focused) {
     })
     .slice(0, 15)
     .map(contract => {
-      const label = contract.name || contract.id;
+      const label = contract.name ? `${contract.name} (${contract.id})` : contract.id;
       const description = contract.name ? contract.id : undefined;
       return { name: label, value: contract.id, description };
     });

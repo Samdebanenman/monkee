@@ -236,7 +236,7 @@ async function buildStaticContractOptions() {
   const sorted = [...contracts].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
 
   const options = sorted.map(contract => ({
-    name: contract.name || contract.id,
+    name: contract.name ? `${contract.name} (${contract.id})` : contract.id,
     value: contract.id,
     description: contract.name ? contract.id : undefined,
   }));
@@ -256,7 +256,7 @@ async function respondWithContracts(interaction, focused) {
     })
     .slice(0, 15)
     .map(contract => {
-      const label = contract.name || contract.id;
+      const label = contract.name ? `${contract.name} (${contract.id})` : contract.id;
       const description = contract.name ? contract.id : undefined;
       return { name: label, value: contract.id, description };
     });

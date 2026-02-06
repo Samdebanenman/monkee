@@ -264,7 +264,7 @@ export async function autocomplete(interaction) {
 				allowRefresh: false,
 			});
 			const contracts = seasonal.map(([name, id]) => ({
-				name: name,
+				name: `${name} (${id})`,
 				value: id,
 			}));
 			const filtered = contracts
