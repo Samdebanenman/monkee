@@ -2,7 +2,6 @@ import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
 import { checkCoopForKnownPlayers, findFreeCoopCodes, listCoops } from '../services/coopService.js';
 import {
-  chunkContent,
   createTextComponentMessage,
 } from '../services/discord.js';
 
@@ -12,6 +11,22 @@ const CODE_OPTION_EXTENDED_PLUS = 'extended_plus';
 const CONTRACT_OPTION = 'contract';
 const SEARCHLIST_OPTION = 'searchlist';
 const DEFAULT_CONCURRENCY = 12;
+const PROGRESS_BAR_WIDTH = 20;
+const PROGRESS_UPDATE_INTERVAL_MS = 1000;
+const MAX_DISCORD_MESSAGE_LENGTH = 2000;
+
+function buildProgressBar(completed, total, width = PROGRESS_BAR_WIDTH) {
+  const safeTotal = Math.max(1, Number(total) || 1);
+  const ratio = Math.min(1, Math.max(0, (Number(completed) || 0) / safeTotal));
+  const filled = Math.round(ratio * width);
+  return `${'#'.repeat(filled)}${'-'.repeat(Math.max(0, width - filled))}`;
+}
+
+function formatProgressText(completed, total) {
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const bar = buildProgressBar(completed, total);
+  return `Checking coops: [${bar}] ${percent}% (${completed}/${total})`;
+}
 
 async function asyncPool(limit, items, iterator) {
   const results = [];
@@ -34,7 +49,7 @@ async function asyncPool(limit, items, iterator) {
 }
 
 function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
-  const letters = Array.from({ length: 26 }, (_, index) => String.fromCharCode(97 + index));
+  const letters = Array.from({ length: 26 }, (_, index) => String.fromCodePoint(97 + index));
   const digits = Array.from({ length: 10 }, (_, index) => String(index));
 
   const normalizedMode = [CODE_OPTION_EXTENDED, CODE_OPTION_EXTENDED_PLUS].includes(mode)
@@ -116,8 +131,7 @@ export async function execute(interaction) {
   }
 
   await interaction.reply(createTextComponentMessage(
-    'Starting check. Progress will be logged to console; results will be posted here when finished.',
-    { flags: 64 }
+    'Starting check.'
   ));
 
   const coopCodesToCheck = buildCoopCodes(codesOption);
@@ -138,14 +152,18 @@ export async function execute(interaction) {
     ? {
         total: totalSteps,
         completed: 0,
-        lastLoggedAt: 0,
-        intervalMs: 15000,
-        log(force = false) {
+        lastUpdatedAt: 0,
+        intervalMs: PROGRESS_UPDATE_INTERVAL_MS,
+        pendingUpdate: Promise.resolve(),
+        update(force = false) {
           const now = Date.now();
-          if (!force && now - this.lastLoggedAt < this.intervalMs) return;
-          this.lastLoggedAt = now;
-          const percent = Math.round((this.completed / this.total) * 100);
-          console.log(`[CheckIfPC] ${percent}% (${this.completed}/${this.total})`);
+          if (!force && now - this.lastUpdatedAt < this.intervalMs) return this.pendingUpdate;
+          this.lastUpdatedAt = now;
+          const content = formatProgressText(this.completed, this.total);
+          this.pendingUpdate = this.pendingUpdate
+            .then(() => interaction.editReply(createTextComponentMessage(content)))
+            .catch(() => {});
+          return this.pendingUpdate;
         },
       }
     : null;
@@ -155,11 +173,11 @@ export async function execute(interaction) {
     if (!progress) return;
     completedCount = Math.min(progress.total, completedCount + increment);
     progress.completed = completedCount;
-    progress.log();
+    await progress.update();
   };
 
   if (progress) {
-    progress.log(true);
+    await progress.update(true);
   }
 
   const resultsLines = [];
@@ -222,13 +240,15 @@ export async function execute(interaction) {
   }
 
   const message = resultsLines.length > 0 ? resultsLines.join('\n') : 'No data found.';
-  const chunks = chunkContent(message.split('\n'));
-  const [first, ...rest] = chunks;
+  let finalMessage = message;
 
-  await channelCheck.channel.send(createTextComponentMessage(first));
-  for (const chunk of rest) {
-    await channelCheck.channel.send(createTextComponentMessage(chunk));
+  if (finalMessage.length > MAX_DISCORD_MESSAGE_LENGTH) {
+    const note = '\n\n(Output truncated. Narrow your search for full details.)';
+    const limit = Math.max(0, MAX_DISCORD_MESSAGE_LENGTH - note.length - 3);
+    finalMessage = `${finalMessage.slice(0, limit)}...${note}`;
   }
+
+  await interaction.editReply(createTextComponentMessage(finalMessage));
 }
 
 async function buildStaticContractOptions() {
