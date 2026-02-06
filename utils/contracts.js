@@ -71,7 +71,7 @@ function getModifierFromSpec(eliteSpec, dimensionEnum) {
 function mapRemoteContract(obj, ContractType, eggEnum, dimensionEnum) {
   const decoded = ContractType.decode(Buffer.from(obj.proto, 'base64'));
   const name = decoded.name || 'Unknown';
-  const release = decoded.startTime || 0;
+  const release = toNumber(decoded.startTime) ?? 0;
   const season = decoded.seasonId || '';
   const maxCoopSize = toNumber(decoded.maxCoopSize ?? decoded.max_coop_size ?? null);
   const minutesPerToken = toNumber(decoded.minutesPerToken ?? decoded.minutes_per_token ?? null);
