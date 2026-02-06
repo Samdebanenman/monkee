@@ -62,34 +62,6 @@ function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
   return prefixes.flatMap(prefix => suffixes.map(suffix => `${prefix}${suffix}`));
 }
 
-function resolveSendableChannel(interaction) {
-  const channel = interaction?.channel ?? null;
-  if (!channel || typeof channel.isTextBased !== 'function' || !channel.isTextBased()) {
-    return { ok: false, reason: 'unsupported-channel' };
-  }
-
-  if (typeof channel.isDMBased === 'function' && channel.isDMBased()) {
-    return { ok: true, channel };
-  }
-
-  const permissions = channel.permissionsFor?.(interaction.client?.user ?? null) ?? null;
-  if (!permissions) {
-    return { ok: false, reason: 'missing-permissions' };
-  }
-
-  if (!permissions.has(PermissionsBitField.Flags.ViewChannel) || !permissions.has(PermissionsBitField.Flags.SendMessages)) {
-    return { ok: false, reason: 'missing-send-permissions' };
-  }
-
-  if (typeof channel.isThread === 'function' && channel.isThread()) {
-    if (!permissions.has(PermissionsBitField.Flags.SendMessagesInThreads)) {
-      return { ok: false, reason: 'missing-thread-permissions' };
-    }
-  }
-
-  return { ok: true, channel };
-}
-
 export const data = new SlashCommandBuilder()
   .setName('checkifpc')
   .setDescription('Check non-free coops for known players')
@@ -121,15 +93,6 @@ export async function execute(interaction) {
     return;
   }
 
-  const channelCheck = resolveSendableChannel(interaction);
-  if (!channelCheck.ok) {
-    await interaction.reply(createTextComponentMessage(
-      'I cannot send messages in this channel. Please run this in a channel where I have permission to post.',
-      { flags: 64 }
-    ));
-    return;
-  }
-
   await interaction.reply(createTextComponentMessage(
     'Starting check.'
   ));
@@ -143,7 +106,7 @@ export async function execute(interaction) {
   const selectedContracts = [[displayName, contractInput]];
 
   if (!selectedContracts.length) {
-    await channelCheck.channel.send(createTextComponentMessage('No contracts matched your selection.'));
+    await interaction.editReply(createTextComponentMessage('No contracts matched your selection.'));
     return;
   }
 
