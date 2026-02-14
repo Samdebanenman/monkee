@@ -412,8 +412,8 @@ export async function updateScheduleInSheet(sheetTab, dayOfWeek, utcHours) {
 			const rowIndex = EST_TO_ROW[estHour];
 			const value = availableHours.has(estHour) ? 'TRUE' : 'FALSE';
 			// Using A1 notation. Column B is Monday, C is Tuesday, etc.
-			const columnLetter = String.fromCharCodePoint(
-				'A'.charCodePointAt(0) + dayOfWeek,
+			const columnLetter = String.fromCharCode(
+				'A'.charCodeAt(0) + dayOfWeek,
 			);
 			const cell = `${columnLetter}${rowIndex + 1}`;
 			data.push({
