@@ -63,8 +63,20 @@ export async function execute(interaction) {
   const coopCodesToCheck = buildCoopCodes(codesOption);
   const { seasonal = [], leggacy = [] } = await fetchActiveContracts();
   const summaries = await fetchContractSummaries();
+  const validContractIds = new Set(summaries.map(contract => contract.id).filter(Boolean));
   const nameById = new Map(summaries.map(c => [c.id, c.name || c.id]));
   const combined = [...seasonal, ...leggacy];
+  const isSpecialSelection = contractInput === '__ALL__' || contractInput === '__ALL_SEASONAL__';
+
+  if (!isSpecialSelection && !validContractIds.has(contractInput)) {
+    await interaction.reply(
+      createTextComponentMessage(
+        'Unknown contract id. Please choose a contract from the list or use a valid contract id.',
+        { flags: 64 }
+      )
+    );
+    return;
+  }
 
   await interaction.deferReply();
 
