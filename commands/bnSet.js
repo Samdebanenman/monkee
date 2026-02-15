@@ -158,11 +158,17 @@ export async function autocomplete(interaction) {
 		try {
 			const players = listAllMembers();
 			const filtered = players
+				.filter((player) => Number(player.is_active) === 1)
 				.filter((player) => {
 					const label = String(
 						player.discord_name ?? player.discord_id ?? '',
 					).toLowerCase();
 					return label.includes(focusedValue);
+				})
+				.sort((a, b) => {
+					const nameA = String(a.discord_name ?? a.discord_id ?? '').toLowerCase();
+					const nameB = String(b.discord_name ?? b.discord_id ?? '').toLowerCase();
+					return nameA.localeCompare(nameB, 'en');
 				})
 				.map((player) => ({
 					name: player.discord_name ?? player.discord_id ?? 'Unknown',
