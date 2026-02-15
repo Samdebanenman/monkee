@@ -57,8 +57,14 @@ export const data = new SlashCommandBuilder()
 	);
 
 export async function execute(interaction) {
-	if (!(await requireMamaBird(interaction))) return;
 	const subcommand = interaction.options.getSubcommand();
+	if (subcommand === 'player_tab') {
+		const targetUser = interaction.options.getUser('discord_user', true);
+		const isSelfUpdate = targetUser.id === interaction.user.id;
+		if (!isSelfUpdate && !(await requireMamaBird(interaction))) return;
+	} else if (!(await requireMamaBird(interaction))) {
+		return;
+	}
 	switch (subcommand) {
 		case 'pushed':
 			await handleUpdatePlayerPushed(interaction);
