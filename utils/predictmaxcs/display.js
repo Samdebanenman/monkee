@@ -12,7 +12,7 @@ function getArtifactEmoji(typeKey, tier) {
 
 function getStoneIcons(isThreeSlotOption) {
   if (!isThreeSlotOption) return '';
-  const stone = ArtifactEmoji.NEO_MEDALLION_4 ?? 'NEO_MEDALLION_4';
+  const stone = ArtifactEmoji.MEDALLION_4 ?? 'MEDALLION_4';
   return `${stone}`;
 }
 
@@ -31,7 +31,7 @@ function formatArtifactEntry(artifact, typeKey) {
   const name = artifact?.name ?? '';
   const isThreeSlotOption = /^\s*3\s*slot\s*$/i.test(name);
   if (isThreeSlotOption) {
-    return getStoneIcons(true) || 'NEO_MEDALLION_4';
+    return getStoneIcons(true) || 'MEDALLION_4';
   }
 
   const { tier, rarity, isSiab } = parseArtifactName(name);

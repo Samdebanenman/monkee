@@ -168,7 +168,7 @@ export function buildDeflectorDisplay(options) {
 
 export function formatDeflectorDisplay(deflectorPercent) {
   if (deflectorPercent === DEFLECTOR_TIERS[0].percent) {
-    return `${ArtifactEmoji.NEO_MEDALLION_4} QS`;
+    return `${ArtifactEmoji.MEDALLION_4} QS`;
   }
   if (deflectorPercent === DEFLECTOR_TIERS.at(-1)?.percent) {
     return `${ArtifactEmoji.DEFLECTOR_4} L`;
