@@ -65,8 +65,18 @@ const ArtifactEmoji = {
     GUSSET_3: `<:Afx_ornate_gusset_3:1464412591823650990>`,
     GUSSET_4: `<:Afx_ornate_gusset_4:1464412589575377223>`,
 
-    NEO_MEDALLION_4: `<:Afx_neo_medallion_4:1463685017182933073>`,
-    SIAB_4: `<:Afx_ship_in_a_bottle_4:1463866981991055565>`
+    MEDALLION_4: `<:Afx_neo_medallion_4:1463685017182933073>`,
+    SIAB_4: `<:Afx_ship_in_a_bottle_4:1463866981991055565>`,
+    CHALICE_4: "<:Afx_the_chalice_4:1476310598332452896>",
+    ANKH_4: "<:Afx_tungsten_ankh_4:1476310587226066965>",
+    BROOCH_4: "<:Afx_aurelian_brooch_4:1476311497058549820>",
+    DEMETERS_NECKLACE_4: "<:Afx_demeters_necklace_4:1476310596294283415>",
+    NECKLACE_4: "<:Afx_demeters_necklace_4:1476310596294283415>",
+    PUZZLE_CUBE_4: "<:Afx_puzzle_cube_4:1476310588924760125>",
+    CUBE_4: "<:Afx_puzzle_cube_4:1476310588924760125>",
+    LUNAR_TOTEM_4: "<:Afx_lunar_totem_4:1476310592431198358>",
+    TOTEM_4: "<:Afx_lunar_totem_4:1476310592431198358>",
+    MONOCLE_4: "<:Afx_dilithium_monocle_4:1476310594897580062>",
 }
 
 const GameDimension = {
