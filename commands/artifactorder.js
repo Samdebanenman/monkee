@@ -208,7 +208,7 @@ function buildLines({ contract, coop, results }) {
       : '(none)';
 
     if (result.ok) {
-      lines.push(`${name}: ${orderText}`);
+      lines.push(`${name}: 🎉`);
       continue;
     }
 
