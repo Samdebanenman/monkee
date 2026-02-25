@@ -90,9 +90,14 @@ async function replyNoRows(interaction, season) {
     await interaction.reply(withLeadingQuote(encodeMessage('No coops recorded yet' + seasonSuffix + '.')));
 }
 
-async function sendAdditionalChunks(interaction, chunks) {
+async function sendAdditionalChunks(interaction, chunks, channel, isEphemeral) {
     for (const chunk of chunks) {
-        await interaction.followUp({ content: withLeadingQuote(chunk) });
+        const content = withLeadingQuote(chunk);
+        if (channel && typeof channel.send === 'function' && !isEphemeral) {
+            await channel.send(content);
+            continue;
+        }
+        await interaction.followUp({ content });
     }
 }
 
@@ -108,15 +113,17 @@ async function sendPagedResponse(interaction, chunks, headerContent) {
     try {
         await interaction.reply({ content: withLeadingQuote(initialContent), withResponse: true });
         const replyMessage = await interaction.fetchReply().catch(() => null);
-        await sendAdditionalChunks(interaction, remainingChunks);
         const channel = replyMessage?.channel ?? interaction.channel ?? null;
+        const isEphemeral = replyMessage?.flags?.has?.(MessageFlags.Ephemeral) ?? false;
+        await sendAdditionalChunks(interaction, remainingChunks, channel, isEphemeral);
         return { replyMessage, channel };
     } catch (err) {
         console.warn('Failed to send pastcoops reply with response, retrying without it:', err);
         await interaction.reply(withLeadingQuote(initialContent));
         const replyMessage = await interaction.fetchReply().catch(() => null);
-        await sendAdditionalChunks(interaction, remainingChunks);
         const channel = replyMessage?.channel ?? interaction.channel ?? null;
+        const isEphemeral = replyMessage?.flags?.has?.(MessageFlags.Ephemeral) ?? false;
+        await sendAdditionalChunks(interaction, remainingChunks, channel, isEphemeral);
         return { replyMessage, channel };
     }
 }
