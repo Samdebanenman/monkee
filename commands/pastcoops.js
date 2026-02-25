@@ -19,7 +19,7 @@ export const data = new SlashCommandBuilder()
     );
 
 function formatRows(rows) {
-    const lines = rows.map(row => `${row.cnt} ${row.coop}`);
+    const lines = rows.map(row => `${row.cnt} - ${row.coop}`);
     const totalCoops = rows.reduce((sum, row) => sum + (row.cnt || 0), 0);
     const totalChars = rows.reduce((sum, row) => sum + (row.cnt || 0) * String(row.coop).length, 0);
     return { lines, totalCoops, totalChars };
@@ -43,22 +43,26 @@ async function sendAdditionalChunks(interaction, chunks) {
     }
 }
 
-async function sendPagedResponse(interaction, chunks) {
-    if (chunks.length === 0) {
+async function sendPagedResponse(interaction, chunks, headerContent) {
+    const hasHeader = Boolean(headerContent);
+    const initialContent = hasHeader ? headerContent : chunks[0];
+    const remainingChunks = hasHeader ? chunks : chunks.slice(1);
+
+    if (!initialContent) {
         return { replyMessage: null, channel: interaction.channel ?? null };
     }
 
     try {
-        await interaction.reply({ content: chunks[0], withResponse: true });
+        await interaction.reply({ content: initialContent, withResponse: true });
         const replyMessage = await interaction.fetchReply().catch(() => null);
-        await sendAdditionalChunks(interaction, chunks.slice(1));
+        await sendAdditionalChunks(interaction, remainingChunks);
         const channel = replyMessage?.channel ?? interaction.channel ?? null;
         return { replyMessage, channel };
     } catch (err) {
         console.warn('Failed to send pastcoops reply with response, retrying without it:', err);
-        await interaction.reply(chunks[0]);
+        await interaction.reply(initialContent);
         const replyMessage = await interaction.fetchReply().catch(() => null);
-        await sendAdditionalChunks(interaction, chunks.slice(1));
+        await sendAdditionalChunks(interaction, remainingChunks);
         const channel = replyMessage?.channel ?? interaction.channel ?? null;
         return { replyMessage, channel };
     }
@@ -128,7 +132,8 @@ export async function execute(interaction) {
 
     const { lines, totalCoops, totalChars } = formatRows(rows);
     const chunks = chunkContent(lines, { wrap: { prefix: '```\n', suffix: '\n```' } });
-    const { replyMessage, channel } = await sendPagedResponse(interaction, chunks);
+    const headerContent = 'previous codes from Birdsnest\n```# of Uses - Code```';
+    const { replyMessage, channel } = await sendPagedResponse(interaction, chunks, headerContent);
 
     const totalsText = `Total coops: ${totalCoops}`;
     const charsText = `Total characters: ${totalChars}`;
