@@ -2,6 +2,7 @@ import { google } from 'googleapis';
 import path from 'node:path';
 import fs from 'node:fs';
 import { convertEstToUtc, convertUtcToEst } from '../utils/eggStandartTime.js';
+import { getMeta, setMeta } from '../utils/database/metaRepository.js';
 
 // --- Configuration ---
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
@@ -65,6 +66,80 @@ const EST_TO_ROW = {
 	'-1': 25,
 };
 const ALL_EST_HOURS = Object.keys(EST_TO_ROW).map((k) => Number.parseInt(k, 10));
+const USER_TAB_NAMES_CACHE_KEY = 'google_sheet_user_tab_names';
+const USER_TAB_NAMES_FETCHED_AT_KEY = 'google_sheet_user_tab_names_fetched_at';
+const USER_TAB_NAMES_TTL_MS = 10 * 60 * 1000;
+
+let userTabNamesRefreshPromise = null;
+
+function readUserTabNamesCache() {
+	const cachedTabsRaw = getMeta(USER_TAB_NAMES_CACHE_KEY);
+	if (!cachedTabsRaw) {
+		return null;
+	}
+
+	let tabs;
+	try {
+		tabs = JSON.parse(cachedTabsRaw);
+	} catch (error) {
+		console.warn('Invalid cached user tab names payload. Ignoring cache.');
+		return null;
+	}
+
+	if (!Array.isArray(tabs)) {
+		return null;
+	}
+
+	const fetchedAtRaw = getMeta(USER_TAB_NAMES_FETCHED_AT_KEY);
+	const fetchedAt = Number.parseInt(fetchedAtRaw ?? '', 10);
+	const ageMs = Number.isFinite(fetchedAt) ? Date.now() - fetchedAt : Number.POSITIVE_INFINITY;
+
+	return {
+		tabs,
+		isFresh: ageMs <= USER_TAB_NAMES_TTL_MS,
+	};
+}
+
+async function fetchUserTabNamesFromSheet() {
+	const sheetsClient = await getSheetsClient();
+	if (!sheetsClient) {
+		throw new Error('Sheets client is invalid.');
+	}
+
+	const spreadsheetInfo = await sheetsClient.spreadsheets.get({
+		spreadsheetId: SPREADSHEET_ID,
+		fields: 'sheets.properties.title',
+	});
+
+	const allTabs = spreadsheetInfo.data.sheets.map(
+		(sheet) => sheet.properties.title,
+	);
+	return allTabs.filter((tab) => !IGNORED_TABS.has(tab));
+}
+
+async function refreshUserTabNamesCache() {
+	const tabs = await fetchUserTabNamesFromSheet();
+	setMeta(USER_TAB_NAMES_CACHE_KEY, JSON.stringify(tabs));
+	setMeta(USER_TAB_NAMES_FETCHED_AT_KEY, String(Date.now()));
+	return tabs;
+}
+
+function queueUserTabNamesCacheRefresh() {
+	if (userTabNamesRefreshPromise) {
+		return userTabNamesRefreshPromise;
+	}
+
+	userTabNamesRefreshPromise = refreshUserTabNamesCache()
+		.catch((error) => {
+			console.error('Error refreshing cached user tab names:', error);
+			return null;
+		})
+		.finally(() => {
+			userTabNamesRefreshPromise = null;
+		});
+
+	return userTabNamesRefreshPromise;
+}
 
 async function getSheetsClient() {
 	if (!fs.existsSync(CREDENTIALS_PATH)) {
@@ -339,20 +414,15 @@ export async function updatePlayerInfoInSheet({
 
 export async function fetchUserTabNames() {
 	try {
-		const sheetsClient = await getSheetsClient();
-		if (!sheetsClient) {
-			throw new Error('Sheets client is invalid.');
+		const cached = readUserTabNamesCache();
+		if (cached && cached.tabs.length > 0) {
+			if (!cached.isFresh) {
+				queueUserTabNamesCacheRefresh();
+			}
+			return cached.tabs;
 		}
 
-		const spreadsheetInfo = await sheetsClient.spreadsheets.get({
-			spreadsheetId: SPREADSHEET_ID,
-			fields: 'sheets.properties.title',
-		});
-
-		const allTabs = spreadsheetInfo.data.sheets.map(
-			(sheet) => sheet.properties.title,
-		);
-		return allTabs.filter((tab) => !IGNORED_TABS.has(tab));
+		return await refreshUserTabNamesCache();
 	} catch (error) {
 			console.error('Error fetching user tab names:', error);
 			throw error;
