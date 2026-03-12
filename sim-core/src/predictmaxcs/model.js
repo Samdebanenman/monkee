@@ -63,7 +63,7 @@ function normalizeTeValues(values, players, fallbackTe = 0) {
 }
 
 export async function buildModel(options) {
-  const COLEGGTIBLES = getDynamicColeggtibles();
+  const COLEGGTIBLES = getDynamicColeggtibles(options?.coleggtiblesRows ?? null);
   const {
     players,
     durationSeconds,

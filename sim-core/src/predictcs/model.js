@@ -14,7 +14,7 @@ import { buildTokenPlan } from '../predictmaxcs/tokens.js';
 import { optimizeStones, TOKEN_CANDIDATES } from '../predictmaxcs/model.js';
 
 export async function buildPredictCsModel(options) {
-  const COLEGGTIBLES = getDynamicColeggtibles();
+  const COLEGGTIBLES = getDynamicColeggtibles(options?.coleggtiblesRows ?? null);
   const {
     players,
     durationSeconds,

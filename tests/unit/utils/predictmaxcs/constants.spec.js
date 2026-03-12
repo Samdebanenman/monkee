@@ -1,21 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { GameDimension } from '../../../../Enums.js';
 
-vi.mock('../../../../utils/database/index.js', () => ({
-  getStoredColeggtibles: vi.fn(),
-}));
-
 import { getDynamicColeggtibles } from '../../../../sim-core/src/predictmaxcs/constants.js';
-import { getStoredColeggtibles } from '../../../../utils/database/index.js';
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
 
 describe('sim-core/src/predictmaxcs/constants', () => {
   it('returns default multipliers when empty', () => {
-    getStoredColeggtibles.mockReturnValue([]);
-    const result = getDynamicColeggtibles();
+    const result = getDynamicColeggtibles([]);
     expect(result).toEqual({
       elrMult: 1,
       shipMult: 1,
@@ -25,7 +15,7 @@ describe('sim-core/src/predictmaxcs/constants', () => {
   });
 
   it('multiplies highest buff per egg and dimension', () => {
-    getStoredColeggtibles.mockReturnValue([
+    const result = getDynamicColeggtibles([
       {
         identifier: 'egg1',
         buffs: [
@@ -43,8 +33,6 @@ describe('sim-core/src/predictmaxcs/constants', () => {
         ],
       },
     ]);
-
-    const result = getDynamicColeggtibles();
 
     expect(result.elrMult).toBeCloseTo(1.1 * 1.05, 6);
     expect(result.shipMult).toBeCloseTo(1.02, 6);

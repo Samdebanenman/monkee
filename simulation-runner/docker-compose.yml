@@ -8,4 +8,3 @@ services:
       SIM_REQUEST_GROUP: ${SIM_REQUEST_GROUP:-simulation-runners}
       SIM_REQUEST_TOPIC: ${SIM_REQUEST_TOPIC:-sim-requests}
       SIM_RESULT_TOPIC: ${SIM_RESULT_TOPIC:-sim-results}
-      COOPS_DB_PATH: ${COOPS_DB_PATH:-/app/data/coops.db}

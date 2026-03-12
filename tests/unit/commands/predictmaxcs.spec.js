@@ -5,6 +5,10 @@ vi.mock('../../../services/contractService.js', () => ({
   fetchContractSummaries: vi.fn(),
 }));
 
+vi.mock('../../../utils/database/coleggtiblesRepository.js', () => ({
+  getStoredColeggtibles: vi.fn(() => []),
+}));
+
 vi.mock('../../../services/discord.js', () => ({
   createTextComponentMessage: vi.fn((content, options) => ({ content, ...options })),
 }));

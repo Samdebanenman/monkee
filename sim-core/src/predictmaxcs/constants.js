@@ -1,4 +1,4 @@
-import { getStoredColeggtibles } from '../../../utils/database/index.js';
+import { createRequire } from 'node:module';
 import { GameDimension } from '../../../Enums.js';
 
 export const DEFLECTOR_TIERS = [
@@ -99,8 +99,18 @@ function applyBestBuffs(totals, bestByDimension) {
   }
 }
 
-export function getDynamicColeggtibles() {
-  const rows = getStoredColeggtibles();
+function loadStoredColeggtibles() {
+  try {
+    const require = createRequire(import.meta.url);
+    const repo = require('../../../utils/database/coleggtiblesRepository.js');
+    return typeof repo.getStoredColeggtibles === 'function' ? repo.getStoredColeggtibles() : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+export function getDynamicColeggtibles(rowsOverride = null) {
+  const rows = Array.isArray(rowsOverride) ? rowsOverride : loadStoredColeggtibles();
   if (!Array.isArray(rows) || rows.length === 0) return { ...DEFAULT_COLEGGTIBLES };
 
   const totals = { ...DEFAULT_COLEGGTIBLES };

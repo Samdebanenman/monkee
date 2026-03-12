@@ -44,6 +44,7 @@ import {
 } from '../sim-core/src/predictcs/artifacts.js';
 import { enqueueSimulationJob } from '../services/simQueue.js';
 import { parseSandboxUrl } from '../sim-core/src/predictcs/sandbox.js';
+import { getStoredColeggtibles } from '../utils/database/coleggtiblesRepository.js';
 import { randomUUID } from 'node:crypto';
 
 const sessions = new Map();
@@ -458,6 +459,7 @@ async function handlePredictCsNext({ interaction, sessionId, playerIndex, sessio
   }
 
   const jobId = randomUUID();
+  const coleggRows = getStoredColeggtibles();
   await enqueueSimulationJob({
     jobId,
     type: 'predictcs',
@@ -471,6 +473,7 @@ async function handlePredictCsNext({ interaction, sessionId, playerIndex, sessio
       giftMinutes: session.giftMinutes,
       gg: session.gg,
       boostOrderMode: session.boostOrderMode,
+      coleggtiblesRows: coleggRows,
       playerArtifacts: session.playerArtifacts,
       playerIhrArtifacts: session.playerIhrArtifacts,
       playerTe: session.playerTe,
@@ -803,6 +806,7 @@ async function runPredictCsSandbox(interaction, session, sandboxData, contractOv
   }
 
   const jobId = randomUUID();
+  const coleggRows = getStoredColeggtibles();
   await enqueueSimulationJob({
     jobId,
     type: 'predictcs',
@@ -816,6 +820,7 @@ async function runPredictCsSandbox(interaction, session, sandboxData, contractOv
       giftMinutes: session.giftMinutes,
       gg: session.gg,
       boostOrderMode: session.boostOrderMode,
+      coleggtiblesRows: coleggRows,
       playerArtifacts,
       playerIhrArtifacts,
       playerTe,
