@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "better-sqlite3": "=12.6.2",
     "kafkajs": "=2.2.4"
   }
 }
