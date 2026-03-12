@@ -109,7 +109,7 @@ export async function buildModel(options) {
     : getTokensForPrediction(tokenTimerMinutes, giftMinutes, gg, players, baseIHR, maxChickens);
   const tokensByPlayer = Array.from({ length: players }, () => tokensForPrediction);
 
-  const variantSteps = 1 + players * TOKEN_CANDIDATES.length;
+  const variantSteps = TOKEN_CANDIDATES.length + players * TOKEN_CANDIDATES.length + 1;
   const uniformTokenCandidates = [2, 4, 6, 8];
   const shouldRunQuickSiabCheck = siabOverride == null;
   const makeVariantProgress = offset => (progress && typeof progress.update === 'function'
@@ -591,42 +591,36 @@ export async function optimizeLateBoostTokensAfterDeflector(options) {
   const bestUniform = baseScores.reduce((top, entry, idx) =>
     (entry.score > top.entry.score ? { entry, idx } : top),
   { entry: baseScores[0], idx: 0 });
-  let best = bestUniform.entry;
-  let bestTokensByPlayer = uniformTokensByPlayerList[bestUniform.idx];
-  let frontSweepBestScore = best.score;
+  const baseTokensByPlayer = uniformTokensByPlayerList[bestUniform.idx];
+  const selectedTokens = Array.from(baseTokensByPlayer);
 
   for (let index = 0; index < players; index += 1) {
     const candidateTokens = tokenCandidates.map(candidate =>
-      bestTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens)));
+      baseTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens)));
     const batch = await evaluateBatch(candidateTokens, completedOffset);
     completedOffset = batch.completedOffset;
 
     const scored = batch.results.map(buildScoreEntry);
     const bestCandidate = scored.reduce((top, entry, idx) =>
       (entry.score > top.entry.score ? { entry, idx } : top),
-    { entry: best, idx: -1 });
+    { entry: scored[0], idx: 0 });
 
-    if (bestCandidate.entry.score > best.score) {
-      best = bestCandidate.entry;
-      bestTokensByPlayer = candidateTokens[bestCandidate.idx];
-    }
-    if (best.score > frontSweepBestScore) {
-      frontSweepBestScore = best.score;
-    }
+    selectedTokens[index] = tokenCandidates[bestCandidate.idx];
   }
 
-  console.log(`front swoop result: player 1 ${frontSweepBestScore} cs`);
+  const finalScenario = simulateScenario(buildScenarioOptions(selectedTokens));
+  const finalScore = buildScoreEntry(finalScenario).score;
 
-  const bestCount = countTokensFromEnd(bestTokensByPlayer, 8);
-  const earlyBestCount = countTokensFromStart(bestTokensByPlayer, 4);
+  const bestCount = countTokensFromEnd(selectedTokens, 8);
+  const earlyBestCount = countTokensFromStart(selectedTokens, 4);
 
   return {
     bestCount,
     earlyBestCount,
-    baseCs: best.score,
-    bestCs: best.score,
-    tokensByPlayer: bestTokensByPlayer,
-    scenario: best.scenario,
+    baseCs: bestUniform.entry.score,
+    bestCs: finalScore,
+    tokensByPlayer: selectedTokens,
+    scenario: finalScenario,
   };
 }
 

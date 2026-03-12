@@ -314,36 +314,36 @@ async function optimizePredictCsTokens(options) {
   let completedOffset = 0;
   const baseBatch = await evaluateBatch([baseTokensByPlayer], completedOffset);
   completedOffset = baseBatch.completedOffset;
-  let best = buildScoreEntry(baseBatch.results[0]);
-  let bestTokensByPlayer = baseTokensByPlayer;
+  const baseScoreEntry = buildScoreEntry(baseBatch.results[0]);
+  const selectedTokens = Array.from(baseTokensByPlayer);
 
   for (let index = 0; index < players; index += 1) {
     const candidateTokens = tokenCandidates.map(candidate =>
-      bestTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens)));
+      baseTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens)));
     const batch = await evaluateBatch(candidateTokens, completedOffset);
     completedOffset = batch.completedOffset;
 
     const scored = batch.results.map(buildScoreEntry);
     const bestCandidate = scored.reduce((top, entry, idx) =>
       (entry.score > top.entry.score ? { entry, idx } : top),
-    { entry: best, idx: -1 });
+    { entry: scored[0], idx: 0 });
 
-    if (bestCandidate.entry.score > best.score) {
-      best = bestCandidate.entry;
-      bestTokensByPlayer = candidateTokens[bestCandidate.idx];
-    }
+    selectedTokens[index] = tokenCandidates[bestCandidate.idx];
   }
 
-  const bestCount = countTokensFromEnd(bestTokensByPlayer, 8);
-  const earlyBestCount = countTokensFromStart(bestTokensByPlayer, 4);
+  const finalScenario = simulateScenario(buildScenarioOptions(selectedTokens));
+  const finalScore = buildScoreEntry(finalScenario).score;
+
+  const bestCount = countTokensFromEnd(selectedTokens, 8);
+  const earlyBestCount = countTokensFromStart(selectedTokens, 4);
 
   return {
     bestCount,
     earlyBestCount,
-    baseCs: best.score,
-    bestCs: best.score,
-    tokensByPlayer: bestTokensByPlayer,
-    scenario: best.scenario,
+    baseCs: baseScoreEntry.score,
+    bestCs: finalScore,
+    tokensByPlayer: selectedTokens,
+    scenario: finalScenario,
   };
 }
 
