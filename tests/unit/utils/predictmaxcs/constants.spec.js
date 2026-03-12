@@ -5,14 +5,14 @@ vi.mock('../../../../utils/database/index.js', () => ({
   getStoredColeggtibles: vi.fn(),
 }));
 
-import { getDynamicColeggtibles } from '../../../../utils/predictmaxcs/constants.js';
+import { getDynamicColeggtibles } from '../../../../sim-core/src/predictmaxcs/constants.js';
 import { getStoredColeggtibles } from '../../../../utils/database/index.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('utils/predictmaxcs/constants', () => {
+describe('sim-core/src/predictmaxcs/constants', () => {
   it('returns default multipliers when empty', () => {
     getStoredColeggtibles.mockReturnValue([]);
     const result = getDynamicColeggtibles();
@@ -52,3 +52,4 @@ describe('utils/predictmaxcs/constants', () => {
     expect(result.chickenMult).toBeCloseTo(1.04, 6);
   });
 });
+

@@ -6,31 +6,23 @@ vi.mock('../../../services/contractService.js', () => ({
 }));
 
 vi.mock('../../../services/discord.js', () => ({
-  chunkContent: vi.fn((lines) => (Array.isArray(lines) ? [lines.join('\n')] : [String(lines)])),
-  createDiscordProgressReporter: vi.fn(() => vi.fn(async () => {})),
   createTextComponentMessage: vi.fn((content, options) => ({ content, ...options })),
   startDeferredReplyHeartbeat: vi.fn(() => () => {}),
 }));
 
-vi.mock('../../../utils/predictcs/sandbox.js', () => ({
+vi.mock('../../../sim-core/src/predictcs/sandbox.js', () => ({
   parseSandboxUrl: vi.fn(),
 }));
 
-vi.mock('../../../utils/predictcs/model.js', () => ({
-  buildBoostOrder: vi.fn(() => [0]),
-  buildPredictCsModel: vi.fn(() => ({ mock: true })),
-}));
-
-vi.mock('../../../utils/predictmaxcs/display.js', () => ({
-  buildPlayerTableLines: vi.fn(() => ['line1']),
-  formatEggs: vi.fn(() => '1T'),
-  secondsToHuman: vi.fn(() => '1h'),
+vi.mock('../../../services/simQueue.js', () => ({
+  enqueueSimulationJob: vi.fn(async () => {}),
 }));
 
 import { execute, autocomplete, handleComponentInteraction, handleModalSubmit } from '../../../commands/predictcs.js';
 import { fetchContractSummaries } from '../../../services/contractService.js';
 import { createTextComponentMessage } from '../../../services/discord.js';
-import { parseSandboxUrl } from '../../../utils/predictcs/sandbox.js';
+import { parseSandboxUrl } from '../../../sim-core/src/predictcs/sandbox.js';
+import { enqueueSimulationJob } from '../../../services/simQueue.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -294,11 +286,14 @@ describe('commands/predictcs', () => {
       deferUpdate: vi.fn(async () => {}),
       reply: vi.fn(async () => {}),
       followUp: vi.fn(async () => {}),
+      editReply: vi.fn(async () => {}),
       deferred: false,
       replied: false,
     };
 
     await handleComponentInteraction(contractInteraction);
-    expect(contractInteraction.reply).toHaveBeenCalled();
+    expect(contractInteraction.deferUpdate).toHaveBeenCalled();
+    expect(enqueueSimulationJob).toHaveBeenCalledTimes(1);
   });
 });
+

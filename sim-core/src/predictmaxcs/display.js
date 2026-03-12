@@ -1,4 +1,4 @@
-import { ArtifactEmoji } from '../../Enums.js';
+import { ArtifactEmoji } from '../../../Enums.js';
 import { DEFLECTOR_TIERS } from './constants.js';
 import { getChickenRunAskPop } from './chickenRun.js';
 import { formatDeflectorDisplay } from './deflector.js';

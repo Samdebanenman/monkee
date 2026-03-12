@@ -6,9 +6,9 @@ import {
   getTokensForPrediction,
   computeTotalTokens,
   applyNextBoost,
-} from '../../../../utils/predictmaxcs/tokens.js';
+} from '../../../../sim-core/src/predictmaxcs/tokens.js';
 
-describe('utils/predictmaxcs/tokens', () => {
+describe('sim-core/src/predictmaxcs/tokens', () => {
   it('calculates boost multipliers', () => {
     expect(calcBoostMulti(1)).toBe(80);
     expect(calcBoostMulti(4)).toBe(1040);
@@ -74,3 +74,4 @@ describe('utils/predictmaxcs/tokens', () => {
     expect(result.tokensUsed).toBe(0);
   });
 });
+

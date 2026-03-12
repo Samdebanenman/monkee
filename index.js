@@ -5,8 +5,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
+import { startResultConsumer } from './services/simResultsConsumer.js';
 
 dotenv.config();
+
+startResultConsumer().catch(error => {
+  console.error('Failed to start simulation result consumer:', error);
+});
 
 const client = new Client({ 
   intents: [

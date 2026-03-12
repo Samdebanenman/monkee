@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSandboxUrl } from '../../../../utils/predictcs/sandbox.js';
+import { parseSandboxUrl } from '../../../../sim-core/src/predictcs/sandbox.js';
 
 const BASE62_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -24,7 +24,7 @@ const buildSandboxPayload = ({ version, decodedData, expanded }) => {
   return `${version}${encoded}=${data2}`;
 };
 
-describe('utils/predictcs/sandbox', () => {
+describe('sim-core/src/predictcs/sandbox', () => {
   it('rejects invalid sandbox data', () => {
     const result = parseSandboxUrl('not-a-valid-sandbox');
     expect(result.error).toBeTruthy();
@@ -48,3 +48,4 @@ describe('utils/predictcs/sandbox', () => {
     expect(result.contractInfo.tokenTimerMinutes).toBe(6);
   });
 });
+

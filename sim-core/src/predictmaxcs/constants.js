@@ -1,5 +1,5 @@
-import { getStoredColeggtibles } from '../database/index.js';
-import { GameDimension } from '../../Enums.js';
+import { getStoredColeggtibles } from '../../../utils/database/index.js';
+import { GameDimension } from '../../../Enums.js';
 
 export const DEFLECTOR_TIERS = [
   { label: 'quant-scrub', percent: 0 },

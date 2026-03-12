@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../../utils/predictmaxcs/simulation.js', () => ({
+vi.mock('../../../../sim-core/src/predictmaxcs/simulation.js', () => ({
   computeAdjustedSummaries: () => ({
     adjustedSummaries: [
       { index: 1, cs: 100, stoneLayout: { numTach: 2, numQuant: 1 }, siabPercent: 0 },
@@ -12,7 +12,7 @@ vi.mock('../../../../utils/predictmaxcs/simulation.js', () => ({
   }),
 }));
 
-vi.mock('../../../../utils/predictmaxcs/constants.js', () => ({
+vi.mock('../../../../sim-core/src/predictmaxcs/constants.js', () => ({
   DEFLECTOR_TIERS: [
     { label: 'quant-scrub', percent: 0 },
     { label: 'epic+', percent: 19 },
@@ -25,11 +25,11 @@ vi.mock('../../../../utils/predictmaxcs/constants.js', () => ({
   },
 }));
 
-vi.mock('../../../../utils/predictmaxcs/deflector.js', () => ({
+vi.mock('../../../../sim-core/src/predictmaxcs/deflector.js', () => ({
   formatDeflectorDisplay: (value) => `DEF ${value}%`,
 }));
 
-vi.mock('../../../../utils/predictmaxcs/tokens.js', () => ({
+vi.mock('../../../../sim-core/src/predictmaxcs/tokens.js', () => ({
   calcBoostMulti: () => 100,
 }));
 
@@ -39,8 +39,8 @@ import {
   formatMinutes,
   formatBillions,
   secondsToHuman,
-} from '../../../../utils/predictmaxcs/display.js';
-import { getChickenRunAskPop } from '../../../../utils/predictmaxcs/chickenRun.js';
+} from '../../../../sim-core/src/predictmaxcs/display.js';
+import { getChickenRunAskPop } from '../../../../sim-core/src/predictmaxcs/chickenRun.js';
 
 const baseModel = {
   players: 2,
@@ -70,7 +70,7 @@ const baseModel = {
 
 const assumptions = { te: 150, teValues: [100, 200] };
 
-describe('utils/predictmaxcs/display', () => {
+describe('sim-core/src/predictmaxcs/display', () => {
   it('builds player table lines', () => {
     const lines = buildPlayerTableLines(baseModel, assumptions);
     expect(lines.length).toBeGreaterThan(5);
@@ -103,3 +103,4 @@ describe('utils/predictmaxcs/display', () => {
     expect(secondsToHuman(90000)).toContain('d');
   });
 });
+

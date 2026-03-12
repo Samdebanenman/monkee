@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../../utils/predictmaxcs/constants.js', async () => {
-  const actual = await vi.importActual('../../../../utils/predictmaxcs/constants.js');
+vi.mock('../../../../sim-core/src/predictmaxcs/constants.js', async () => {
+  const actual = await vi.importActual('../../../../sim-core/src/predictmaxcs/constants.js');
   return {
     ...actual,
     getDynamicColeggtibles: () => ({
@@ -13,7 +13,7 @@ vi.mock('../../../../utils/predictmaxcs/constants.js', async () => {
   };
 });
 
-import { buildPredictCsModel, buildBoostOrder } from '../../../../utils/predictcs/model.js';
+import { buildPredictCsModel, buildBoostOrder } from '../../../../sim-core/src/predictcs/model.js';
 import {
   parseDeflector,
   parseMetro,
@@ -23,9 +23,9 @@ import {
   parseIhrMonocle,
   parseIhrDeflector,
   parseIhrSiab,
-} from '../../../../utils/predictcs/artifacts.js';
+} from '../../../../sim-core/src/predictcs/artifacts.js';
 
-describe('utils/predictcs/model', () => {
+describe('sim-core/src/predictcs/model', () => {
   it('builds a predict CS model', async () => {
     const playerArtifacts = [
       {
@@ -95,3 +95,4 @@ describe('utils/predictcs/model', () => {
     expect(teSorted).toEqual([0, 1, 2, 3]);
   });
 });
+

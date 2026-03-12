@@ -6,26 +6,21 @@ vi.mock('../../../services/contractService.js', () => ({
 }));
 
 vi.mock('../../../services/discord.js', () => ({
-  chunkContent: vi.fn((lines) => (Array.isArray(lines) ? [lines.join('\n'), 'extra'] : [String(lines)])),
-  createDiscordProgressReporter: vi.fn(() => vi.fn(async () => {})),
   createTextComponentMessage: vi.fn((content, options) => ({ content, ...options })),
 }));
 
-vi.mock('../../../utils/predictmaxcs/display.js', () => ({
-  buildPlayerTableLines: vi.fn(() => ['line1', 'line2']),
-  formatEggs: vi.fn(() => '1T'),
-  secondsToHuman: vi.fn(() => '1h'),
+vi.mock('../../../sim-core/src/predictmaxcs/model.js', () => ({
+  getAssumptions: vi.fn((teValues = [100]) => ({ te: 100, teValues })),
 }));
 
-vi.mock('../../../utils/predictmaxcs/model.js', () => ({
-  buildModel: vi.fn(() => ({ mock: true })),
-  getAssumptions: vi.fn((teValues = [100]) => ({ te: 100, teValues })),
-  TOKEN_CANDIDATES: [0, 1, 2, 3, 4, 5, 6, 8],
+vi.mock('../../../services/simQueue.js', () => ({
+  enqueueSimulationJob: vi.fn(async () => {}),
 }));
 
 import { execute, autocomplete } from '../../../commands/predictmaxcs.js';
 import { fetchContractSummaries } from '../../../services/contractService.js';
 import { createTextComponentMessage } from '../../../services/discord.js';
+import { enqueueSimulationJob } from '../../../services/simQueue.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -71,7 +66,7 @@ describe('commands/predictmaxcs', () => {
     expect(interaction.reply).toHaveBeenCalled();
   });
 
-  it('builds embeds and follows up for additional chunks', async () => {
+  it('queues a job for valid input', async () => {
     fetchContractSummaries.mockResolvedValue([
       { id: 'c1', name: 'Test', maxCoopSize: 2, coopDurationSeconds: 3600, eggGoal: 1000, minutesPerToken: 4 },
     ]);
@@ -79,9 +74,8 @@ describe('commands/predictmaxcs', () => {
 
     await execute(interaction);
 
-    expect(interaction.deferReply).toHaveBeenCalled();
-    expect(interaction.editReply).toHaveBeenCalled();
-    expect(interaction.followUp).toHaveBeenCalled();
+    expect(enqueueSimulationJob).toHaveBeenCalledTimes(1);
+    expect(interaction.reply).toHaveBeenCalled();
   });
 
   it('rejects TE lists that do not match player count', async () => {
@@ -112,3 +106,4 @@ describe('commands/predictmaxcs', () => {
     expect(results[0].value).toBe('c1');
   });
 });
+

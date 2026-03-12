@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-vi.mock('../../../../utils/predictmaxcs/simulation.js', () => {
+vi.mock('../../../../sim-core/src/predictmaxcs/simulation.js', () => {
   const simulateScenario = vi.fn(({ tokensPerPlayer }) => {
     const score = Array.isArray(tokensPerPlayer) ? tokensPerPlayer[0] : tokensPerPlayer;
     return { summaries: [{ cs: score }] };
@@ -19,13 +19,13 @@ vi.mock('../../../../utils/predictmaxcs/simulation.js', () => {
   return { simulateScenario, simulateScenariosParallel, computeAdjustedSummaries };
 });
 
-const loadModel = async () => import('../../../../utils/predictmaxcs/model.js');
+const loadModel = async () => import('../../../../sim-core/src/predictmaxcs/model.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('utils/predictmaxcs/model optimization', () => {
+describe('sim-core/src/predictmaxcs/model optimization', () => {
   it('optimizes late boost tokens with improvement', async () => {
     const { optimizeLateBoostTokens } = await loadModel();
 
@@ -99,3 +99,4 @@ describe('utils/predictmaxcs/model optimization', () => {
     expect(result.bestCs).toBe(8);
   });
 });
+

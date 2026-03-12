@@ -1,0 +1,9 @@
+{
+  "name": "simulation-runner",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "kafkajs": "=2.2.4"
+  }
+}

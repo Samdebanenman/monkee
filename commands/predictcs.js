@@ -2,7 +2,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
   ModalBuilder,
   SlashCommandBuilder,
   StringSelectMenuBuilder,
@@ -10,14 +9,12 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import {
-  chunkContent,
-  createDiscordProgressReporter,
   createTextComponentMessage,
   startDeferredReplyHeartbeat,
 } from '../services/discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
-import { findContractMatch } from '../utils/predictmaxcs/contracts.js';
-import { buildPlayerTableLines, formatEggs, secondsToHuman } from '../utils/predictmaxcs/display.js';
+import { findContractMatch } from '../sim-core/src/predictmaxcs/contracts.js';
+import { formatEggs, secondsToHuman } from '../sim-core/src/predictmaxcs/display.js';
 import {
   DEFAULT_COMPASS,
   DEFAULT_DEFLECTOR,
@@ -44,10 +41,10 @@ import {
   parseIhrSiab,
   parseMetro,
   parseTe,
-} from '../utils/predictcs/artifacts.js';
-import { buildBoostOrder, buildPredictCsModel } from '../utils/predictcs/model.js';
-import { TOKEN_CANDIDATES } from '../utils/predictmaxcs/model.js';
-import { parseSandboxUrl } from '../utils/predictcs/sandbox.js';
+} from '../sim-core/src/predictcs/artifacts.js';
+import { enqueueSimulationJob } from '../services/simQueue.js';
+import { parseSandboxUrl } from '../sim-core/src/predictcs/sandbox.js';
+import { randomUUID } from 'node:crypto';
 
 const sessions = new Map();
 
@@ -460,78 +457,34 @@ async function handlePredictCsNext({ interaction, sessionId, playerIndex, sessio
     await interaction.deferUpdate();
   }
 
-  const totalSteps = 1 + session.players * TOKEN_CANDIDATES.length;
-  const progressReporter = createDiscordProgressReporter(interaction, {
-    prefix: 'PredictCS',
-    width: 20,
-    intervalMs: 1200,
-  });
-
-  const progress = {
-    total: totalSteps,
-    completed: 0,
-    async update({ completed, active, queued } = {}) {
-      if (Number.isFinite(completed)) {
-        this.completed = Math.min(this.total, completed);
-      }
-      const activeCount = Number.isFinite(active) ? active : 0;
-      const queuedCount = Math.max(0, this.total - this.completed - activeCount);
-      await progressReporter({
-        completed: this.completed,
-        total: this.total,
-        active: activeCount,
-        queued: queuedCount,
-      });
+  const jobId = randomUUID();
+  await enqueueSimulationJob({
+    jobId,
+    type: 'predictcs',
+    createdAt: Date.now(),
+    payload: {
+      contractLabel: session.contractLabel,
+      players: session.players,
+      durationSeconds: session.durationSeconds,
+      targetEggs: session.targetEggs,
+      tokenTimerMinutes: session.tokenTimerMinutes,
+      giftMinutes: session.giftMinutes,
+      gg: session.gg,
+      boostOrderMode: session.boostOrderMode,
+      playerArtifacts: session.playerArtifacts,
+      playerIhrArtifacts: session.playerIhrArtifacts,
+      playerTe: session.playerTe,
+      siabEnabled: session.siabEnabled,
+      pushCount: session.pushCount,
+      modifierType: session.modifierType,
+      modifierValue: session.modifierValue,
     },
-  };
-
-  await progress.update({ completed: 0, active: 0, queued: totalSteps });
-
-  const boostOrder = buildBoostOrder(session.boostOrderMode, session.playerTe);
-  const model = await buildPredictCsModel({
-    players: session.players,
-    durationSeconds: session.durationSeconds,
-    targetEggs: session.targetEggs,
-    tokenTimerMinutes: session.tokenTimerMinutes,
-    giftMinutes: session.giftMinutes,
-    gg: session.gg,
-    playerArtifacts: session.playerArtifacts,
-    playerIhrArtifacts: session.playerIhrArtifacts,
-    playerTe: session.playerTe,
-    boostOrder,
-    siabEnabled: session.siabEnabled,
-    pushCount: session.pushCount,
-    modifierType: session.modifierType,
-    modifierValue: session.modifierValue,
-    progress,
   });
 
-  const avgTe = session.playerTe.reduce((sum, value) => sum + value, 0) / Math.max(1, session.playerTe.length);
-  const assumptions = {
-    te: Math.round(avgTe),
-    teValues: session.playerTe,
-    tokensPerPlayer: 0,
-    swapBonus: false,
-    cxpMode: true,
-    siabPercent: 0,
-  };
-
-  const outputLines = buildPlayerTableLines(model, assumptions);
-  outputLines.unshift(`Players: ${session.players} | Duration: ${secondsToHuman(session.durationSeconds)} | Target: ${formatEggs(session.targetEggs)}`);
-
-  const chunks = chunkContent(outputLines, { maxLength: 3800, separator: '\n' });
-  const embeds = chunks.map((chunk, index) => new EmbedBuilder()
-    .setTitle(index === 0
-      ? `PredictCS (${session.contractLabel})`
-      : 'PredictCS (cont.)')
-    .setDescription(chunk));
-
-  const [first, ...rest] = embeds;
-  await progress.update({ completed: totalSteps, active: 0, queued: 0 });
-  await interaction.editReply({ content: '', embeds: [first] });
-  for (const embed of rest) {
-    await interaction.followUp({ embeds: [embed] });
-  }
+  await interaction.editReply(buildPlainComponentMessage(
+    `PredictCS queued. Job id: ${jobId}. Use /predictresult to retrieve the result when ready.`,
+    { components: [] },
+  ));
 
   sessions.delete(sessionId);
 }
@@ -849,82 +802,39 @@ async function runPredictCsSandbox(interaction, session, sandboxData, contractOv
     await interaction.editReply(buildPlainComponentMessage('Preparing PredictCS...', { components: [] }));
   }
 
-  const totalSteps = 1 + players * TOKEN_CANDIDATES.length;
-  const progressReporter = createDiscordProgressReporter(interaction, {
-    prefix: 'PredictCS',
-    width: 20,
-    intervalMs: 1200,
-  });
-
-  const progress = {
-    total: totalSteps,
-    completed: 0,
-    async update({ completed, active, queued } = {}) {
-      if (Number.isFinite(completed)) {
-        this.completed = Math.min(this.total, completed);
-      }
-      const activeCount = Number.isFinite(active) ? active : 0;
-      const queuedCount = Math.max(0, this.total - this.completed - activeCount);
-      await progressReporter({
-        completed: this.completed,
-        total: this.total,
-        active: activeCount,
-        queued: queuedCount,
-      });
+  const jobId = randomUUID();
+  await enqueueSimulationJob({
+    jobId,
+    type: 'predictcs',
+    createdAt: Date.now(),
+    payload: {
+      contractLabel: contractOverride.contractLabel,
+      players,
+      durationSeconds: contractOverride.durationSeconds,
+      targetEggs: contractOverride.targetEggs,
+      tokenTimerMinutes: contractOverride.tokenTimerMinutes,
+      giftMinutes: session.giftMinutes,
+      gg: session.gg,
+      boostOrderMode: session.boostOrderMode,
+      playerArtifacts,
+      playerIhrArtifacts,
+      playerTe,
+      siabEnabled: session.siabEnabled,
+      pushCount: session.pushCount,
+      modifierType: contractOverride.modifierType ?? null,
+      modifierValue: contractOverride.modifierValue ?? null,
     },
-  };
-
-  await progress.update({ completed: 0, active: 0, queued: totalSteps });
-
-  const boostOrder = buildBoostOrder(session.boostOrderMode, playerTe);
-  const model = await buildPredictCsModel({
-    players,
-    durationSeconds: contractOverride.durationSeconds,
-    targetEggs: contractOverride.targetEggs,
-    tokenTimerMinutes: contractOverride.tokenTimerMinutes,
-    giftMinutes: session.giftMinutes,
-    gg: session.gg,
-    playerArtifacts,
-    playerIhrArtifacts,
-    playerTe,
-    boostOrder,
-    siabEnabled: session.siabEnabled,
-    pushCount: session.pushCount,
-    modifierType: contractOverride.modifierType ?? null,
-    modifierValue: contractOverride.modifierValue ?? null,
-    progress,
   });
 
-  const avgTe = playerTe.reduce((sum, value) => sum + value, 0) / Math.max(1, playerTe.length);
-  const assumptions = {
-    te: Math.round(avgTe),
-    teValues: playerTe,
-    tokensPerPlayer: 0,
-    swapBonus: false,
-    cxpMode: true,
-    siabPercent: 0,
-  };
+  const queuedMessage = buildPlainComponentMessage(
+    `PredictCS queued. Job id: ${jobId}. Use /predictresult to retrieve the result when ready.`,
+    { components: [] },
+  );
 
-  const outputLines = buildPlayerTableLines(model, assumptions);
-  outputLines.unshift(`Players: ${players} | Duration: ${secondsToHuman(contractOverride.durationSeconds)} | Target: ${formatEggs(contractOverride.targetEggs)}`);
-
-  const chunks = chunkContent(outputLines, { maxLength: 3800, separator: '\n' });
-  const embeds = chunks.map((chunk, index) => new EmbedBuilder()
-    .setTitle(index === 0
-      ? `PredictCS (${contractOverride.contractLabel})`
-      : 'PredictCS (cont.)')
-    .setDescription(chunk));
-
-  const [first, ...rest] = embeds;
-  await progress.update({ completed: totalSteps, active: 0, queued: 0 });
   if (interaction.deferred || interaction.replied) {
-    await interaction.editReply({ content: '', embeds: [first] });
+    await interaction.editReply(queuedMessage);
   } else {
-    await interaction.reply({ embeds: [first] });
-  }
-
-  for (const embed of rest) {
-    await interaction.followUp({ embeds: [embed] });
+    await interaction.reply(queuedMessage);
   }
 
   sessions.delete(session.sessionId);
@@ -978,3 +888,4 @@ export async function autocomplete(interaction) {
 
   await interaction.respond(filtered);
 }
+

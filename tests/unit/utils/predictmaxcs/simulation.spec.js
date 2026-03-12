@@ -5,9 +5,9 @@ import {
   updatePlayers,
   buildPlayerSummary,
   computeAdjustedSummaries,
-} from '../../../../utils/predictmaxcs/simulation.js';
+} from '../../../../sim-core/src/predictmaxcs/simulation.js';
 
-describe('utils/predictmaxcs/simulation', () => {
+describe('sim-core/src/predictmaxcs/simulation', () => {
   it('simulates a short scenario and returns summaries', () => {
     const playerConfigs = [
       {
@@ -147,3 +147,4 @@ describe('utils/predictmaxcs/simulation', () => {
     expect(adjusted.adjustedMaxCS).toBeGreaterThanOrEqual(adjusted.adjustedMinCS);
   });
 });
+

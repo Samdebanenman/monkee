@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { findContractMatch } from '../../../../utils/predictmaxcs/contracts.js';
+import { findContractMatch } from '../../../../sim-core/src/predictmaxcs/contracts.js';
 
-describe('utils/predictmaxcs/contracts', () => {
+describe('sim-core/src/predictmaxcs/contracts', () => {
   const contracts = [
     { id: 'C1', name: 'First Contract' },
     { id: 'egg2', name: 'Mega Coop' },
@@ -24,3 +24,4 @@ describe('utils/predictmaxcs/contracts', () => {
     expect(findContractMatch(contracts, 'first')).toEqual(contracts[0]);
   });
 });
+

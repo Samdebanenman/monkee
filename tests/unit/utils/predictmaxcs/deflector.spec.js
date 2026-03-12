@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../../utils/predictmaxcs/constants.js', () => ({
+vi.mock('../../../../sim-core/src/predictmaxcs/constants.js', () => ({
   DEFLECTOR_TIERS: [
     { label: 'quant-scrub', percent: 0 },
     { label: 'epic+', percent: 19 },
@@ -18,7 +18,7 @@ import {
   getUnusedDeflectorPercent,
   buildDeflectorDisplay,
   formatDeflectorDisplay,
-} from '../../../../utils/predictmaxcs/deflector.js';
+} from '../../../../sim-core/src/predictmaxcs/deflector.js';
 
 const TIERS = [
   { label: 'quant-scrub', percent: 0 },
@@ -26,7 +26,7 @@ const TIERS = [
   { label: 'legendary', percent: 20 },
 ];
 
-describe('utils/predictmaxcs/deflector', () => {
+describe('sim-core/src/predictmaxcs/deflector', () => {
   it('computes required other deflector percent', () => {
     const required = getRequiredOtherDeflector([
       { maxChickens: 100, elrPerChickenWithStones: 2, srWithStones: 300 },
@@ -109,3 +109,4 @@ describe('utils/predictmaxcs/deflector', () => {
     expect(formatDeflectorDisplay(10)).toContain('10%');
   });
 });
+

@@ -82,12 +82,25 @@ jobs:
           file: ./Dockerfile
           push: true
           load: false
-          platforms: linux/arm64/v8
+          platforms: linux/arm64/v8,linux/amd64
           tags: |
             samdebanenman/monkee:${{ steps.package_version.outputs.version }}
             samdebanenman/monkee:latest
           build-args: |
             NODE_VERSION=24
+
+      - name: Build and push runner image
+        uses: docker/build-push-action@v6
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          file: ./simulation-runner/Dockerfile
+          push: true
+          load: false
+          platforms: linux/arm64/v8,linux/amd64
+          tags: |
+            samdebanenman/monkee-runner:${{ steps.package_version.outputs.version }}
+            samdebanenman/monkee-runner:latest
 
   redeploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { getCS, getTeamwork, getBtvRate } from '../../../../utils/predictmaxcs/score.js';
+import { getCS, getTeamwork, getBtvRate } from '../../../../sim-core/src/predictmaxcs/score.js';
 
-describe('utils/predictmaxcs/score', () => {
+describe('sim-core/src/predictmaxcs/score', () => {
   it('computes CS score', () => {
     const cs = getCS(1.5, 86400, 36000, 0.5);
     expect(Number.isFinite(cs)).toBe(true);
@@ -26,3 +26,4 @@ describe('utils/predictmaxcs/score', () => {
     expect(modern).toBeGreaterThan(legacy);
   });
 });
+

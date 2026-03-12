@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../../utils/predictmaxcs/constants.js', async () => {
-  const actual = await vi.importActual('../../../../utils/predictmaxcs/constants.js');
+vi.mock('../../../../sim-core/src/predictmaxcs/constants.js', async () => {
+  const actual = await vi.importActual('../../../../sim-core/src/predictmaxcs/constants.js');
   return {
     ...actual,
     getDynamicColeggtibles: () => ({
@@ -20,10 +20,10 @@ import {
   optimizeStones,
   getIhrStoneSlots,
   getSwapChickenJump,
-} from '../../../../utils/predictmaxcs/model.js';
-import { BOOSTED_SET } from '../../../../utils/predictmaxcs/constants.js';
+} from '../../../../sim-core/src/predictmaxcs/model.js';
+import { BOOSTED_SET } from '../../../../sim-core/src/predictmaxcs/constants.js';
 
-describe('utils/predictmaxcs/model', () => {
+describe('sim-core/src/predictmaxcs/model', () => {
   it('optimizes stones by balancing elr and sr', () => {
     const result = optimizeStones(100, 100, 2);
     expect(result.numTach + result.numQuant).toBe(2);
@@ -72,3 +72,4 @@ describe('utils/predictmaxcs/model', () => {
     expect(model.tokenPlan.bestTime.tokens).toBeTruthy();
   });
 });
+

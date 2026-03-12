@@ -13,9 +13,9 @@ import {
   parseIhrDeflector,
   parseIhrSiab,
   parseTe,
-} from '../../../../utils/predictcs/artifacts.js';
+} from '../../../../sim-core/src/predictcs/artifacts.js';
 
-describe('utils/predictcs/artifacts', () => {
+describe('sim-core/src/predictcs/artifacts', () => {
   it('lists artifact options', () => {
     const text = listArtifactOptions(DEFLECTOR_OPTIONS);
     expect(text).toContain(DEFLECTOR_OPTIONS[0].name);
@@ -50,3 +50,4 @@ describe('utils/predictcs/artifacts', () => {
     expect(METRO_OPTIONS.length).toBeGreaterThan(5);
   });
 });
+
