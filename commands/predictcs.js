@@ -42,10 +42,9 @@ import {
   parseMetro,
   parseTe,
 } from '../sim-core/src/predictcs/artifacts.js';
-import { enqueueSimulationJob } from '../services/simQueue.js';
 import { parseSandboxUrl } from '../sim-core/src/predictcs/sandbox.js';
 import { getStoredColeggtibles } from '../utils/database/coleggtiblesRepository.js';
-import { randomUUID } from 'node:crypto';
+import { startPredictCsOrchestration } from '../services/simOrchestrator.js';
 
 const sessions = new Map();
 
@@ -458,36 +457,28 @@ async function handlePredictCsNext({ interaction, sessionId, playerIndex, sessio
     await interaction.deferUpdate();
   }
 
-  const jobId = randomUUID();
   const coleggRows = getStoredColeggtibles();
-  await enqueueSimulationJob({
-    jobId,
-    type: 'predictcs',
-    createdAt: Date.now(),
-    payload: {
-      contractLabel: session.contractLabel,
-      players: session.players,
-      durationSeconds: session.durationSeconds,
-      targetEggs: session.targetEggs,
-      tokenTimerMinutes: session.tokenTimerMinutes,
-      giftMinutes: session.giftMinutes,
-      gg: session.gg,
-      boostOrderMode: session.boostOrderMode,
-      coleggtiblesRows: coleggRows,
-      playerArtifacts: session.playerArtifacts,
-      playerIhrArtifacts: session.playerIhrArtifacts,
-      playerTe: session.playerTe,
-      siabEnabled: session.siabEnabled,
-      pushCount: session.pushCount,
-      modifierType: session.modifierType,
-      modifierValue: session.modifierValue,
-    },
-  });
+  await interaction.editReply(buildPlainComponentMessage('Running PredictCS simulations...', { components: [] }));
 
-  await interaction.editReply(buildPlainComponentMessage(
-    `PredictCS queued. Job id: ${jobId}. Use /predictresult to retrieve the result when ready.`,
-    { components: [] },
-  ));
+  await startPredictCsOrchestration({
+    interaction,
+    contractLabel: session.contractLabel,
+    players: session.players,
+    durationSeconds: session.durationSeconds,
+    targetEggs: session.targetEggs,
+    tokenTimerMinutes: session.tokenTimerMinutes,
+    giftMinutes: session.giftMinutes,
+    gg: session.gg,
+    boostOrderMode: session.boostOrderMode,
+    coleggtiblesRows: coleggRows,
+    playerArtifacts: session.playerArtifacts,
+    playerIhrArtifacts: session.playerIhrArtifacts,
+    playerTe: session.playerTe,
+    siabEnabled: session.siabEnabled,
+    pushCount: session.pushCount,
+    modifierType: session.modifierType,
+    modifierValue: session.modifierValue,
+  });
 
   sessions.delete(sessionId);
 }
@@ -805,42 +796,34 @@ async function runPredictCsSandbox(interaction, session, sandboxData, contractOv
     await interaction.editReply(buildPlainComponentMessage('Preparing PredictCS...', { components: [] }));
   }
 
-  const jobId = randomUUID();
   const coleggRows = getStoredColeggtibles();
-  await enqueueSimulationJob({
-    jobId,
-    type: 'predictcs',
-    createdAt: Date.now(),
-    payload: {
-      contractLabel: contractOverride.contractLabel,
-      players,
-      durationSeconds: contractOverride.durationSeconds,
-      targetEggs: contractOverride.targetEggs,
-      tokenTimerMinutes: contractOverride.tokenTimerMinutes,
-      giftMinutes: session.giftMinutes,
-      gg: session.gg,
-      boostOrderMode: session.boostOrderMode,
-      coleggtiblesRows: coleggRows,
-      playerArtifacts,
-      playerIhrArtifacts,
-      playerTe,
-      siabEnabled: session.siabEnabled,
-      pushCount: session.pushCount,
-      modifierType: contractOverride.modifierType ?? null,
-      modifierValue: contractOverride.modifierValue ?? null,
-    },
-  });
-
-  const queuedMessage = buildPlainComponentMessage(
-    `PredictCS queued. Job id: ${jobId}. Use /predictresult to retrieve the result when ready.`,
-    { components: [] },
-  );
+  const queuedMessage = buildPlainComponentMessage('Running PredictCS simulations...', { components: [] });
 
   if (interaction.deferred || interaction.replied) {
     await interaction.editReply(queuedMessage);
   } else {
     await interaction.reply(queuedMessage);
   }
+
+  await startPredictCsOrchestration({
+    interaction,
+    contractLabel: contractOverride.contractLabel,
+    players,
+    durationSeconds: contractOverride.durationSeconds,
+    targetEggs: contractOverride.targetEggs,
+    tokenTimerMinutes: contractOverride.tokenTimerMinutes,
+    giftMinutes: session.giftMinutes,
+    gg: session.gg,
+    boostOrderMode: session.boostOrderMode,
+    coleggtiblesRows: coleggRows,
+    playerArtifacts,
+    playerIhrArtifacts,
+    playerTe,
+    siabEnabled: session.siabEnabled,
+    pushCount: session.pushCount,
+    modifierType: contractOverride.modifierType ?? null,
+    modifierValue: contractOverride.modifierValue ?? null,
+  });
 
   sessions.delete(session.sessionId);
 }

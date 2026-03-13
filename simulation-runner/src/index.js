@@ -1,7 +1,5 @@
 import { Kafka } from 'kafkajs';
-import { buildModel, getAssumptions } from '../../sim-core/src/predictmaxcs/model.js';
-import { buildPlayerTableLines, formatEggs, secondsToHuman } from '../../sim-core/src/predictmaxcs/display.js';
-import { buildBoostOrder, buildPredictCsModel } from '../../sim-core/src/predictcs/model.js';
+import { simulateScenario } from '../../sim-core/src/predictmaxcs/simulation.js';
 
 const rawBrokers = process.env.KAFKA_BROKERS ?? 'localhost:9092';
 const brokers = rawBrokers
@@ -17,91 +15,47 @@ const resultTopic = process.env.SIM_RESULT_TOPIC ?? 'sim-results';
 const kafka = new Kafka({ clientId, brokers });
 const producer = kafka.producer();
 const consumer = kafka.consumer({ groupId });
+const admin = kafka.admin();
 
-async function handlePredictMaxCs(job) {
-  const payload = job.payload ?? {};
-  const assumptions = payload.assumptions ?? getAssumptions(payload.teValues ?? payload.te ?? 0);
-
-  const model = await buildModel({
-    players: payload.players,
-    durationSeconds: payload.durationSeconds,
-    targetEggs: payload.targetEggs,
-    tokenTimerMinutes: payload.tokenTimerMinutes,
-    giftMinutes: payload.giftMinutes,
-    gg: payload.gg,
-    assumptions,
-    coleggtiblesRows: payload.coleggtiblesRows ?? null,
-    siabOverride: payload.siabOverride,
-    modifierType: payload.modifierType ?? null,
-    modifierValue: payload.modifierValue ?? null,
-  });
-
-  const outputLines = buildPlayerTableLines(model, assumptions);
-  outputLines.unshift(
-    `Players: ${payload.players} | Duration: ${secondsToHuman(payload.durationSeconds)} | Target: ${formatEggs(payload.targetEggs)}`,
-  );
-
-  return {
-    title: `PredictMaxCS (${payload.contractLabel ?? 'contract'})`,
-    outputLines,
-  };
-}
-
-async function handlePredictCs(job) {
-  const payload = job.payload ?? {};
-  const playerTe = Array.isArray(payload.playerTe) ? payload.playerTe : [];
-  const boostOrder = buildBoostOrder(payload.boostOrderMode ?? 'input', playerTe);
-
-  const model = await buildPredictCsModel({
-    players: payload.players,
-    durationSeconds: payload.durationSeconds,
-    targetEggs: payload.targetEggs,
-    tokenTimerMinutes: payload.tokenTimerMinutes,
-    giftMinutes: payload.giftMinutes,
-    gg: payload.gg,
-    coleggtiblesRows: payload.coleggtiblesRows ?? null,
-    playerArtifacts: payload.playerArtifacts,
-    playerIhrArtifacts: payload.playerIhrArtifacts,
-    playerTe,
-    boostOrder,
-    siabEnabled: payload.siabEnabled,
-    pushCount: payload.pushCount ?? 0,
-    modifierType: payload.modifierType ?? null,
-    modifierValue: payload.modifierValue ?? null,
-  });
-
-  const avgTe = playerTe.reduce((sum, value) => sum + value, 0) / Math.max(1, playerTe.length);
-  const assumptions = {
-    te: Math.round(avgTe),
-    teValues: playerTe,
-    tokensPerPlayer: 0,
-    swapBonus: false,
-    cxpMode: true,
-    siabPercent: 0,
-  };
-
-  const outputLines = buildPlayerTableLines(model, assumptions);
-  outputLines.unshift(
-    `Players: ${payload.players} | Duration: ${secondsToHuman(payload.durationSeconds)} | Target: ${formatEggs(payload.targetEggs)}`,
-  );
-
-  return {
-    title: `PredictCS (${payload.contractLabel ?? 'contract'})`,
-    outputLines,
-  };
+async function ensureTopics() {
+  const partitions = Number(process.env.SIM_TOPIC_PARTITIONS ?? 8);
+  const topics = [requestTopic, resultTopic];
+  await admin.connect();
+  const existing = await admin.listTopics();
+  const missing = topics.filter(topic => !existing.includes(topic));
+  if (missing.length > 0) {
+    await admin.createTopics({
+      topics: missing.map(topic => ({
+        topic,
+        numPartitions: partitions,
+        replicationFactor: 1,
+      })),
+      waitForLeaders: true,
+    });
+  }
+  await admin.disconnect();
 }
 
 async function processJob(job) {
-  if (job.type === 'predictmaxcs') {
-    return handlePredictMaxCs(job);
+  if (job.type !== 'simulate') {
+    throw new Error(`Unsupported job type: ${job.type}`);
   }
-  if (job.type === 'predictcs') {
-    return handlePredictCs(job);
+  const payload = job.payload ?? {};
+  const scenario = payload.scenario;
+  if (!scenario) {
+    throw new Error('Missing scenario payload');
   }
-  throw new Error(`Unsupported job type: ${job.type}`);
+
+  const result = simulateScenario(scenario);
+  return {
+    ...result,
+    orchestrationId: payload.orchestrationId,
+    context: payload.context ?? {},
+  };
 }
 
 async function start() {
+  await ensureTopics();
   await producer.connect();
   await consumer.connect();
   await consumer.subscribe({ topic: requestTopic, fromBeginning: false });

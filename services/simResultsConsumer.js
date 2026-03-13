@@ -6,6 +6,12 @@ const groupId = process.env.SIM_RESULT_GROUP ?? 'monkee-results';
 
 let consumer;
 let started = false;
+const handlers = new Set();
+
+export function onSimulationResult(handler) {
+  if (typeof handler === 'function') handlers.add(handler);
+  return () => handlers.delete(handler);
+}
 
 export async function startResultConsumer() {
   if (started) return;
@@ -20,6 +26,13 @@ export async function startResultConsumer() {
       try {
         const payload = JSON.parse(message.value.toString());
         storeResult(payload);
+        handlers.forEach(handler => {
+          try {
+            handler(payload);
+          } catch (error) {
+            console.error('Simulation result handler failed:', error);
+          }
+        });
       } catch (error) {
         console.error('Failed to parse simulation result:', error);
       }

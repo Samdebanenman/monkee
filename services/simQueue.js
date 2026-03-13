@@ -29,3 +29,16 @@ export async function enqueueSimulationJob(job) {
     ],
   });
 }
+
+export async function enqueueSimulationJobs(jobs = []) {
+  const batch = Array.isArray(jobs) ? jobs.filter(job => job && job.jobId) : [];
+  if (!batch.length) return;
+  const sender = await getProducer();
+  await sender.send({
+    topic: requestTopic,
+    messages: batch.map(job => ({
+      key: job.jobId,
+      value: JSON.stringify(job),
+    })),
+  });
+}

@@ -4,8 +4,7 @@ import { fetchContractSummaries } from '../services/contractService.js';
 import { findContractMatch } from '../sim-core/src/predictmaxcs/contracts.js';
 import { getAssumptions } from '../sim-core/src/predictmaxcs/model.js';
 import { getStoredColeggtibles } from '../utils/database/coleggtiblesRepository.js';
-import { enqueueSimulationJob } from '../services/simQueue.js';
-import { randomUUID } from 'node:crypto';
+import { startPredictMaxCsOrchestration } from '../services/simOrchestrator.js';
 
 const DEFAULT_TE = 100;
 const TE_MIN = 0;
@@ -133,33 +132,26 @@ export async function execute(interaction) {
 
   const assumptions = getAssumptions(teValues);
   const contractLabel = contractMatch?.name || contractMatch?.id || contractInput;
-  const jobId = randomUUID();
   const coleggRows = getStoredColeggtibles();
 
-  await enqueueSimulationJob({
-    jobId,
-    type: 'predictmaxcs',
-    createdAt: Date.now(),
-    payload: {
-      contractLabel,
-      players,
-      durationSeconds,
-      targetEggs,
-      tokenTimerMinutes,
-      giftMinutes,
-      gg,
-      assumptions,
-      coleggtiblesRows: coleggRows,
-      siabOverride,
-      modifierType: contractMatch?.modifierType ?? null,
-      modifierValue: contractMatch?.modifierValue ?? null,
-    },
-  });
+  await interaction.deferReply();
+  await interaction.editReply(createTextComponentMessage('Running PredictMaxCS simulations...', { flags: 64 }));
 
-  await interaction.reply(createTextComponentMessage(
-    `PredictMaxCS queued. Job id: ${jobId}. Use /predictresult to retrieve the result when ready.`,
-    { flags: 64 },
-  ));
+  await startPredictMaxCsOrchestration({
+    interaction,
+    contractLabel,
+    players,
+    durationSeconds,
+    targetEggs,
+    tokenTimerMinutes,
+    giftMinutes,
+    gg,
+    assumptions,
+    coleggtiblesRows: coleggRows,
+    siabOverride,
+    modifierType: contractMatch?.modifierType ?? null,
+    modifierValue: contractMatch?.modifierValue ?? null,
+  });
 }
 
 export async function autocomplete(interaction) {
