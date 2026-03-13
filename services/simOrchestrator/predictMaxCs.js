@@ -271,8 +271,8 @@ export async function advancePredictMaxCs(orchestration) {
       orchestration.variantsToSweep = orchestration.variants;
     }
 
-    orchestration.phase = 'sweep';
     await handlePhaseSweep(orchestration);
+    orchestration.phase = 'sweep';
     return;
   }
 
@@ -293,8 +293,8 @@ export async function advancePredictMaxCs(orchestration) {
     });
 
     orchestration.variantsToFinalize = orchestration.variantsToSweep;
-    orchestration.phase = 'final';
     await handlePhaseFinal(orchestration);
+    orchestration.phase = 'final';
     return;
   }
 

@@ -26,13 +26,14 @@ export async function startResultConsumer() {
       try {
         const payload = JSON.parse(message.value.toString());
         storeResult(payload);
-        handlers.forEach(handler => {
+        const currentHandlers = Array.from(handlers);
+        for (const handler of currentHandlers) {
           try {
-            handler(payload);
+            await handler(payload);
           } catch (error) {
             console.error('Simulation result handler failed:', error);
           }
-        });
+        }
       } catch (error) {
         console.error('Failed to parse simulation result:', error);
       }

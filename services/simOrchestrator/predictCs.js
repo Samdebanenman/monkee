@@ -210,8 +210,8 @@ export async function advancePredictCs(orchestration) {
     });
     orchestration.uniformTokens = Array.from({ length: orchestration.players }, () => bestCandidate);
 
-    orchestration.phase = 'sweep';
     await handlePhaseSweep(orchestration);
+    orchestration.phase = 'sweep';
     return;
   }
 
@@ -229,8 +229,8 @@ export async function advancePredictCs(orchestration) {
       return bestCandidate;
     });
 
-    orchestration.phase = 'final';
     await handlePhaseFinal(orchestration);
+    orchestration.phase = 'final';
     return;
   }
 

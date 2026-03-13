@@ -3,7 +3,7 @@ services:
     image: samdebanenman/monkee-runner:${RUNNER_TAG:-latest}
     restart: unless-stopped
     environment:
-      KAFKA_BROKERS: ${KAFKA_BROKERS:-homeconnectionsam.duckdns.org:9092}
+      KAFKA_BROKERS: 192.168.178.7:9092
       KAFKA_CLIENT_ID: ${KAFKA_CLIENT_ID:-simulation-runner}
       SIM_REQUEST_GROUP: ${SIM_REQUEST_GROUP:-simulation-runners}
       SIM_REQUEST_TOPIC: ${SIM_REQUEST_TOPIC:-sim-requests}
