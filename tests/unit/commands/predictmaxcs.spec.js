@@ -5,6 +5,10 @@ vi.mock('../../../services/contractService.js', () => ({
   fetchContractSummaries: vi.fn(),
 }));
 
+vi.mock('../../../services/simOrchestrator.js', () => ({
+  startPredictMaxCsOrchestration: vi.fn(async () => 'orch-1'),
+}));
+
 vi.mock('../../../utils/database/coleggtiblesRepository.js', () => ({
   getStoredColeggtibles: vi.fn(() => []),
 }));
@@ -15,6 +19,7 @@ vi.mock('../../../services/discord.js', () => ({
 
 vi.mock('../../../sim-core/src/predictmaxcs/model.js', () => ({
   getAssumptions: vi.fn((teValues = [100]) => ({ te: 100, teValues })),
+  TOKEN_CANDIDATES: [0, 1, 2, 3, 4, 5, 6, 8],
 }));
 
 vi.mock('../../../services/simQueue.js', () => ({
@@ -24,7 +29,7 @@ vi.mock('../../../services/simQueue.js', () => ({
 import { execute, autocomplete } from '../../../commands/predictmaxcs.js';
 import { fetchContractSummaries } from '../../../services/contractService.js';
 import { createTextComponentMessage } from '../../../services/discord.js';
-import { enqueueSimulationJob } from '../../../services/simQueue.js';
+import { startPredictMaxCsOrchestration } from '../../../services/simOrchestrator.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -70,7 +75,7 @@ describe('commands/predictmaxcs', () => {
     expect(interaction.reply).toHaveBeenCalled();
   });
 
-  it('queues a job for valid input', async () => {
+  it('starts orchestration for valid input', async () => {
     fetchContractSummaries.mockResolvedValue([
       { id: 'c1', name: 'Test', maxCoopSize: 2, coopDurationSeconds: 3600, eggGoal: 1000, minutesPerToken: 4 },
     ]);
@@ -78,8 +83,9 @@ describe('commands/predictmaxcs', () => {
 
     await execute(interaction);
 
-    expect(enqueueSimulationJob).toHaveBeenCalledTimes(1);
-    expect(interaction.reply).toHaveBeenCalled();
+    expect(interaction.deferReply).toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalled();
+    expect(startPredictMaxCsOrchestration).toHaveBeenCalledTimes(1);
   });
 
   it('rejects TE lists that do not match player count', async () => {

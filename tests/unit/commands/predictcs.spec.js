@@ -5,6 +5,10 @@ vi.mock('../../../services/contractService.js', () => ({
   fetchContractSummaries: vi.fn(),
 }));
 
+vi.mock('../../../services/simOrchestrator.js', () => ({
+  startPredictCsOrchestration: vi.fn(async () => 'orch-1'),
+}));
+
 vi.mock('../../../utils/database/coleggtiblesRepository.js', () => ({
   getStoredColeggtibles: vi.fn(() => []),
 }));
@@ -20,13 +24,14 @@ vi.mock('../../../sim-core/src/predictcs/sandbox.js', () => ({
 
 vi.mock('../../../services/simQueue.js', () => ({
   enqueueSimulationJob: vi.fn(async () => {}),
+  enqueueSimulationJobs: vi.fn(async () => {}),
 }));
 
 import { execute, autocomplete, handleComponentInteraction, handleModalSubmit } from '../../../commands/predictcs.js';
 import { fetchContractSummaries } from '../../../services/contractService.js';
 import { createTextComponentMessage } from '../../../services/discord.js';
 import { parseSandboxUrl } from '../../../sim-core/src/predictcs/sandbox.js';
-import { enqueueSimulationJob } from '../../../services/simQueue.js';
+import { startPredictCsOrchestration } from '../../../services/simOrchestrator.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -297,7 +302,7 @@ describe('commands/predictcs', () => {
 
     await handleComponentInteraction(contractInteraction);
     expect(contractInteraction.deferUpdate).toHaveBeenCalled();
-    expect(enqueueSimulationJob).toHaveBeenCalledTimes(1);
+    expect(startPredictCsOrchestration).toHaveBeenCalledTimes(1);
   });
 });
 
