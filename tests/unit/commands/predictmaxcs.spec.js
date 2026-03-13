@@ -84,7 +84,8 @@ describe('commands/predictmaxcs', () => {
     await execute(interaction);
 
     expect(interaction.deferReply).toHaveBeenCalled();
-    expect(interaction.editReply).toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledWith({ content: 'Running PredictMaxCS simulations...' });
+    expect(createTextComponentMessage).not.toHaveBeenCalled();
     expect(startPredictMaxCsOrchestration).toHaveBeenCalledTimes(1);
   });
 

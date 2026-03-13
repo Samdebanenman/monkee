@@ -135,7 +135,7 @@ export async function execute(interaction) {
   const coleggRows = getStoredColeggtibles();
 
   await interaction.deferReply();
-  await interaction.editReply(createTextComponentMessage('Running PredictMaxCS simulations...', { flags: 64 }));
+  await interaction.editReply({ content: 'Running PredictMaxCS simulations...' });
 
   await startPredictMaxCsOrchestration({
     interaction,
