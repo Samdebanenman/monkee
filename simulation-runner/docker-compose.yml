@@ -1,10 +1,10 @@
 services:
   simulation-runner:
-    image: samdebanenman/monkee-runner:${RUNNER_TAG:-latest}
+    image: samdebanenman/monkee-runner:latest
     restart: unless-stopped
     environment:
       KAFKA_BROKERS: 192.168.178.7:9092
-      KAFKA_CLIENT_ID: ${KAFKA_CLIENT_ID:-simulation-runner}
-      SIM_REQUEST_GROUP: ${SIM_REQUEST_GROUP:-simulation-runners}
-      SIM_REQUEST_TOPIC: ${SIM_REQUEST_TOPIC:-sim-requests}
-      SIM_RESULT_TOPIC: ${SIM_RESULT_TOPIC:-sim-results}
+      KAFKA_CLIENT_ID: simulation-runner
+      SIM_REQUEST_GROUP: simulation-runners
+      SIM_REQUEST_TOPIC: sim-requests
+      SIM_RESULT_TOPIC: sim-results
