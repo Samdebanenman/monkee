@@ -1,4 +1,6 @@
 import { Kafka } from 'kafkajs';
+import cluster from 'node:cluster';
+import { availableParallelism } from 'node:os';
 import { simulateScenario } from '../../sim-core/src/predictmaxcs/simulation.js';
 
 const rawBrokers = process.env.KAFKA_BROKERS ?? 'localhost:9092';
@@ -11,6 +13,10 @@ const clientId = process.env.KAFKA_CLIENT_ID ?? 'simulation-runner';
 const groupId = process.env.SIM_REQUEST_GROUP ?? 'simulation-runners';
 const requestTopic = process.env.SIM_REQUEST_TOPIC ?? 'sim-requests';
 const resultTopic = process.env.SIM_RESULT_TOPIC ?? 'sim-results';
+const workerCountInput = Number(process.env.SIM_RUNNER_WORKERS ?? availableParallelism());
+const workerCount = Number.isFinite(workerCountInput) && workerCountInput > 0
+  ? Math.floor(workerCountInput)
+  : 1;
 
 const kafka = new Kafka({ clientId, brokers });
 const producer = kafka.producer();
@@ -55,7 +61,6 @@ async function processJob(job) {
 }
 
 async function start() {
-  await ensureTopics();
   await producer.connect();
   await consumer.connect();
   await consumer.subscribe({ topic: requestTopic, fromBeginning: false });
@@ -101,7 +106,38 @@ async function start() {
   });
 }
 
-start().catch(error => {
-  console.error('Simulation runner failed to start:', error);
-  process.exit(1);
-});
+async function startPrimary() {
+  await ensureTopics();
+
+  if (workerCount === 1) {
+    console.log('Starting simulation runner with 1 worker process.');
+    await start();
+    return;
+  }
+
+  console.log(`Starting simulation runner with ${workerCount} worker processes.`);
+  for (let index = 0; index < workerCount; index += 1) {
+    cluster.fork();
+  }
+
+  cluster.on('exit', (worker, code, signal = 'none') => {
+    console.error(`Simulation worker ${worker.process.pid} exited (code=${code}, signal=${signal}), restarting.`);
+    cluster.fork();
+  });
+}
+
+if (cluster.isPrimary) {
+  try {
+    await startPrimary();
+  } catch (error) {
+    console.error('Simulation runner failed to start:', error);
+    process.exit(1);
+  }
+} else {
+  try {
+    await start();
+  } catch (error) {
+    console.error('Simulation worker failed to start:', error);
+    process.exit(1);
+  }
+}
