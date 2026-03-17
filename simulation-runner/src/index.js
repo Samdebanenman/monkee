@@ -19,19 +19,20 @@ const workerCount = Number.isFinite(workerCountInput) && workerCountInput > 0
   : 1;
 
 const kafka = new Kafka({ clientId, brokers });
-const producer = kafka.producer();
-const consumer = kafka.consumer({ groupId });
+const producer = kafka.producer({ allowAutoTopicCreation: false });
+const consumer = kafka.consumer({ groupId, allowAutoTopicCreation: false });
 const admin = kafka.admin();
 
 async function ensureTopics() {
   const partitions = Number(process.env.SIM_TOPIC_PARTITIONS ?? 8);
   const topics = [requestTopic, resultTopic];
   await admin.connect();
-  const existing = await admin.listTopics();
-  const missing = topics.filter(topic => !existing.includes(topic));
-  if (missing.length > 0) {
+  const existingTopics = await admin.listTopics();
+  const missingTopics = topics.filter(topic => !existingTopics.includes(topic));
+
+  if (missingTopics.length > 0) {
     await admin.createTopics({
-      topics: missing.map(topic => ({
+      topics: missingTopics.map(topic => ({
         topic,
         numPartitions: partitions,
         replicationFactor: 1,
@@ -39,6 +40,24 @@ async function ensureTopics() {
       waitForLeaders: true,
     });
   }
+
+  const topicMetadata = await admin.fetchTopicMetadata({ topics });
+  const topicsToExpand = topicMetadata.topics
+    .map(topic => ({
+      topic: topic.name,
+      currentCount: topic.partitions.length,
+    }))
+    .filter(topic => topic.currentCount < partitions)
+    .map(topic => ({ topic: topic.topic, count: partitions }));
+
+  if (topicsToExpand.length > 0) {
+    await admin.createPartitions({
+      topicPartitions: topicsToExpand,
+      validateOnly: false,
+      waitForLeaders: true,
+    });
+  }
+
   await admin.disconnect();
 }
 
