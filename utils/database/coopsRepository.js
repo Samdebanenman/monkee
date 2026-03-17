@@ -378,7 +378,7 @@ function getAstronomicalSeasonRange(seasonKey) {
     case 'fall':
       return { start: toUtcSeconds(year, 8, 22), endExclusive: toUtcSeconds(year, 11, 22) };
     case 'winter':
-      return { start: toUtcSeconds(year, 11, 21), endExclusive: toUtcSeconds(year + 1, 2, 20) };
+      return { start: toUtcSeconds(year - 1, 11, 21), endExclusive: toUtcSeconds(year, 2, 20) };
     default:
       return null;
   }
