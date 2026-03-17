@@ -201,6 +201,10 @@ export async function startPredictMaxCsOrchestration(options) {
 
   const variants = [baseVariant, siabVariant];
   const variantMap = new Map(variants.map(variant => [variant.id, variant]));
+  const sweepVariantCount = siabOverride == null ? 2 : 1;
+  const expectedJobCount = (tokenCandidates.length * 2)
+    + (tokenCandidates.length * players * sweepVariantCount)
+    + sweepVariantCount;
 
   const orchestration = {
     id: randomUUID(),
@@ -223,6 +227,9 @@ export async function startPredictMaxCsOrchestration(options) {
     variantsToFinalize: [],
     phase: 'uniform',
     pending: 0,
+    expectedJobCount,
+    scenarioIds: new Set(),
+    completedJobIds: new Set(),
   };
 
   await handlePhaseUniform(orchestration);

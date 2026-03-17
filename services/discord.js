@@ -94,15 +94,26 @@ export function createDiscordProgressReporter(
 ) {
   let lastUpdate = 0;
 
-  return async ({ completed = 0, total = 0, active = 0, queued = 0 } = {}) => {
+  return async ({
+    completed = 0,
+    total = 0,
+    active = 0,
+    queued = 0,
+    phase = null,
+    simsPerSecond = null,
+    force = false,
+  } = {}) => {
     const now = Date.now();
     const isFinal = total > 0 && completed >= total;
-    if (!isFinal && now - lastUpdate < intervalMs) return;
+    if (!force && !isFinal && now - lastUpdate < intervalMs) return;
     lastUpdate = now;
 
     const bar = buildProgressBar({ completed, total, width });
     const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-    const content = `${prefix}: [${bar}] ${percent}% (${completed}/${total}) | active: ${active} | queued: ${queued}`;
+    const safeRate = Number.isFinite(simsPerSecond) ? Math.max(0, simsPerSecond) : null;
+    const rateText = safeRate == null ? '' : ` | ${safeRate.toFixed(2)} sims/s`;
+    const phaseText = phase ? ` | phase: ${phase}` : '';
+    const content = `${prefix}: [${bar}] ${percent}% (${completed}/${total})${rateText}${phaseText} | active: ${active} | queued: ${queued}`;
 
     if (typeof interaction?.editReply === 'function') {
       await interaction.editReply({ content });

@@ -97,6 +97,14 @@ export function buildScenarioJob({ orchestrationId, scenarioId, context, scenari
 }
 
 export async function enqueueScenarioBatch(orchestration, scenarios) {
+  if (!orchestration.scenarioIds) {
+    orchestration.scenarioIds = new Set();
+  }
+  for (const scenario of scenarios) {
+    if (scenario?.jobId) {
+      orchestration.scenarioIds.add(scenario.jobId);
+    }
+  }
   orchestration.pending += scenarios.length;
   await enqueueSimulationJobs(scenarios);
 }

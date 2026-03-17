@@ -173,6 +173,9 @@ export async function startPredictCsOrchestration(options) {
     ...variant,
     phase: 'uniform',
     pending: 0,
+    expectedJobCount: (tokenCandidates.length * (players + 1)) + 1,
+    scenarioIds: new Set(),
+    completedJobIds: new Set(),
     uniformScores: new Map(),
     sweepScores: new Map(),
   };
