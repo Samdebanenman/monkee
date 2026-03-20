@@ -4,7 +4,7 @@ import { extractDiscordId, chunkContent, createTextComponentMessage } from '../s
 import { linkAltAccount, unlinkAltAccount } from '../services/coopService.js';
 import { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries } from '../services/memberService.js';
 
-const API_URL = 'https://eiapi-production.up.railway.app/allMaj';
+const API_URL = 'https://eiapi.up.railway.app/allMaj';
 const MAX_DETAIL_ROWS = 5;
 
 function formatConflict(conflict) {
