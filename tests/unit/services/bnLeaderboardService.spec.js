@@ -340,4 +340,96 @@ describe('services/bnLeaderboardService', () => {
     expect(entry.status).toBe('✗');
     expect(entry.auditFailures[0].reasons).toContain('equipped stones exceed available artifact slots');
   });
+
+  it('uses actual completion time when goals are achieved before contract expiry', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 10000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(false);
+
+    getCoopAvailability.mockImplementation(async (_contract, code) => {
+      if (code === 'noo') return { coopCode: code, free: false };
+      if (code === '2noo') return { coopCode: code, free: true };
+      return { coopCode: code, free: true };
+    });
+
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 100,
+          },
+        },
+      ],
+      allGoalsAchieved: true,
+      secondsRemaining: 4000,
+      secondsSinceAllGoalsAchieved: 1000,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.durationLabel).toBe('1h23m');
+  });
+
+  it('normalizes 0h0m to -- and sorts it to the bottom', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 10000 }]);
+    listCoops.mockReturnValue(['noo', '2noo']);
+    hasKnownMembersForContributors.mockReturnValue(false);
+
+    getCoopAvailability.mockImplementation(async (_contract, code) => {
+      if (code === 'noo') return { coopCode: code, free: false };
+      if (code === '2noo') return { coopCode: code, free: false };
+      if (code === '3noo') return { coopCode: code, free: true };
+      return { coopCode: code, free: true };
+    });
+
+    getCoopStatus.mockImplementation(async (_contract, code) => {
+      if (code === 'noo') {
+        return {
+          contributors: [
+            {
+              ...contributor(1),
+              productionParams: {
+                farmPopulation: 100,
+                farmCapacity: 100,
+                delivered: 100,
+              },
+            },
+          ],
+          allGoalsAchieved: true,
+          secondsRemaining: 5000,
+          secondsSinceAllGoalsAchieved: 5000,
+        };
+      }
+
+      return {
+        contributors: [
+          {
+            ...contributor(1),
+            productionParams: {
+              farmPopulation: 100,
+              farmCapacity: 100,
+              delivered: 100,
+            },
+          },
+        ],
+        allGoalsAchieved: true,
+        secondsRemaining: 5000,
+        secondsSinceAllGoalsAchieved: 1400,
+      };
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+    expect(result.entries.map(item => item.coop)).toEqual(['2noo', 'noo']);
+
+    const bottom = result.entries[result.entries.length - 1];
+    expect(bottom.coop).toBe('noo');
+    expect(bottom.durationLabel).toBe('--');
+  });
 });

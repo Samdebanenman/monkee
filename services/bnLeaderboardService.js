@@ -469,6 +469,21 @@ function calculateTotalDurationSeconds(contract, coopStatus, contributors) {
   return remainingSeconds;
 }
 
+function normalizeDuration(durationSeconds) {
+  const label = formatDurationYdhm(durationSeconds);
+  if (label === '0h0m') {
+    return {
+      durationSeconds: Number.POSITIVE_INFINITY,
+      durationLabel: '--',
+    };
+  }
+
+  return {
+    durationSeconds,
+    durationLabel: label,
+  };
+}
+
 function calculateTotalTokens(contributors) {
   let total = 0;
   for (const contributor of contributors) {
@@ -610,14 +625,15 @@ export async function buildBnLeaderboardReport({ contractId }) {
     const auditFailures = isBnCoop ? collectAuditFailures(contributors) : [];
     const auditPassed = !isBnCoop || auditFailures.length === 0;
     const isSavedCoop = savedCoops.has(coop.toLowerCase());
-    const durationSeconds = calculateTotalDurationSeconds(selectedContract, coopStatus, contributors);
+    const rawDurationSeconds = calculateTotalDurationSeconds(selectedContract, coopStatus, contributors);
+    const { durationSeconds, durationLabel } = normalizeDuration(rawDurationSeconds);
     const totalTokens = calculateTotalTokens(contributors);
     const deliveryRatePerHour = calculateTotalDeliveryRatePerHour(contributors);
 
     entries.push({
       coop,
       durationSeconds,
-      durationLabel: formatDurationYdhm(durationSeconds),
+      durationLabel,
       tokens: totalTokens,
       tokensLabel: formatInteger(totalTokens),
       deliveryRatePerHour,
