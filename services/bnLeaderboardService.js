@@ -619,8 +619,7 @@ function calculateTotalDeliveryRatePerHour(contributors) {
   return perSecond * 3600;
 }
 
-function toStatusSymbol({ isBnCoop, isSavedCoop, auditPassed }) {
-  if (!isBnCoop) return '$';
+function toStatusSymbol({ isSavedCoop, auditPassed }) {
   if (!isSavedCoop) return '⚠︎';
   return auditPassed ? '✓' : '✗';
 }
@@ -741,8 +740,12 @@ export async function buildBnLeaderboardReport({ contractId }) {
       contractId: normalizedContractId,
       coopCode: coop,
     });
-    const auditFailures = isBnCoop ? collectAuditFailures(contributors) : [];
-    const auditPassed = !isBnCoop || auditFailures.length === 0;
+    if (!isBnCoop) {
+      return;
+    }
+
+    const auditFailures = collectAuditFailures(contributors);
+    const auditPassed = auditFailures.length === 0;
     const isSavedCoop = savedCoops.has(coop.toLowerCase());
     const rawDurationSeconds = calculateTotalDurationSeconds(selectedContract, coopStatus, contributors);
     const { durationSeconds, durationLabel } = normalizeDuration(rawDurationSeconds);
@@ -758,7 +761,7 @@ export async function buildBnLeaderboardReport({ contractId }) {
       deliveryRatePerHour,
       deliveryRateLabel: formatRatePerHour(deliveryRatePerHour),
       auditFailures,
-      status: toStatusSymbol({ isBnCoop, isSavedCoop, auditPassed }),
+      status: toStatusSymbol({ isSavedCoop, auditPassed }),
     });
   }));
 
