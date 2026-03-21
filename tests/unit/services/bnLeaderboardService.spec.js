@@ -120,6 +120,8 @@ describe('services/bnLeaderboardService', () => {
     expect(first.tokens).toBe(12);
     expect(first.tokensLabel).toBe('12');
     expect(first.deliveryRateLabel).toContain('/hour');
+    expect(Array.isArray(first.auditFailures)).toBe(true);
+    expect(first.auditFailures.length).toBe(0);
   });
 
   it('provides contract options helpers', async () => {

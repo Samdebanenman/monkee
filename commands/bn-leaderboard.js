@@ -21,6 +21,23 @@ function formatUncheckedLines(unchecked) {
   return lines;
 }
 
+function formatAuditFailureLines(entries) {
+  const failed = entries.filter(entry => Array.isArray(entry.auditFailures) && entry.auditFailures.length > 0);
+  if (!failed.length) {
+    return [];
+  }
+
+  const lines = ['Audit failures by coop:'];
+  for (const entry of failed) {
+    const contributorReasons = entry.auditFailures
+      .map(item => `${item.contributor}: ${item.reasons.join('; ')}`)
+      .join(' | ');
+    lines.push(`- ${entry.coop} - ${contributorReasons}`);
+  }
+
+  return lines;
+}
+
 function toTableRows(entries) {
   const headers = {
     number: 'number',
@@ -93,13 +110,12 @@ export async function execute(interaction) {
   }
 
   if (report.entries.length === 0) {
-    const lines = [
-      '# BN Leaderboard',
-      report.contractName,
-      'No leaderboard entries found.',
-      ...formatUncheckedLines(report.unchecked),
-    ];
+    const lines = ['# BN Leaderboard', report.contractName, 'No leaderboard entries found.'];
     await interaction.editReply(createTextComponentMessage(lines.join('\n')));
+    const uncheckedLines = formatUncheckedLines(report.unchecked);
+    if (uncheckedLines.length > 0) {
+      await interaction.followUp(createTextComponentMessage(uncheckedLines.join('\n')));
+    }
     return;
   }
 
@@ -107,14 +123,25 @@ export async function execute(interaction) {
   const chunks = chunkContent(tableRows, { wrap: { prefix: '```\n', suffix: '\n```' } });
   const [firstChunk, ...restChunks] = chunks;
 
-  const uncheckedLines = formatUncheckedLines(report.unchecked).join('\n');
-  const footer = uncheckedLines ? `\n${uncheckedLines}` : '';
   await interaction.editReply(
-    createTextComponentMessage(`# BN Leaderboard\n${report.contractName}\n${firstChunk}${footer}`)
+    createTextComponentMessage(`# BN Leaderboard\n${report.contractName}\n${firstChunk}`)
   );
 
   for (const chunk of restChunks) {
     await interaction.followUp(createTextComponentMessage(chunk));
+  }
+
+  const uncheckedLines = formatUncheckedLines(report.unchecked);
+  if (uncheckedLines.length > 0) {
+    await interaction.followUp(createTextComponentMessage(uncheckedLines.join('\n')));
+  }
+
+  const auditFailureLines = formatAuditFailureLines(report.entries);
+  if (auditFailureLines.length > 0) {
+    const auditChunks = chunkContent(auditFailureLines);
+    for (const chunk of auditChunks) {
+      await interaction.followUp(createTextComponentMessage(chunk));
+    }
   }
 }
 

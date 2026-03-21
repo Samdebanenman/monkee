@@ -45,8 +45,15 @@ describe('commands/bn-leaderboard', () => {
       ok: true,
       contractName: 'Contract One',
       entries: [
-        { coop: 'moo', durationLabel: '12h0m', tokensLabel: '20', deliveryRateLabel: '1.20bTqQ/hour', status: '$' },
-        { coop: 'zoo', durationLabel: '13h0m', tokensLabel: '35', deliveryRateLabel: '980.00q/hour', status: '✓' },
+        {
+          coop: 'moo',
+          durationLabel: '12h0m',
+          tokensLabel: '20',
+          deliveryRateLabel: '1.20bTqQ/hour',
+          status: '✗',
+          auditFailures: [{ contributor: 'p1', reasons: ['required artifacts missing'] }],
+        },
+        { coop: 'zoo', durationLabel: '13h0m', tokensLabel: '35', deliveryRateLabel: '980.00q/hour', status: '✓', auditFailures: [] },
       ],
       unchecked: [{ coop: 'loo', reason: 'status 500' }],
     });
@@ -68,8 +75,13 @@ describe('commands/bn-leaderboard', () => {
     expect(message).toContain('tokens');
     expect(message).toContain('delivery rate');
     expect(message).toContain('1.20bTqQ/hour');
-    expect(message).toContain('Unchecked coops (API issues):');
-    expect(message).toContain('loo');
+    expect(message).not.toContain('Unchecked coops (API issues):');
+
+    const followups = interaction.followUp.mock.calls.map(call => call?.[0]?.content ?? '').join('\n');
+    expect(followups).toContain('Unchecked coops (API issues):');
+    expect(followups).toContain('loo');
+    expect(followups).toContain('Audit failures by coop:');
+    expect(followups).toContain('moo');
   });
 
   it('handles unknown contract from service', async () => {

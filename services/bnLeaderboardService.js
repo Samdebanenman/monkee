@@ -163,48 +163,62 @@ function auditArtifacts(equippedArtifacts) {
 function auditContributor(contributor) {
   const productionParams = contributor?.productionParams ?? contributor?.production_params ?? {};
   const farmInfo = contributor?.farmInfo ?? contributor?.farm_info ?? {};
+  const failures = [];
 
   const farmPopulation = getValue(productionParams, 'farmPopulation', 'farm_population');
   const farmCapacity = getValue(productionParams, 'farmCapacity', 'farm_capacity');
   if (farmPopulation == null || farmCapacity == null || farmPopulation !== farmCapacity) {
-    return false;
+    failures.push('farmPopulation must equal farmCapacity');
   }
 
   const habs = getArray(farmInfo, 'habs', 'habs');
   if (habs.length !== 4 || habs.some(hab => Number(hab) !== 18)) {
-    return false;
+    failures.push('habs must be 4x level 18');
   }
 
   const vehicles = getArray(farmInfo, 'vehicles', 'vehicles');
   if (vehicles.length !== 17 || vehicles.some(vehicle => Number(vehicle) !== 11)) {
-    return false;
+    failures.push('vehicles must be 17x level 11');
   }
 
   const trainLength = getArray(farmInfo, 'trainLength', 'train_length');
   if (trainLength.length !== 17 || trainLength.some(length => Number(length) !== 10)) {
-    return false;
+    failures.push('trainLength must be 17x level 10');
   }
 
   const silosOwned = getValue(farmInfo, 'silosOwned', 'silos_owned');
   if (silosOwned !== 10) {
-    return false;
+    failures.push('silosOwned must be 10');
   }
 
   const commonResearch = getArray(farmInfo, 'commonResearch', 'common_research');
   if (!auditResearchLevels(commonResearch)) {
-    return false;
+    failures.push('required commonResearch levels missing');
   }
 
   const equippedArtifacts = getArray(farmInfo, 'equippedArtifacts', 'equipped_artifacts');
-  return auditArtifacts(equippedArtifacts);
-}
-
-function passesAudit(contributors) {
-  if (!Array.isArray(contributors) || contributors.length === 0) {
-    return false;
+  if (!auditArtifacts(equippedArtifacts)) {
+    failures.push('required artifacts missing');
   }
 
-  return contributors.every(auditContributor);
+  return failures;
+}
+
+function collectAuditFailures(contributors) {
+  if (!Array.isArray(contributors) || contributors.length === 0) {
+    return [{ contributor: 'unknown', reasons: ['no contributors'] }];
+  }
+
+  const details = [];
+  for (const contributor of contributors) {
+    const contributorName = String(contributor?.userName ?? contributor?.user_name ?? 'unknown').trim() || 'unknown';
+    const reasons = auditContributor(contributor);
+    if (reasons.length > 0) {
+      details.push({ contributor: contributorName, reasons });
+    }
+  }
+
+  return details;
 }
 
 function calculateOfflineAdjustedRemainingSeconds(contract, contributors) {
@@ -400,7 +414,8 @@ export async function buildBnLeaderboardReport({ contractId }) {
       contractId: normalizedContractId,
       coopCode: coop,
     });
-    const auditPassed = passesAudit(contributors);
+    const auditFailures = collectAuditFailures(contributors);
+    const auditPassed = auditFailures.length === 0;
     const isSavedCoop = savedCoops.has(coop.toLowerCase());
     const durationSeconds = calculateTotalDurationSeconds(selectedContract, coopStatus, contributors);
     const totalTokens = calculateTotalTokens(contributors);
@@ -414,6 +429,7 @@ export async function buildBnLeaderboardReport({ contractId }) {
       tokensLabel: formatInteger(totalTokens),
       deliveryRatePerHour,
       deliveryRateLabel: formatRatePerHour(deliveryRatePerHour),
+      auditFailures,
       status: toStatusSymbol({ isBnCoop, isSavedCoop, auditPassed }),
     });
   }));
