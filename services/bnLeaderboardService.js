@@ -414,8 +414,8 @@ export async function buildBnLeaderboardReport({ contractId }) {
       contractId: normalizedContractId,
       coopCode: coop,
     });
-    const auditFailures = collectAuditFailures(contributors);
-    const auditPassed = auditFailures.length === 0;
+    const auditFailures = isBnCoop ? collectAuditFailures(contributors) : [];
+    const auditPassed = !isBnCoop || auditFailures.length === 0;
     const isSavedCoop = savedCoops.has(coop.toLowerCase());
     const durationSeconds = calculateTotalDurationSeconds(selectedContract, coopStatus, contributors);
     const totalTokens = calculateTotalTokens(contributors);

@@ -101,6 +101,7 @@ describe('services/bnLeaderboardService', () => {
           contributors: [
             {
               ...contributor(1),
+              productionParams: { farmPopulation: 90, farmCapacity: 100, delivered: 0 },
               boostTokens: 12,
             },
           ],
@@ -121,6 +122,7 @@ describe('services/bnLeaderboardService', () => {
     expect(first.tokensLabel).toBe('12');
     expect(first.deliveryRateLabel).toContain('/hour');
     expect(Array.isArray(first.auditFailures)).toBe(true);
+    // Non-BN coops should not be audited.
     expect(first.auditFailures.length).toBe(0);
   });
 
