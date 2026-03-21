@@ -20,7 +20,7 @@ import {
 } from '../utils/database/index.js';
 import { extractDiscordIds, extractDiscordId, isValidHttpUrl } from './discord.js';
 import { isKnownContract, refreshContracts, listCoops as listCoopsForContract } from './contractService.js';
-import { checkAllFromContractID, fetchCoopContributors } from '../utils/coopchecker.js';
+import { checkAllFromContractID, checkCoop, fetchCoopContributors, fetchCoopStatus } from '../utils/coopchecker.js';
 
 function normalizeCoopPath(input) {
   if (!input) return { error: 'missing-input' };
@@ -504,6 +504,30 @@ export async function findFreeCoopCodes(contractId, coopCodes = []) {
   return checkAllFromContractID(contractId, coopCodes);
 }
 
+export async function getCoopAvailability(contractId, coopCode) {
+  if (!contractId || !coopCode) {
+    return { coopCode, free: true, error: 'invalid-input' };
+  }
+
+  return checkCoop(String(contractId).trim(), String(coopCode).trim());
+}
+
+export async function getCoopContributors(contractId, coopCode) {
+  if (!contractId || !coopCode) {
+    return [];
+  }
+
+  return fetchCoopContributors(String(contractId).trim(), String(coopCode).trim());
+}
+
+export async function getCoopStatus(contractId, coopCode) {
+  if (!contractId || !coopCode) {
+    return null;
+  }
+
+  return fetchCoopStatus(String(contractId).trim(), String(coopCode).trim());
+}
+
 export default {
   addCoopFromInput,
   addCoopIfMissing,
@@ -521,6 +545,9 @@ export default {
   listCoops,
   listAllCoops,
   findFreeCoopCodes,
+  getCoopAvailability,
+  getCoopContributors,
+  getCoopStatus,
   autoPopulateCoopMembers,
   checkCoopForKnownPlayers,
   addPlayersToCoopWithDetails,

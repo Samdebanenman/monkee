@@ -1,6 +1,7 @@
 import {
   ensureMemberRecord,
   getMemberRecord,
+  getMembersForCoop,
   getMembersByIgns,
   updateMemberIgnByInternalId,
   updateMemberActiveByInternalId,
@@ -96,35 +97,39 @@ export function setMembersActiveStatus({ targetDiscordIds = [], active } = {}) {
   };
 
   for (const id of normalizedIds) {
-    const { record, created } = ensureMemberRecord(id);
-    if (!record) {
-      summary.failures.push({ discordId: id, reason: 'ensure-failed' });
-      continue;
-    }
-
-    const currentActive = Number(record.is_active) === 1 ? 1 : 0;
-    if (currentActive === desired) {
-      summary.unchanged.push(id);
-      if (created) {
-        summary.created.push(id);
-      }
-      continue;
-    }
-
-    updateMemberActiveByInternalId(record.internal_id, desired);
-    const refreshed = getMemberRecord(id);
-    if (Number(refreshed?.is_active) === desired) {
-      summary.updated.push(id);
-      if (created) {
-        summary.created.push(id);
-      }
-      continue;
-    }
-
-    summary.failures.push({ discordId: id, reason: 'update-failed' });
+    applyActiveStatusForMember({ discordId: id, desired, summary });
   }
 
   return summary;
+}
+
+function applyActiveStatusForMember({ discordId, desired, summary }) {
+  const { record, created } = ensureMemberRecord(discordId);
+  if (!record) {
+    summary.failures.push({ discordId, reason: 'ensure-failed' });
+    return;
+  }
+
+  const currentActive = Number(record.is_active) === 1 ? 1 : 0;
+  if (currentActive === desired) {
+    summary.unchanged.push(discordId);
+    if (created) {
+      summary.created.push(discordId);
+    }
+    return;
+  }
+
+  updateMemberActiveByInternalId(record.internal_id, desired);
+  const refreshed = getMemberRecord(discordId);
+  if (Number(refreshed?.is_active) === desired) {
+    summary.updated.push(discordId);
+    if (created) {
+      summary.created.push(discordId);
+    }
+    return;
+  }
+
+  summary.failures.push({ discordId, reason: 'update-failed' });
 }
 
 export function syncMembersFromApiEntries(entries = []) {
@@ -151,7 +156,33 @@ export function syncMembersFromApiEntries(entries = []) {
   return summary;
 }
 
-export default { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries };
+export function hasKnownMembersForContributors({ contributors = [], contractId, coopCode } = {}) {
+  const seen = new Set();
+  const igns = [];
+
+  for (const contributor of Array.isArray(contributors) ? contributors : []) {
+    const name = String(contributor?.userName ?? contributor?.user_name ?? '').trim();
+    if (!name || name.toLowerCase() === '[departed]') continue;
+    const lower = name.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    igns.push(name);
+  }
+
+  const matched = igns.length > 0 ? getMembersByIgns(igns) : [];
+  if (matched.length > 0) {
+    return true;
+  }
+
+  if (!contractId || !coopCode) {
+    return false;
+  }
+
+  const linked = getMembersForCoop(contractId, coopCode);
+  return linked.length > 0;
+}
+
+export default { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries, hasKnownMembersForContributors };
 
 function processMemberEntry(entry, summary) {
   const discordId = normalizeDiscordId(entry?.ID);

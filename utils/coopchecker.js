@@ -93,3 +93,14 @@ export async function fetchCoopContributors(contractIdentifier, coopCode) {
     throw error;
   }
 }
+
+export async function fetchCoopStatus(contractIdentifier, coopCode) {
+  try {
+    return await postCoopStatus(contractIdentifier, coopCode);
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    error.contractIdentifier = contractIdentifier;
+    error.coopCode = coopCode;
+    throw error;
+  }
+}
