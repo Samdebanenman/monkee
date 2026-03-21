@@ -637,11 +637,11 @@ function toStatusLabel({ isSavedCoop, auditPassed, isFinished }) {
   const labels = [];
 
   if (!isSavedCoop) {
-    labels.push('⚠︎');
+    labels.push('⚠︎ ');
   }
 
   labels.push(auditPassed ? '✓' : '✗');
-  labels.push(isFinished ? '🏳' : '⌛︎');
+  labels.push(isFinished ? '🏳' : '⌛︎ ');
   return labels.join(' ');
 }
 
