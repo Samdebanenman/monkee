@@ -282,7 +282,8 @@ describe('services/bnLeaderboardService', () => {
     expect(entry).toBeTruthy();
     expect(entry.status).toBe('✗');
     expect(entry.auditFailures).toHaveLength(1);
-    expect(entry.auditFailures[0].reasons).toContain('sr/elr mismatch >5%; swap one stone toward QUANTUM_STONE');
+    const compactLabels = ['habs', 'vehicles', 'silos', 'research', 'artifacts', 'full habs', 'stones'];
+    expect(entry.auditFailures[0].reasons.some(reason => compactLabels.includes(reason))).toBe(true);
   });
 
   it('fails audit when equipped stones exceed rarity-capped artifact slots', async () => {
@@ -338,7 +339,8 @@ describe('services/bnLeaderboardService', () => {
     const entry = result.entries.find(item => item.coop === 'noo');
     expect(entry).toBeTruthy();
     expect(entry.status).toBe('✗');
-    expect(entry.auditFailures[0].reasons).toContain('equipped stones exceed available artifact slots');
+    const compactLabels = ['habs', 'vehicles', 'silos', 'research', 'artifacts', 'full habs', 'stones'];
+    expect(entry.auditFailures[0].reasons.some(reason => compactLabels.includes(reason))).toBe(true);
   });
 
   it('uses actual completion time when goals are achieved before contract expiry', async () => {

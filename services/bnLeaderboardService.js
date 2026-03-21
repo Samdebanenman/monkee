@@ -355,42 +355,44 @@ function auditContributor(contributor) {
   const farmPopulation = getValue(productionParams, 'farmPopulation', 'farm_population');
   const farmCapacity = getValue(productionParams, 'farmCapacity', 'farm_capacity');
   if (farmPopulation == null || farmCapacity == null || farmPopulation !== farmCapacity) {
-    failures.push('farmPopulation must equal farmCapacity');
+    failures.push('full habs');
   }
 
   const habs = getArray(farmInfo, 'habs', 'habs');
-  if (habs.length !== 4 || habs.some(hab => Number(hab) !== 18)) {
-    failures.push('habs must be 4x universe habitat');
-  }
+  const habsInvalid = habs.length !== 4 || habs.some(hab => Number(hab) !== 18);
 
   const vehicles = getArray(farmInfo, 'vehicles', 'vehicles');
-  if (vehicles.length !== 17 || vehicles.some(vehicle => Number(vehicle) !== 11)) {
-    failures.push('vehicles must be 17x hyperloop');
-  }
+  const vehiclesInvalid = vehicles.length !== 17 || vehicles.some(vehicle => Number(vehicle) !== 11);
 
   const trainLength = getArray(farmInfo, 'trainLength', 'train_length');
-  if (trainLength.length !== 17 || trainLength.some(length => Number(length) !== 10)) {
-    failures.push('trainLength must be length 10');
+  const trainLengthInvalid = trainLength.length !== 17 || trainLength.some(length => Number(length) !== 10);
+
+  if (habsInvalid) {
+    failures.push('habs');
+  }
+
+  if (vehiclesInvalid || trainLengthInvalid) {
+    failures.push('vehicles');
   }
 
   const silosOwned = getValue(farmInfo, 'silosOwned', 'silos_owned');
   if (silosOwned !== 10) {
-    failures.push('silosOwned must be 10');
+    failures.push('silos');
   }
 
   const commonResearch = getArray(farmInfo, 'commonResearch', 'common_research');
   if (!auditResearchLevels(commonResearch)) {
-    failures.push('required commonResearch levels missing');
+    failures.push('research');
   }
 
   const equippedArtifacts = getArray(farmInfo, 'equippedArtifacts', 'equipped_artifacts');
   if (!auditArtifacts(equippedArtifacts)) {
-    failures.push('required artifacts missing');
+    failures.push('artifacts');
   }
 
   const stoneFailure = auditStoneSetup(productionParams, equippedArtifacts);
   if (stoneFailure) {
-    failures.push(stoneFailure);
+    failures.push('stones');
   }
 
   return failures;
