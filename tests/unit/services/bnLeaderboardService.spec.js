@@ -62,10 +62,22 @@ function contributor(rate = 1) {
         { id: 'relativity_optimization', level: 10 },
       ],
       equippedArtifacts: [
-        { spec: { name: 'TACHYON_DEFLECTOR' } },
-        { spec: { name: 'QUANTUM_METRONOME' } },
-        { spec: { name: 'INTERSTELLAR_COMPASS' } },
-        { spec: { name: 'ORNATE_GUSSET' } },
+        {
+          spec: { name: 'TACHYON_DEFLECTOR' },
+          stones: [{ spec: { name: 'TACHYON_STONE', level: 'NORMAL' } }],
+        },
+        {
+          spec: { name: 'QUANTUM_METRONOME' },
+          stones: [{ spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }],
+        },
+        {
+          spec: { name: 'INTERSTELLAR_COMPASS' },
+          stones: [{ spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }],
+        },
+        {
+          spec: { name: 'ORNATE_GUSSET' },
+          stones: [{ spec: { name: 'TACHYON_STONE', level: 'NORMAL' } }],
+        },
       ],
     },
   };
@@ -138,5 +150,194 @@ describe('services/bnLeaderboardService', () => {
     const searched = await searchBnLeaderboardContractOptions('be');
     expect(searched).toHaveLength(1);
     expect(searched[0].value).toBe('b');
+  });
+
+  it('passes stone audit when fully quantum and shipping capped', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 0,
+            elr: 100,
+            sr: 90,
+          },
+          farmInfo: {
+            ...contributor(1).farmInfo,
+            equippedArtifacts: [
+              {
+                spec: { name: 'TACHYON_DEFLECTOR', rarity: 'EPIC' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+              {
+                spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+              {
+                spec: { name: 'INTERSTELLAR_COMPASS', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+              {
+                spec: { name: 'ORNATE_GUSSET', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      secondsRemaining: 100,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.status).toBe('✓');
+    expect(entry.auditFailures).toEqual([]);
+  });
+
+  it('fails stone audit when sr/elr mismatch >5% and stones are mixed', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 0,
+            elr: 100,
+            sr: 90,
+          },
+          farmInfo: {
+            ...contributor(1).farmInfo,
+            equippedArtifacts: [
+              {
+                spec: { name: 'TACHYON_DEFLECTOR', rarity: 'EPIC' },
+                stones: [
+                  { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+              {
+                spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+                ],
+              },
+              {
+                spec: { name: 'INTERSTELLAR_COMPASS', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+                ],
+              },
+              {
+                spec: { name: 'ORNATE_GUSSET', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      secondsRemaining: 100,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.status).toBe('✗');
+    expect(entry.auditFailures).toHaveLength(1);
+    expect(entry.auditFailures[0].reasons).toContain('sr/elr mismatch >5%; swap one stone toward QUANTUM_STONE');
+  });
+
+  it('fails audit when equipped stones exceed rarity-capped artifact slots', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 0,
+            elr: 100,
+            sr: 90,
+          },
+          farmInfo: {
+            ...contributor(1).farmInfo,
+            equippedArtifacts: [
+              {
+                spec: { name: 'TACHYON_DEFLECTOR', rarity: 'EPIC' },
+                stones: [{ spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }],
+              },
+              {
+                spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' },
+                stones: [{ spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }],
+              },
+              {
+                spec: { name: 'INTERSTELLAR_COMPASS', rarity: 'LEGENDARY' },
+                stones: [{ spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }],
+              },
+              {
+                // Rare gusset cap is 1, so two stones must fail.
+                spec: { name: 'ORNATE_GUSSET', rarity: 'RARE' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      secondsRemaining: 100,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.status).toBe('✗');
+    expect(entry.auditFailures[0].reasons).toContain('equipped stones exceed available artifact slots');
   });
 });

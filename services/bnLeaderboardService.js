@@ -11,6 +11,30 @@ const REQUIRED_ARTIFACT_NAMES = new Set([
   'INTERSTELLAR_COMPASS',
   'ORNATE_GUSSET',
 ]);
+const ALLOWED_STONE_NAMES = new Set(['TACHYON_STONE', 'QUANTUM_STONE']);
+const STONE_NAME_BY_ENUM = new Map([
+  [1, 'TACHYON_STONE'],
+  [36, 'QUANTUM_STONE'],
+]);
+const ARTIFACT_NAME_BY_ENUM = new Map([
+  [26, 'TACHYON_DEFLECTOR'],
+  [24, 'QUANTUM_METRONOME'],
+  [27, 'INTERSTELLAR_COMPASS'],
+  [8, 'ORNATE_GUSSET'],
+]);
+const ARTIFACT_STONE_SLOT_CAPS = new Map([
+  ['TACHYON_DEFLECTOR', 2],
+  ['QUANTUM_METRONOME', 3],
+  ['INTERSTELLAR_COMPASS', 2],
+  ['ORNATE_GUSSET', 3],
+]);
+const RARITY_SLOT_CAPS = new Map([
+  [0, 0], // COMMON
+  [1, 1], // RARE
+  [2, 2], // EPIC
+  [3, 3], // LEGENDARY
+]);
+const STONE_LEVEL_NORMAL = 2;
 const REQUIRED_RESEARCH_LEVELS = new Map([
   ['comfy_nests', 50],
   ['hab_capacity1', 8],
@@ -96,11 +120,7 @@ function formatRatePerHour(valuePerHour) {
   }
 
   const suffixes = [
-    '', 'K', 'M', 'B', 'T', 'q', 'Q', 's', 'S', 'o', 'N', 'd', 'U', 'D',
-    'Td', 'qd', 'Qd', 'sd', 'Sd', 'Od', 'Nd', 'V', 'uV', 'dV', 'tV',
-    'qV', 'QV', 'sV', 'SV', 'OV', 'NV', 'Tg', 'uG', 'dG', 'tG', 'qG',
-    'QG', 'sG', 'SG', 'OG', 'NG', 'Ce', 'uC', 'dC', 'tC', 'qC', 'QC',
-    'sC', 'SC', 'OC', 'NC', 'TqQ',
+    '', 'K', 'M', 'B', 'T', 'q', 'Q', 's', 'S',
   ];
 
   let scaled = num;
@@ -160,6 +180,173 @@ function auditArtifacts(equippedArtifacts) {
   return hasAllNames || hasAllEnums;
 }
 
+function normalizeStoneName(nameValue) {
+  if (typeof nameValue === 'string') {
+    return nameValue;
+  }
+
+  if (Number.isFinite(nameValue)) {
+    return STONE_NAME_BY_ENUM.get(Number(nameValue)) ?? null;
+  }
+
+  return null;
+}
+
+function normalizeStoneLevel(levelValue) {
+  if (typeof levelValue === 'string') {
+    return levelValue.toUpperCase() === 'NORMAL' ? STONE_LEVEL_NORMAL : null;
+  }
+
+  if (Number.isFinite(levelValue)) {
+    return Number(levelValue);
+  }
+
+  return null;
+}
+
+function normalizeArtifactName(nameValue) {
+  if (typeof nameValue === 'string') {
+    return nameValue;
+  }
+
+  if (Number.isFinite(nameValue)) {
+    return ARTIFACT_NAME_BY_ENUM.get(Number(nameValue)) ?? null;
+  }
+
+  return null;
+}
+
+function normalizeRarity(rarityValue) {
+  if (typeof rarityValue === 'string') {
+    const upper = rarityValue.toUpperCase();
+    if (upper === 'COMMON') return 0;
+    if (upper === 'RARE') return 1;
+    if (upper === 'EPIC') return 2;
+    if (upper === 'LEGENDARY') return 3;
+    return null;
+  }
+
+  if (Number.isFinite(rarityValue)) {
+    return Number(rarityValue);
+  }
+
+  // Missing rarity is treated as legendary for backward compatibility with older payload mocks.
+  return 3;
+}
+
+function getArtifactStoneSlotCap(artifact) {
+  const spec = artifact?.spec ?? {};
+  const artifactName = normalizeArtifactName(spec?.name);
+  const artifactCap = ARTIFACT_STONE_SLOT_CAPS.get(artifactName ?? '') ?? 0;
+  const rarity = normalizeRarity(spec?.rarity);
+  const rarityCap = RARITY_SLOT_CAPS.get(rarity) ?? 0;
+
+  return Math.min(artifactCap, rarityCap);
+}
+
+function collectContributorStones(equippedArtifacts) {
+  const stones = [];
+  let totalAllowedSlots = 0;
+  let totalEquippedStones = 0;
+
+  for (const artifact of equippedArtifacts) {
+    const artifactStones = Array.isArray(artifact?.stones) ? artifact.stones : [];
+    const slotCap = getArtifactStoneSlotCap(artifact);
+
+    totalAllowedSlots += slotCap;
+    totalEquippedStones += artifactStones.length;
+
+    if (artifactStones.length > slotCap) {
+      return {
+        stones,
+        totalAllowedSlots,
+        totalEquippedStones,
+        hasOverfilledArtifact: true,
+      };
+    }
+
+    for (const stone of artifactStones) {
+      const spec = stone?.spec ?? stone ?? {};
+      const name = normalizeStoneName(spec?.name);
+      const level = normalizeStoneLevel(spec?.level);
+      stones.push({ name, level });
+    }
+  }
+
+  return {
+    stones,
+    totalAllowedSlots,
+    totalEquippedStones,
+    hasOverfilledArtifact: false,
+  };
+}
+
+function auditStoneSetup(productionParams, equippedArtifacts) {
+  const {
+    stones,
+    totalAllowedSlots,
+    totalEquippedStones,
+    hasOverfilledArtifact,
+  } = collectContributorStones(equippedArtifacts);
+
+  if (hasOverfilledArtifact) {
+    return 'equipped stones exceed available artifact slots';
+  }
+
+  if (totalAllowedSlots <= 0) {
+    return 'no available stone slots for equipped artifacts';
+  }
+
+  if (stones.length === 0) {
+    return 'no stones equipped';
+  }
+
+  const hasInvalidStone = stones.some(stone => !ALLOWED_STONE_NAMES.has(stone.name ?? ''));
+  if (hasInvalidStone) {
+    return 'all stones must be Tachyon stone or Quantum stone';
+  }
+
+  const hasInvalidLevel = stones.some(stone => stone.level !== STONE_LEVEL_NORMAL);
+  if (hasInvalidLevel) {
+    return 'all stones must be level 2';
+  }
+
+  const elr = getValue(productionParams, 'elr', 'elr');
+  const sr = getValue(productionParams, 'sr', 'sr');
+  if (!Number.isFinite(elr) || !Number.isFinite(sr) || elr <= 0 || sr <= 0) {
+    return 'missing sr/elr for stone balance check';
+  }
+
+  const maxRate = Math.max(elr, sr);
+  const diffRatio = maxRate > 0 ? Math.abs(elr - sr) / maxRate : 0;
+  if (diffRatio <= 0.05) {
+    return null;
+  }
+
+  const totalStones = stones.length;
+  const quantumStones = stones.filter(stone => stone.name === 'QUANTUM_STONE').length;
+  const tachyonStones = stones.filter(stone => stone.name === 'TACHYON_STONE').length;
+
+  const shippingCapped = elr > sr;
+  const layingCapped = sr > elr;
+
+  const allSlotsFilled = totalEquippedStones === totalAllowedSlots;
+
+  if (shippingCapped && allSlotsFilled && quantumStones === totalStones) {
+    return null;
+  }
+
+  if (layingCapped && allSlotsFilled && tachyonStones === totalStones) {
+    return null;
+  }
+
+  if (shippingCapped) {
+    return 'sr/elr mismatch >5%; swap one stone toward QUANTUM_STONE';
+  }
+
+  return 'sr/elr mismatch >5%; swap one stone toward TACHYON_STONE';
+}
+
 function auditContributor(contributor) {
   const productionParams = contributor?.productionParams ?? contributor?.production_params ?? {};
   const farmInfo = contributor?.farmInfo ?? contributor?.farm_info ?? {};
@@ -173,17 +360,17 @@ function auditContributor(contributor) {
 
   const habs = getArray(farmInfo, 'habs', 'habs');
   if (habs.length !== 4 || habs.some(hab => Number(hab) !== 18)) {
-    failures.push('habs must be 4x level 18');
+    failures.push('habs must be 4x universe habitat');
   }
 
   const vehicles = getArray(farmInfo, 'vehicles', 'vehicles');
   if (vehicles.length !== 17 || vehicles.some(vehicle => Number(vehicle) !== 11)) {
-    failures.push('vehicles must be 17x level 11');
+    failures.push('vehicles must be 17x hyperloop');
   }
 
   const trainLength = getArray(farmInfo, 'trainLength', 'train_length');
   if (trainLength.length !== 17 || trainLength.some(length => Number(length) !== 10)) {
-    failures.push('trainLength must be 17x level 10');
+    failures.push('trainLength must be length 10');
   }
 
   const silosOwned = getValue(farmInfo, 'silosOwned', 'silos_owned');
@@ -199,6 +386,11 @@ function auditContributor(contributor) {
   const equippedArtifacts = getArray(farmInfo, 'equippedArtifacts', 'equipped_artifacts');
   if (!auditArtifacts(equippedArtifacts)) {
     failures.push('required artifacts missing');
+  }
+
+  const stoneFailure = auditStoneSetup(productionParams, equippedArtifacts);
+  if (stoneFailure) {
+    failures.push(stoneFailure);
   }
 
   return failures;
