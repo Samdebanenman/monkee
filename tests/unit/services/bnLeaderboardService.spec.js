@@ -98,7 +98,7 @@ describe('services/bnLeaderboardService', () => {
   it('continues range checks after base availability error', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
     listCoops.mockReturnValue([]);
-    hasKnownMembersForContributors.mockReturnValue(false);
+    hasKnownMembersForContributors.mockReturnValue(true);
 
     getCoopAvailability.mockImplementation(async (_contract, code) => {
       if (code === 'noo') return { coopCode: code, error: 'index out of range' };
@@ -133,8 +133,8 @@ describe('services/bnLeaderboardService', () => {
     expect(first.tokens).toBe(12);
     expect(first.tokensLabel).toBe('12');
     expect(Array.isArray(first.auditFailures)).toBe(true);
-    // Non-BN coops should not be audited.
-    expect(first.auditFailures.length).toBe(0);
+    // BN coops are audited even when unsaved and may surface failures.
+    expect(first.auditFailures.length).toBeGreaterThan(0);
   });
 
   it('provides contract options helpers', async () => {
@@ -414,7 +414,7 @@ describe('services/bnLeaderboardService', () => {
   it('uses actual completion time when goals are achieved before contract expiry', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 10000 }]);
     listCoops.mockReturnValue(['noo']);
-    hasKnownMembersForContributors.mockReturnValue(false);
+    hasKnownMembersForContributors.mockReturnValue(true);
 
     getCoopAvailability.mockImplementation(async (_contract, code) => {
       if (code === 'noo') return { coopCode: code, free: false };
@@ -449,7 +449,7 @@ describe('services/bnLeaderboardService', () => {
   it('normalizes 0h0m to -- and sorts it to the bottom', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 10000 }]);
     listCoops.mockReturnValue(['noo', '2noo']);
-    hasKnownMembersForContributors.mockReturnValue(false);
+    hasKnownMembersForContributors.mockReturnValue(true);
 
     getCoopAvailability.mockImplementation(async (_contract, code) => {
       if (code === 'noo') return { coopCode: code, free: false };
@@ -506,7 +506,7 @@ describe('services/bnLeaderboardService', () => {
   it('subtracts shared offline time from elapsed duration', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 100000, coopDurationSeconds: 108000 }]);
     listCoops.mockReturnValue(['noo']);
-    hasKnownMembersForContributors.mockReturnValue(false);
+    hasKnownMembersForContributors.mockReturnValue(true);
 
     getCoopAvailability.mockImplementation(async (_contract, code) => {
       if (code === 'noo') return { coopCode: code, free: false };
@@ -541,7 +541,7 @@ describe('services/bnLeaderboardService', () => {
   it('subtracts offline time from contributor timestamps when sync timestamps are missing', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 100000, coopDurationSeconds: 108000 }]);
     listCoops.mockReturnValue(['noo']);
-    hasKnownMembersForContributors.mockReturnValue(false);
+    hasKnownMembersForContributors.mockReturnValue(true);
 
     getCoopAvailability.mockImplementation(async (_contract, code) => {
       if (code === 'noo') return { coopCode: code, free: false };
@@ -579,7 +579,7 @@ describe('services/bnLeaderboardService', () => {
   it('uses average contributor timestamp fallback to match payload-like offline duration', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 100000, coopDurationSeconds: 604800 }]);
     listCoops.mockReturnValue(['noo']);
-    hasKnownMembersForContributors.mockReturnValue(false);
+    hasKnownMembersForContributors.mockReturnValue(true);
 
     getCoopAvailability.mockImplementation(async (_contract, code) => {
       if (code === 'noo') return { coopCode: code, free: false };

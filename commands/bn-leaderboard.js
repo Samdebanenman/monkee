@@ -47,7 +47,8 @@ function formatStatusLegendLines() {
   ];
 }
 
-function toTableRows(entries) {
+function formatLeaderboardLines(entries, contractId) {
+  const encodedContractId = encodeURIComponent(String(contractId ?? '').trim());
   const headers = {
     coop: 'coop',
     duration: 'duration',
@@ -56,26 +57,23 @@ function toTableRows(entries) {
     status: 'status',
   };
 
-  const maxCoop = Math.max(headers.coop.length, ...entries.map(entry => entry.coop.length));
-  const maxDuration = Math.max(headers.duration.length, ...entries.map(entry => entry.durationLabel.length));
+  const maxCoop = Math.max(headers.coop.length, ...entries.map(entry => String(entry.coop ?? '').length));
+  const maxDuration = Math.max(headers.duration.length, ...entries.map(entry => String(entry.durationLabel ?? '').length));
   const maxTokens = Math.max(headers.tokens.length, ...entries.map(entry => String(entry.tokensLabel ?? '').length));
   const maxRate = Math.max(headers.rate.length, ...entries.map(entry => String(entry.deliveryRateLabel ?? '').length));
-  const maxStatus = Math.max(headers.status.length, ...entries.map(entry => entry.status.length));
+  const maxStatus = Math.max(headers.status.length, ...entries.map(entry => String(entry.status ?? '').length));
 
-  const rows = [
-    `${headers.coop.padEnd(maxCoop)} | ${headers.duration.padEnd(maxDuration)} | ${headers.tokens.padEnd(maxTokens)} | ${headers.rate.padEnd(maxRate)} | ${headers.status.padEnd(maxStatus)}`
+  const lines = [
+    `\`${headers.coop.padEnd(maxCoop)} | ${headers.duration.padEnd(maxDuration)} | ${headers.tokens.padEnd(maxTokens)} | ${headers.rate.padEnd(maxRate)} | ${headers.status.padEnd(maxStatus)}\``
   ];
 
   entries.forEach(entry => {
-    const coop = entry.coop.padEnd(maxCoop);
-    const duration = entry.durationLabel.padEnd(maxDuration);
-    const tokens = String(entry.tokensLabel ?? '').padEnd(maxTokens);
-    const rate = String(entry.deliveryRateLabel ?? '').padEnd(maxRate);
-    const status = entry.status.padEnd(maxStatus);
-    rows.push(`${coop} | ${duration} | ${tokens} | ${rate} | ${status}`);
+    const inlineLabel = `${String(entry.coop ?? '').padEnd(maxCoop)} | ${String(entry.durationLabel ?? '').padEnd(maxDuration)} | ${String(entry.tokensLabel ?? '').padEnd(maxTokens)} | ${String(entry.deliveryRateLabel ?? '').padEnd(maxRate)} | ${String(entry.status ?? '').padEnd(maxStatus)}`;
+    const coopUrl = `https://eicoop-carpet.netlify.app/${encodedContractId}/${encodeURIComponent(entry.coop)}`;
+    lines.push(`\`${inlineLabel}\` [⧉](${coopUrl})`);
   });
 
-  return rows;
+  return lines;
 }
 
 export const data = new SlashCommandBuilder()
@@ -125,8 +123,8 @@ export async function execute(interaction) {
     return;
   }
 
-  const tableRows = toTableRows(report.entries);
-  const chunks = chunkContent(tableRows, { wrap: { prefix: '```\n', suffix: '\n```' } });
+  const leaderboardLines = formatLeaderboardLines(report.entries, report.contractId);
+  const chunks = chunkContent(leaderboardLines);
   const [firstChunk, ...restChunks] = chunks;
 
   await interaction.editReply(

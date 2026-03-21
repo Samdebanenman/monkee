@@ -783,6 +783,7 @@ export async function buildBnLeaderboardReport({ contractId }) {
 
   return {
     ok: true,
+    contractId: normalizedContractId,
     contractName: selectedContract.name || selectedContract.id,
     entries,
     unchecked: uniqueUnchecked,
