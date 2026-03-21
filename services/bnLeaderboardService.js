@@ -248,10 +248,26 @@ function collectContributorStones(equippedArtifacts) {
   const stones = [];
   let totalAllowedSlots = 0;
   let totalEquippedStones = 0;
+  const artifactBreakdown = [];
 
   for (const artifact of equippedArtifacts) {
     const artifactStones = Array.isArray(artifact?.stones) ? artifact.stones : [];
     const slotCap = getArtifactStoneSlotCap(artifact);
+    const artifactName = normalizeArtifactName(artifact?.spec?.name) ?? 'UNKNOWN_ARTIFACT';
+
+    const normalizedStones = artifactStones.map(stone => {
+      const spec = stone?.spec ?? stone ?? {};
+      const name = normalizeStoneName(spec?.name);
+      const level = normalizeStoneLevel(spec?.level);
+      return { name, level };
+    });
+
+    artifactBreakdown.push({
+      artifactName,
+      slotCap,
+      equippedCount: artifactStones.length,
+      stones: normalizedStones,
+    });
 
     totalAllowedSlots += slotCap;
     totalEquippedStones += artifactStones.length;
@@ -259,35 +275,71 @@ function collectContributorStones(equippedArtifacts) {
     if (artifactStones.length > slotCap) {
       return {
         stones,
+        artifactBreakdown,
         totalAllowedSlots,
         totalEquippedStones,
         hasOverfilledArtifact: true,
       };
     }
 
-    for (const stone of artifactStones) {
-      const spec = stone?.spec ?? stone ?? {};
-      const name = normalizeStoneName(spec?.name);
-      const level = normalizeStoneLevel(spec?.level);
+    for (const stone of normalizedStones) {
+      const { name, level } = stone;
       stones.push({ name, level });
     }
   }
 
   return {
     stones,
+    artifactBreakdown,
     totalAllowedSlots,
     totalEquippedStones,
     hasOverfilledArtifact: false,
   };
 }
 
+function getEffectiveLayingRate(productionParams) {
+  const elrRaw = getValue(productionParams, 'elr', 'elr');
+  const farmPopulation = getValue(productionParams, 'farmPopulation', 'farm_population');
+  const sr = getValue(productionParams, 'sr', 'sr');
+
+  const elrScaled = Number.isFinite(elrRaw) && Number.isFinite(farmPopulation) && farmPopulation > 0
+    ? elrRaw * farmPopulation
+    : null;
+
+  let elrEffective = elrRaw;
+  let elrSource = 'raw';
+
+  if (Number.isFinite(elrRaw) && Number.isFinite(elrScaled) && Number.isFinite(sr) && sr > 0) {
+    const rawDistance = Math.abs(sr - elrRaw);
+    const scaledDistance = Math.abs(sr - elrScaled);
+    if (scaledDistance < rawDistance) {
+      elrEffective = elrScaled;
+      elrSource = 'scaled-by-farmPopulation';
+    }
+  }
+
+  return {
+    elrRaw,
+    farmPopulation,
+    elrScaled,
+    elrEffective,
+    elrSource,
+  };
+}
+
 function auditStoneSetup(productionParams, equippedArtifacts) {
   const {
     stones,
+    artifactBreakdown,
     totalAllowedSlots,
     totalEquippedStones,
     hasOverfilledArtifact,
   } = collectContributorStones(equippedArtifacts);
+
+  const { elrEffective } = getEffectiveLayingRate(productionParams);
+  const sr = getValue(productionParams, 'sr', 'sr');
+  const maxRate = Number.isFinite(elrEffective) && Number.isFinite(sr) ? Math.max(elrEffective, sr) : null;
+  const diffRatio = Number.isFinite(maxRate) && maxRate > 0 ? Math.abs(elrEffective - sr) / maxRate : null;
 
   if (hasOverfilledArtifact) {
     return 'equipped stones exceed available artifact slots';
@@ -311,14 +363,10 @@ function auditStoneSetup(productionParams, equippedArtifacts) {
     return 'all stones must be level 2';
   }
 
-  const elr = getValue(productionParams, 'elr', 'elr');
-  const sr = getValue(productionParams, 'sr', 'sr');
-  if (!Number.isFinite(elr) || !Number.isFinite(sr) || elr <= 0 || sr <= 0) {
+  if (!Number.isFinite(elrEffective) || !Number.isFinite(sr) || elrEffective <= 0 || sr <= 0) {
     return 'missing sr/elr for stone balance check';
   }
 
-  const maxRate = Math.max(elr, sr);
-  const diffRatio = maxRate > 0 ? Math.abs(elr - sr) / maxRate : 0;
   if (diffRatio <= 0.05) {
     return null;
   }
@@ -327,8 +375,8 @@ function auditStoneSetup(productionParams, equippedArtifacts) {
   const quantumStones = stones.filter(stone => stone.name === 'QUANTUM_STONE').length;
   const tachyonStones = stones.filter(stone => stone.name === 'TACHYON_STONE').length;
 
-  const shippingCapped = elr > sr;
-  const layingCapped = sr > elr;
+  const shippingCapped = elrEffective > sr;
+  const layingCapped = sr > elrEffective;
 
   const allSlotsFilled = totalEquippedStones === totalAllowedSlots;
 
@@ -392,8 +440,7 @@ function auditContributor(contributor) {
 
   const stoneFailure = auditStoneSetup(productionParams, equippedArtifacts);
   if (stoneFailure) {
-    // This doesn't work right now because im dumb and can't figure out how to mock equipped artifacts with stones in tests, so it's disabled for now to avoid false failures until i can fix the tests
-    //failures.push('stones');
+    failures.push('stones');
   }
 
   return failures;
