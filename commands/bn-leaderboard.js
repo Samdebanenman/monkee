@@ -40,7 +40,6 @@ function formatAuditFailureLines(entries) {
 
 function toTableRows(entries) {
   const headers = {
-    number: 'number',
     coop: 'coop',
     duration: 'duration',
     tokens: 'tokens',
@@ -48,7 +47,6 @@ function toTableRows(entries) {
     status: 'status',
   };
 
-  const maxNumber = Math.max(headers.number.length, String(entries.length).length);
   const maxCoop = Math.max(headers.coop.length, ...entries.map(entry => entry.coop.length));
   const maxDuration = Math.max(headers.duration.length, ...entries.map(entry => entry.durationLabel.length));
   const maxTokens = Math.max(headers.tokens.length, ...entries.map(entry => String(entry.tokensLabel ?? '').length));
@@ -56,17 +54,16 @@ function toTableRows(entries) {
   const maxStatus = Math.max(headers.status.length, ...entries.map(entry => entry.status.length));
 
   const rows = [
-    `${headers.number.padEnd(maxNumber)} | ${headers.coop.padEnd(maxCoop)} | ${headers.duration.padEnd(maxDuration)} | ${headers.tokens.padEnd(maxTokens)} | ${headers.rate.padEnd(maxRate)} | ${headers.status.padEnd(maxStatus)}`
+    `${headers.coop.padEnd(maxCoop)} | ${headers.duration.padEnd(maxDuration)} | ${headers.tokens.padEnd(maxTokens)} | ${headers.rate.padEnd(maxRate)} | ${headers.status.padEnd(maxStatus)}`
   ];
 
-  entries.forEach((entry, index) => {
-    const number = String(index + 1).padEnd(maxNumber);
+  entries.forEach(entry => {
     const coop = entry.coop.padEnd(maxCoop);
     const duration = entry.durationLabel.padEnd(maxDuration);
     const tokens = String(entry.tokensLabel ?? '').padEnd(maxTokens);
     const rate = String(entry.deliveryRateLabel ?? '').padEnd(maxRate);
     const status = entry.status.padEnd(maxStatus);
-    rows.push(`${number} | ${coop} | ${duration} | ${tokens} | ${rate} | ${status}`);
+    rows.push(`${coop} | ${duration} | ${tokens} | ${rate} | ${status}`);
   });
 
   return rows;
