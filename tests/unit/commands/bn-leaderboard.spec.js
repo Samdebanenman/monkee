@@ -73,8 +73,8 @@ describe('commands/bn-leaderboard', () => {
     expect(message).toContain('moo');
     expect(message).toContain('zoo');
     expect(message).toContain('tokens');
-    expect(message).toContain('delivery rate');
-    expect(message).toContain('1.20bTqQ/hour');
+    expect(message).toContain('rate');
+    expect(message).toContain('1.20bTqQ');
     expect(message).not.toContain('Unchecked coops (API issues):');
 
     const followups = interaction.followUp.mock.calls.map(call => call?.[0]?.content ?? '').join('\n');

@@ -44,7 +44,7 @@ function toTableRows(entries) {
     coop: 'coop',
     duration: 'duration',
     tokens: 'tokens',
-    rate: 'delivery rate',
+    rate: 'rate/h',
     status: 'status',
   };
 

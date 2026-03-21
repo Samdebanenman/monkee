@@ -116,7 +116,7 @@ function formatInteger(value) {
 function formatRatePerHour(valuePerHour) {
   const num = Number(valuePerHour);
   if (!Number.isFinite(num) || num <= 0) {
-    return `0/hour`;
+    return `0`;
   }
 
   const suffixes = [
@@ -136,7 +136,7 @@ function formatRatePerHour(valuePerHour) {
   } else if (scaled >= 10) {
     decimals = 1;
   }
-  return `${scaled.toFixed(decimals)}${suffixes[index]}/hour`;
+  return `${scaled.toFixed(decimals)}${suffixes[index]}`;
 }
 
 function auditResearchLevels(commonResearch) {
