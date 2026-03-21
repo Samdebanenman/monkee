@@ -444,6 +444,73 @@ function calculateOfflineAdjustedRemainingSeconds(contract, contributors) {
   return remaining / rate;
 }
 
+function normalizeEpochSeconds(value) {
+  const numeric = toNumber(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  return numeric;
+}
+
+function calculateAverage(values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return 0;
+  }
+
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return total / values.length;
+}
+
+function calculateOfflineSecondsFromContributorTimestamps(contributors) {
+  if (!Array.isArray(contributors) || contributors.length === 0) {
+    return 0;
+  }
+
+  const allNotRecentlyActive = contributors.every(contributor => {
+    const recentlyActive = contributor?.recentlyActive ?? contributor?.recently_active;
+    return recentlyActive === false;
+  });
+  if (!allNotRecentlyActive) {
+    return 0;
+  }
+
+  const candidateSeconds = [];
+  for (const contributor of contributors) {
+    const farmInfo = contributor?.farmInfo ?? contributor?.farm_info ?? {};
+    const timestamp = toNumber(farmInfo?.timestamp);
+    if (!Number.isFinite(timestamp)) {
+      continue;
+    }
+
+    // In coop status payloads this is often negative seconds relative to "now".
+    if (timestamp < 0) {
+      candidateSeconds.push(-timestamp);
+    }
+  }
+
+  if (candidateSeconds.length === 0) {
+    return 0;
+  }
+
+  return Math.max(0, calculateAverage(candidateSeconds));
+}
+
+function calculateCoopOfflineSeconds(coopStatus, contributors) {
+  const lastSync = normalizeEpochSeconds(getValue(coopStatus, 'lastSyncDEP', 'last_sync_DEP'));
+  if (!Number.isFinite(lastSync)) {
+    return calculateOfflineSecondsFromContributorTimestamps(contributors);
+  }
+
+  const snapshotTime = normalizeEpochSeconds(
+    getValue(coopStatus, 'clientTimestamp', 'client_timestamp') ?? (Date.now() / 1000)
+  );
+  if (!Number.isFinite(snapshotTime)) {
+    return calculateOfflineSecondsFromContributorTimestamps(contributors);
+  }
+
+  return Math.max(0, snapshotTime - lastSync);
+}
+
 function calculateTotalDurationSeconds(contract, coopStatus, contributors) {
   const contractLength = toNumber(contract?.coopDurationSeconds);
   const secondsRemaining = getValue(coopStatus, 'secondsRemaining', 'seconds_remaining');
@@ -454,6 +521,7 @@ function calculateTotalDurationSeconds(contract, coopStatus, contributors) {
   );
   const allGoalsAchieved = Boolean(coopStatus?.allGoalsAchieved ?? coopStatus?.all_goals_achieved);
   const remainingSeconds = calculateOfflineAdjustedRemainingSeconds(contract, contributors);
+  const offlineSeconds = calculateCoopOfflineSeconds(coopStatus, contributors);
 
   const hasActualCompletion = Number.isFinite(contractLength)
     && Number.isFinite(secondsRemaining)
@@ -466,7 +534,8 @@ function calculateTotalDurationSeconds(contract, coopStatus, contributors) {
   }
 
   if (Number.isFinite(contractLength) && Number.isFinite(secondsRemaining)) {
-    return Math.max(0, contractLength - secondsRemaining + remainingSeconds);
+    const activeElapsedSeconds = Math.max(0, contractLength - secondsRemaining - offlineSeconds);
+    return Math.max(0, activeElapsedSeconds + remainingSeconds);
   }
 
   return remainingSeconds;

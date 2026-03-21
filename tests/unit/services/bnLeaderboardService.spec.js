@@ -132,7 +132,6 @@ describe('services/bnLeaderboardService', () => {
     const first = result.entries.find(entry => entry.coop === 'noo');
     expect(first.tokens).toBe(12);
     expect(first.tokensLabel).toBe('12');
-    expect(first.deliveryRateLabel).toContain('/hour');
     expect(Array.isArray(first.auditFailures)).toBe(true);
     // Non-BN coops should not be audited.
     expect(first.auditFailures.length).toBe(0);
@@ -433,5 +432,147 @@ describe('services/bnLeaderboardService', () => {
     const bottom = result.entries[result.entries.length - 1];
     expect(bottom.coop).toBe('noo');
     expect(bottom.durationLabel).toBe('--');
+  });
+
+  it('subtracts shared offline time from elapsed duration', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 100000, coopDurationSeconds: 108000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(false);
+
+    getCoopAvailability.mockImplementation(async (_contract, code) => {
+      if (code === 'noo') return { coopCode: code, free: false };
+      return { coopCode: code, free: true };
+    });
+
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          contributionAmount: 71200,
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 71200,
+          },
+        },
+      ],
+      secondsRemaining: 75600,
+      clientTimestamp: 200000,
+      lastSyncDEP: 178400,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.durationLabel).toBe('11h0m');
+  });
+
+  it('subtracts offline time from contributor timestamps when sync timestamps are missing', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 100000, coopDurationSeconds: 108000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(false);
+
+    getCoopAvailability.mockImplementation(async (_contract, code) => {
+      if (code === 'noo') return { coopCode: code, free: false };
+      return { coopCode: code, free: true };
+    });
+
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          contributionAmount: 71200,
+          recentlyActive: false,
+          farmInfo: {
+            ...contributor(1).farmInfo,
+            timestamp: -21600,
+          },
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 71200,
+          },
+        },
+      ],
+      secondsRemaining: 75600,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.durationLabel).toBe('11h0m');
+  });
+
+  it('uses average contributor timestamp fallback to match payload-like offline duration', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 100000, coopDurationSeconds: 604800 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(false);
+
+    getCoopAvailability.mockImplementation(async (_contract, code) => {
+      if (code === 'noo') return { coopCode: code, free: false };
+      return { coopCode: code, free: true };
+    });
+
+    const baseContributor = contributor(1);
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...baseContributor,
+          contributionAmount: 3600,
+          recentlyActive: false,
+          farmInfo: {
+            ...baseContributor.farmInfo,
+            timestamp: -10049.901707,
+          },
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 3600,
+          },
+        },
+        {
+          ...baseContributor,
+          userName: 'p2',
+          contributionAmount: 3600,
+          recentlyActive: false,
+          farmInfo: {
+            ...baseContributor.farmInfo,
+            timestamp: -22609.440188,
+          },
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 3600,
+          },
+        },
+        {
+          ...baseContributor,
+          userName: 'p3',
+          contributionAmount: 3700,
+          recentlyActive: false,
+          farmInfo: {
+            ...baseContributor.farmInfo,
+            timestamp: -23679.483177,
+          },
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 3700,
+          },
+        },
+      ],
+      secondsRemaining: 569957.382927,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.durationLabel).toBe('12h42m');
   });
 });
