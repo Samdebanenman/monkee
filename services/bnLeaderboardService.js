@@ -449,13 +449,14 @@ function calculateTotalDurationSeconds(contract, coopStatus, contributors) {
     'secondsSinceAllGoalsAchieved',
     'seconds_since_all_goals_achieved'
   );
+  const allGoalsAchieved = Boolean(coopStatus?.allGoalsAchieved ?? coopStatus?.all_goals_achieved);
   const remainingSeconds = calculateOfflineAdjustedRemainingSeconds(contract, contributors);
 
   const hasActualCompletion = Number.isFinite(contractLength)
     && Number.isFinite(secondsRemaining)
     && Number.isFinite(secondsSinceAllGoalsAchieved)
-    && secondsRemaining <= 0
-    && secondsSinceAllGoalsAchieved > 0;
+    && secondsSinceAllGoalsAchieved >= 0
+    && (allGoalsAchieved || secondsSinceAllGoalsAchieved > 0);
 
   if (hasActualCompletion) {
     return Math.max(0, contractLength - secondsRemaining - secondsSinceAllGoalsAchieved);
