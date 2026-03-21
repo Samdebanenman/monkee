@@ -38,6 +38,15 @@ function formatAuditFailureLines(entries) {
   return lines;
 }
 
+function formatStatusLegendLines() {
+  return [
+    'Status legend:',
+    '- ⚠︎ = BN coop not in saved coop list',
+    '- ✓ = BN coop in saved list and audit passed',
+    '- ✗ = BN coop in saved list and audit failed',
+  ];
+}
+
 function toTableRows(entries) {
   const headers = {
     coop: 'coop',
@@ -127,6 +136,9 @@ export async function execute(interaction) {
   for (const chunk of restChunks) {
     await interaction.followUp(createTextComponentMessage(chunk));
   }
+
+  const statusLegendLines = formatStatusLegendLines();
+  await interaction.followUp(createTextComponentMessage(statusLegendLines.join('\n')));
 
   const uncheckedLines = formatUncheckedLines(report.unchecked);
   if (uncheckedLines.length > 0) {
