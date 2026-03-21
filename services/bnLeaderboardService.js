@@ -619,9 +619,30 @@ function calculateTotalDeliveryRatePerHour(contributors) {
   return perSecond * 3600;
 }
 
-function toStatusSymbol({ isSavedCoop, auditPassed }) {
-  if (!isSavedCoop) return '⚠︎';
-  return auditPassed ? '✓' : '✗';
+function isCoopFinished(coopStatus) {
+  const allGoalsAchieved = Boolean(coopStatus?.allGoalsAchieved ?? coopStatus?.all_goals_achieved);
+  const secondsRemaining = getValue(coopStatus, 'secondsRemaining', 'seconds_remaining');
+  const secondsSinceAllGoalsAchieved = getValue(
+    coopStatus,
+    'secondsSinceAllGoalsAchieved',
+    'seconds_since_all_goals_achieved'
+  );
+
+  if (allGoalsAchieved) return true;
+  if (Number.isFinite(secondsRemaining) && secondsRemaining <= 0) return true;
+  return Number.isFinite(secondsSinceAllGoalsAchieved) && secondsSinceAllGoalsAchieved > 0;
+}
+
+function toStatusLabel({ isSavedCoop, auditPassed, isFinished }) {
+  const labels = [];
+
+  if (!isSavedCoop) {
+    labels.push('⚠︎');
+  }
+
+  labels.push(auditPassed ? '✓' : '✗');
+  labels.push(isFinished ? '🏳' : '⌛︎');
+  return labels.join(' ');
 }
 
 async function isFreeCoop(contractId, coopCode, cache) {
@@ -747,6 +768,7 @@ export async function buildBnLeaderboardReport({ contractId }) {
     const auditFailures = collectAuditFailures(contributors);
     const auditPassed = auditFailures.length === 0;
     const isSavedCoop = savedCoops.has(coop.toLowerCase());
+    const isFinished = isCoopFinished(coopStatus);
     const rawDurationSeconds = calculateTotalDurationSeconds(selectedContract, coopStatus, contributors);
     const { durationSeconds, durationLabel } = normalizeDuration(rawDurationSeconds);
     const totalTokens = calculateTotalTokens(contributors);
@@ -761,7 +783,7 @@ export async function buildBnLeaderboardReport({ contractId }) {
       deliveryRatePerHour,
       deliveryRateLabel: formatRatePerHour(deliveryRatePerHour),
       auditFailures,
-      status: toStatusSymbol({ isSavedCoop, auditPassed }),
+      status: toStatusLabel({ isSavedCoop, auditPassed, isFinished }),
     });
   }));
 

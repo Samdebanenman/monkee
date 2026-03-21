@@ -213,7 +213,8 @@ describe('services/bnLeaderboardService', () => {
 
     const entry = result.entries.find(item => item.coop === 'noo');
     expect(entry).toBeTruthy();
-    expect(entry.status).toBe('✓');
+    expect(entry.status).toContain('✓');
+    expect(entry.status).toContain('⌛︎');
     expect(entry.auditFailures).toEqual([]);
   });
 
@@ -283,7 +284,8 @@ describe('services/bnLeaderboardService', () => {
 
     const entry = result.entries.find(item => item.coop === 'noo');
     expect(entry).toBeTruthy();
-    expect(entry.status).toBe('✓');
+    expect(entry.status).toContain('✓');
+    expect(entry.status).toContain('⌛︎');
   });
 
   it('fails stone audit when sr/elr mismatch >5% and stones are mixed', async () => {
@@ -348,7 +350,8 @@ describe('services/bnLeaderboardService', () => {
 
     const entry = result.entries.find(item => item.coop === 'noo');
     expect(entry).toBeTruthy();
-    expect(entry.status).toBe('✗');
+    expect(entry.status).toContain('✗');
+    expect(entry.status).toContain('⌛︎');
     expect(entry.auditFailures).toHaveLength(1);
     const compactLabels = ['habs', 'vehicles', 'silos', 'research', 'artifacts', 'full habs', 'stones'];
     expect(entry.auditFailures[0].reasons.some(reason => compactLabels.includes(reason))).toBe(true);
@@ -406,7 +409,8 @@ describe('services/bnLeaderboardService', () => {
 
     const entry = result.entries.find(item => item.coop === 'noo');
     expect(entry).toBeTruthy();
-    expect(entry.status).toBe('✗');
+    expect(entry.status).toContain('✗');
+    expect(entry.status).toContain('⌛︎');
     const compactLabels = ['habs', 'vehicles', 'silos', 'research', 'artifacts', 'full habs', 'stones'];
     expect(entry.auditFailures[0].reasons.some(reason => compactLabels.includes(reason))).toBe(true);
   });

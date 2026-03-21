@@ -41,9 +41,11 @@ function formatAuditFailureLines(entries) {
 function formatStatusLegendLines() {
   return [
     'Status legend:',
-    '- ⚠︎ = BN coop not in saved coop list',
-    '- ✓ = BN coop in saved list and audit passed',
-    '- ✗ = BN coop in saved list and audit failed',
+    '- ✓ = audit passed',
+    '- ✗ = audit failed',
+    '- ⚠︎ = coop is not logged',
+    '- ⌛︎ = coop still running',
+    '- 🏳 = coop completed',
   ];
 }
 
