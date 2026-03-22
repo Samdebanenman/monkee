@@ -1,6 +1,7 @@
 import { fetchContractSummaries } from './contractService.js';
 import { getCoopAvailability, getCoopStatus, listCoops } from './coopService.js';
 import { hasKnownMembersForContributors } from './memberService.js';
+import { getBtvRate, getTeamwork } from '../sim-core/src/predictmaxcs/score.js';
 
 const CODE_SUFFIXES = ['oo', 'ooo'];
 const MAX_INCREMENT_PREFIX = 100;
@@ -62,6 +63,28 @@ const REQUIRED_RESEARCH_LEVELS = new Map([
   ['hyper_portalling', 25],
   ['relativity_optimization', 10],
 ]);
+
+const GRADE_MULTIPLIERS = {
+  GRADE_C: 1,
+  GRADE_B: 2,
+  GRADE_A: 3.5,
+  GRADE_AA: 5,
+  GRADE_AAA: 7,
+};
+
+const ARTIFACT_LEVEL_ORDER = {
+  INFERIOR: 1,
+  LESSER: 2,
+  NORMAL: 3,
+  GREATER: 4,
+};
+
+const ARTIFACT_RARITY_ORDER = {
+  COMMON: 1,
+  RARE: 2,
+  EPIC: 3,
+  LEGENDARY: 4,
+};
 
 function buildExtendedPlusCodes() {
   const letters = Array.from({ length: 26 }, (_, index) => String.fromCodePoint(97 + index));
@@ -137,6 +160,244 @@ function formatRatePerHour(valuePerHour) {
     decimals = 1;
   }
   return `${scaled.toFixed(decimals)}${suffixes[index]}`;
+}
+
+function levelRank(level) {
+  if (Number.isFinite(level)) {
+    // Enum payloads are commonly 0..3 for INFERIOR..GREATER.
+    const normalized = Number(level);
+    if (normalized >= 0 && normalized <= 3) {
+      return normalized + 1;
+    }
+  }
+  return ARTIFACT_LEVEL_ORDER[String(level ?? '').toUpperCase()] ?? 0;
+}
+
+function rarityRank(rarity) {
+  if (Number.isFinite(rarity)) {
+    // Enum payloads are commonly 0..3 for COMMON..LEGENDARY.
+    const normalized = Number(rarity);
+    if (normalized >= 0 && normalized <= 3) {
+      return normalized + 1;
+    }
+  }
+  return ARTIFACT_RARITY_ORDER[String(rarity ?? '').toUpperCase()] ?? 0;
+}
+
+function getDeflectorPercent(level, rarity) {
+  const l = levelRank(level);
+  const r = rarityRank(rarity);
+  if (l >= 4) {
+    if (r >= 4) return 20;
+    if (r >= 3) return 19;
+    if (r >= 2) return 17;
+    return 15;
+  }
+  if (l >= 3) {
+    return r >= 2 ? 13 : 12;
+  }
+  if (l >= 2) return 8;
+  if (l >= 1) return 5;
+  return 0;
+}
+
+function getSiabPercent(level, rarity) {
+  const l = levelRank(level);
+  const r = rarityRank(rarity);
+  if (l >= 4) {
+    if (r >= 4) return 100;
+    if (r >= 3) return 90;
+    if (r >= 2) return 80;
+    return 70;
+  }
+  if (l >= 3) {
+    return r >= 2 ? 60 : 50;
+  }
+  return 0;
+}
+
+function getBestArtifactPercentsForCs(farmInfo) {
+  const equipped = getArray(farmInfo, 'equippedArtifacts', 'equipped_artifacts');
+  let deflectorPercent = 0;
+  let siabPercent = 0;
+
+  for (const artifact of equipped) {
+    const spec = artifact?.spec ?? {};
+    const name = String(normalizeArtifactName(spec?.name) ?? '').toUpperCase();
+    const level = spec?.level;
+    const rarity = spec?.rarity;
+
+    if (name === 'TACHYON_DEFLECTOR') {
+      deflectorPercent = Math.max(deflectorPercent, getDeflectorPercent(level, rarity));
+      continue;
+    }
+
+    if (name === 'SHIP_IN_A_BOTTLE') {
+      siabPercent = Math.max(siabPercent, getSiabPercent(level, rarity));
+    }
+  }
+
+  return { deflectorPercent, siabPercent };
+}
+
+function inferSiabWarmupSeconds(contributor, projectedCompletionSeconds) {
+  const buffHistory = getArray(contributor, 'buffHistory', 'buff_history');
+  if (buffHistory.length === 0) return 0;
+
+  const events = buffHistory
+    .map(entry => ({
+      ts: toNumber(entry?.serverTimestamp ?? entry?.server_timestamp),
+      boosted: toNumber(entry?.earnings) > 1,
+    }))
+    .filter(entry => Number.isFinite(entry.ts));
+
+  if (events.length === 0) return 0;
+
+  let inferredSeconds = 0;
+  for (let i = 0; i < events.length - 1; i += 1) {
+    const current = events[i];
+    const next = events[i + 1];
+    if (!current.boosted) continue;
+    if (next.boosted) continue;
+    inferredSeconds += Math.max(0, current.ts - next.ts);
+  }
+
+  return Math.min(projectedCompletionSeconds, Math.max(0, inferredSeconds));
+}
+
+function getOfflineBacklogSeconds(contributor, elapsedSecondsNow) {
+  const farmInfo = contributor?.farmInfo ?? contributor?.farm_info ?? {};
+  const timestamp = toNumber(farmInfo?.timestamp);
+  if (!Number.isFinite(timestamp) || timestamp >= 0) return 0;
+  return Math.max(0, Math.min(-timestamp, elapsedSecondsNow));
+}
+
+function contributionFactor(contributionRatio) {
+  if (contributionRatio > 2.5) {
+    return 0.02221 * Math.min(contributionRatio, 12.5) + 4.386486;
+  }
+  return 3 * Math.pow(contributionRatio, 0.15) + 1;
+}
+
+function computeCs({ contributionRatio, contractLengthSeconds, completionTimeSeconds, teamwork, grade }) {
+  const gradeMultiplier = GRADE_MULTIPLIERS[String(grade ?? '').toUpperCase()] ?? GRADE_MULTIPLIERS.GRADE_AAA;
+  const clampedCompletion = Math.max(0, Math.min(completionTimeSeconds, contractLengthSeconds));
+
+  let cs = 1 + (contractLengthSeconds / 259200);
+  cs *= gradeMultiplier;
+  cs *= contributionFactor(Math.max(0, contributionRatio));
+  cs *= 4 * Math.pow((1 - clampedCompletion / contractLengthSeconds), 3) + 1;
+  cs *= (0.19 * teamwork + 1);
+  cs *= 1.05;
+  return Math.ceil(cs * 187.5);
+}
+
+function calculateCsSummary(contract, coopStatus, contributors) {
+  const goal3 = toNumber(contract?.eggGoal);
+  const contractLengthSeconds = toNumber(contract?.coopDurationSeconds);
+  if (!Number.isFinite(goal3) || goal3 <= 0 || !Number.isFinite(contractLengthSeconds) || contractLengthSeconds <= 0) {
+    return {
+      maxCs: null,
+      meanCs: null,
+      maxCsLabel: '--',
+      meanCsLabel: '--',
+    };
+  }
+
+  const maxCoopSizeRaw = toNumber(contract?.maxCoopSize ?? contract?.max_coop_size);
+  const maxCoopSize = Math.max(1, Math.round(Number.isFinite(maxCoopSizeRaw) ? maxCoopSizeRaw : contributors.length));
+  const totalAmountNow = toNumber(coopStatus?.totalAmount ?? coopStatus?.total_amount) ?? 0;
+  const secondsRemaining = getValue(coopStatus, 'secondsRemaining', 'seconds_remaining') ?? 0;
+  const secondsSinceAllGoalsAchieved = getValue(
+    coopStatus,
+    'secondsSinceAllGoalsAchieved',
+    'seconds_since_all_goals_achieved'
+  );
+  const allGoalsAchieved = Boolean(coopStatus?.allGoalsAchieved ?? coopStatus?.all_goals_achieved);
+  const includePending = coopStatus?.allMembersReporting === false;
+  const elapsedSecondsNow = Math.max(0, contractLengthSeconds - secondsRemaining);
+
+  const contributorsWithBacklog = contributors.map(contributor => {
+    const contributionRate = getValue(contributor, 'contributionRate', 'contribution_rate') ?? 0;
+    const contributionNow = getValue(contributor, 'contributionAmount', 'contribution_amount') ?? 0;
+    const backlogSeconds = includePending ? getOfflineBacklogSeconds(contributor, elapsedSecondsNow) : 0;
+    const pendingContribution = contributionRate * backlogSeconds;
+    return {
+      contributor,
+      contributionRate,
+      contributionNow,
+      pendingContribution,
+    };
+  });
+
+  const pendingTotal = contributorsWithBacklog.reduce((sum, item) => sum + item.pendingContribution, 0);
+  const adjustedTotalNow = totalAmountNow + pendingTotal;
+  const totalRatePerSecond = contributorsWithBacklog.reduce((sum, item) => sum + item.contributionRate, 0);
+  const eggsRemaining = Math.max(0, goal3 - adjustedTotalNow);
+  const rawSecondsToGoal = totalRatePerSecond > 0 ? eggsRemaining / totalRatePerSecond : Number.POSITIVE_INFINITY;
+  const secondsLeftInContract = Math.max(0, contractLengthSeconds - elapsedSecondsNow);
+  const projectedSecondsToGoal = Math.min(rawSecondsToGoal, secondsLeftInContract);
+  const hasActualCompletion = Number.isFinite(contractLengthSeconds)
+    && Number.isFinite(secondsRemaining)
+    && Number.isFinite(secondsSinceAllGoalsAchieved)
+    && secondsSinceAllGoalsAchieved >= 0
+    && (allGoalsAchieved || secondsSinceAllGoalsAchieved > 0);
+
+  const projectedCompletion = hasActualCompletion
+    ? Math.max(0, contractLengthSeconds - secondsRemaining - secondsSinceAllGoalsAchieved)
+    : Math.min(contractLengthSeconds, elapsedSecondsNow + projectedSecondsToGoal);
+  const projectedTotalAmount = adjustedTotalNow + totalRatePerSecond * projectedSecondsToGoal;
+  const contributionDenominator = Math.min(goal3, Math.max(projectedTotalAmount, 1));
+  const grade = String(coopStatus?.grade ?? contract?.grade ?? 'GRADE_AAA');
+
+  const scores = contributorsWithBacklog.map(item => {
+    const { contributor, contributionRate, contributionNow, pendingContribution } = item;
+    const projectedContribution = contributionNow + pendingContribution + contributionRate * projectedSecondsToGoal;
+    const contributionRatio = projectedContribution * maxCoopSize / contributionDenominator;
+
+    const farmInfo = contributor?.farmInfo ?? contributor?.farm_info ?? {};
+    const { deflectorPercent, siabPercent } = getBestArtifactPercentsForCs(farmInfo);
+    const siabWarmupSeconds = inferSiabWarmupSeconds(contributor, projectedCompletion);
+    const baseBtvRate = getBtvRate(deflectorPercent, siabPercent, true);
+    const warmupBtvRate = getBtvRate(deflectorPercent, Math.max(siabPercent, 100), true);
+    const btvRate = projectedCompletion > 0
+      ? (((projectedCompletion - siabWarmupSeconds) * baseBtvRate) + (siabWarmupSeconds * warmupBtvRate)) / projectedCompletion
+      : baseBtvRate;
+    const teamwork = getTeamwork(
+      btvRate,
+      maxCoopSize,
+      contractLengthSeconds / 86400,
+      Math.min(maxCoopSize - 1, 20),
+      0,
+      true
+    );
+
+    return computeCs({
+      contributionRatio,
+      contractLengthSeconds,
+      completionTimeSeconds: projectedCompletion,
+      teamwork,
+      grade,
+    });
+  });
+
+  if (scores.length === 0) {
+    return {
+      maxCs: null,
+      meanCs: null,
+      maxCsLabel: '--',
+      meanCsLabel: '--',
+    };
+  }
+
+  const maxCs = Math.max(...scores);
+  const meanCs = scores.reduce((sum, value) => sum + value, 0) / scores.length;
+  return {
+    maxCs,
+    meanCs,
+    maxCsLabel: formatInteger(maxCs),
+    meanCsLabel: formatInteger(Math.round(meanCs)),
+  };
 }
 
 function auditResearchLevels(commonResearch) {
@@ -330,7 +591,6 @@ function getEffectiveLayingRate(productionParams) {
 function auditStoneSetup(productionParams, equippedArtifacts) {
   const {
     stones,
-    artifactBreakdown,
     totalAllowedSlots,
     totalEquippedStones,
     hasOverfilledArtifact,
@@ -371,13 +631,21 @@ function auditStoneSetup(productionParams, equippedArtifacts) {
     return null;
   }
 
+  return getStoneMismatchAdvice({
+    stones,
+    totalAllowedSlots,
+    totalEquippedStones,
+    elrEffective,
+    sr,
+  });
+}
+
+function getStoneMismatchAdvice({ stones, totalAllowedSlots, totalEquippedStones, elrEffective, sr }) {
   const totalStones = stones.length;
   const quantumStones = stones.filter(stone => stone.name === 'QUANTUM_STONE').length;
   const tachyonStones = stones.filter(stone => stone.name === 'TACHYON_STONE').length;
-
   const shippingCapped = elrEffective > sr;
   const layingCapped = sr > elrEffective;
-
   const allSlotsFilled = totalEquippedStones === totalAllowedSlots;
 
   if (shippingCapped && allSlotsFilled && quantumStones === totalStones) {
@@ -463,20 +731,39 @@ function collectAuditFailures(contributors) {
   return details;
 }
 
-function calculateOfflineAdjustedRemainingSeconds(contract, contributors) {
+function calculateOfflineAdjustedRemainingSeconds(contract, coopStatus, contributors, elapsedSecondsNow) {
   const target = toNumber(contract?.eggGoal);
   if (target == null || target <= 0) {
     return Number.POSITIVE_INFINITY;
   }
 
+  const includePending = coopStatus?.allMembersReporting === false;
+  const coopTotalAmount = toNumber(coopStatus?.totalAmount ?? coopStatus?.total_amount);
   let adjustedCurrent = 0;
   let rate = 0;
   for (const contributor of contributors) {
     const contributionAmount = getValue(contributor, 'contributionAmount', 'contribution_amount') ?? 0;
     const productionParams = contributor?.productionParams ?? contributor?.production_params ?? {};
     const delivered = getValue(productionParams, 'delivered', 'delivered');
-    adjustedCurrent += Math.max(contributionAmount, delivered ?? contributionAmount);
-    rate += getValue(contributor, 'contributionRate', 'contribution_rate') ?? 0;
+    const contributionRate = getValue(contributor, 'contributionRate', 'contribution_rate') ?? 0;
+    const baselineContribution = Math.max(contributionAmount, delivered ?? contributionAmount);
+
+    let pendingContribution = 0;
+    if (includePending && contributionRate > 0 && Number.isFinite(elapsedSecondsNow) && elapsedSecondsNow > 0) {
+      const farmInfo = contributor?.farmInfo ?? contributor?.farm_info ?? {};
+      const timestamp = toNumber(farmInfo?.timestamp);
+      if (Number.isFinite(timestamp) && timestamp < 0) {
+        const pendingSeconds = Math.max(0, Math.min(-timestamp, elapsedSecondsNow));
+        pendingContribution = contributionRate * pendingSeconds;
+      }
+    }
+
+    adjustedCurrent += baselineContribution + pendingContribution;
+    rate += contributionRate;
+  }
+
+  if (Number.isFinite(coopTotalAmount)) {
+    adjustedCurrent = Math.max(adjustedCurrent, coopTotalAmount);
   }
 
   const remaining = Math.max(target - adjustedCurrent, 0);
@@ -567,7 +854,15 @@ function calculateTotalDurationSeconds(contract, coopStatus, contributors) {
     'seconds_since_all_goals_achieved'
   );
   const allGoalsAchieved = Boolean(coopStatus?.allGoalsAchieved ?? coopStatus?.all_goals_achieved);
-  const remainingSeconds = calculateOfflineAdjustedRemainingSeconds(contract, contributors);
+  const elapsedSecondsNow = Number.isFinite(contractLength) && Number.isFinite(secondsRemaining)
+    ? Math.max(0, contractLength - secondsRemaining)
+    : null;
+  const remainingSeconds = calculateOfflineAdjustedRemainingSeconds(
+    contract,
+    coopStatus,
+    contributors,
+    elapsedSecondsNow
+  );
   const offlineSeconds = calculateCoopOfflineSeconds(coopStatus, contributors);
 
   const hasActualCompletion = Number.isFinite(contractLength)
@@ -634,14 +929,11 @@ function isCoopFinished(coopStatus) {
 }
 
 function toStatusLabel({ isSavedCoop, auditPassed, isFinished }) {
-  const labels = [];
-
+  const labels = [auditPassed ? '✓' : '✗'];
   if (!isSavedCoop) {
-    labels.push('⚠︎ ');
+    labels.push('⚠︎');
   }
-
-  labels.push(auditPassed ? '✓' : '✗');
-  labels.push(isFinished ? '🏳' : '⌛︎ ');
+  labels.push(isFinished ? '🏳' : '⌛︎');
   return labels.join(' ');
 }
 
@@ -773,6 +1065,7 @@ export async function buildBnLeaderboardReport({ contractId }) {
     const { durationSeconds, durationLabel } = normalizeDuration(rawDurationSeconds);
     const totalTokens = calculateTotalTokens(contributors);
     const deliveryRatePerHour = calculateTotalDeliveryRatePerHour(contributors);
+    const csSummary = calculateCsSummary(selectedContract, coopStatus, contributors);
 
     entries.push({
       coop,
@@ -782,6 +1075,10 @@ export async function buildBnLeaderboardReport({ contractId }) {
       tokensLabel: formatInteger(totalTokens),
       deliveryRatePerHour,
       deliveryRateLabel: formatRatePerHour(deliveryRatePerHour),
+      maxCs: csSummary.maxCs,
+      meanCs: csSummary.meanCs,
+      maxCsLabel: csSummary.maxCsLabel,
+      meanCsLabel: csSummary.meanCsLabel,
       auditFailures,
       status: toStatusLabel({ isSavedCoop, auditPassed, isFinished }),
     });

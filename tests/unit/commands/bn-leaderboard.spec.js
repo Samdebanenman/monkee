@@ -50,10 +50,21 @@ describe('commands/bn-leaderboard', () => {
           durationLabel: '12h0m',
           tokensLabel: '20',
           deliveryRateLabel: '1.20bTqQ/hour',
+          maxCsLabel: '86,217',
+          meanCsLabel: '86,116',
           status: '✗',
           auditFailures: [{ contributor: 'p1', reasons: ['required artifacts missing'] }],
         },
-        { coop: 'zoo', durationLabel: '13h0m', tokensLabel: '35', deliveryRateLabel: '980.00q/hour', status: '✓', auditFailures: [] },
+        {
+          coop: 'zoo',
+          durationLabel: '13h0m',
+          tokensLabel: '35',
+          deliveryRateLabel: '980.00q/hour',
+          maxCsLabel: '51,122',
+          meanCsLabel: '49,877',
+          status: '✓',
+          auditFailures: [],
+        },
       ],
       unchecked: [{ coop: 'loo', reason: 'status 500' }],
     });
@@ -74,6 +85,8 @@ describe('commands/bn-leaderboard', () => {
     expect(message).toContain('zoo');
     expect(message).toContain('tokens');
     expect(message).toContain('rate');
+    expect(message).toContain('max cs');
+    expect(message).toContain('mean cs');
     expect(message).toContain('1.20bTqQ');
     expect(message).not.toContain('Unchecked coops (API issues):');
 

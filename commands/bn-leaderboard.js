@@ -56,6 +56,8 @@ function formatLeaderboardLines(entries, contractId) {
     duration: 'duration',
     tokens: 'tokens',
     rate: 'rate/h',
+    maxCs: 'max cs',
+    meanCs: 'mean cs',
     status: 'status',
   };
 
@@ -63,14 +65,24 @@ function formatLeaderboardLines(entries, contractId) {
   const maxDuration = Math.max(headers.duration.length, ...entries.map(entry => String(entry.durationLabel ?? '').length));
   const maxTokens = Math.max(headers.tokens.length, ...entries.map(entry => String(entry.tokensLabel ?? '').length));
   const maxRate = Math.max(headers.rate.length, ...entries.map(entry => String(entry.deliveryRateLabel ?? '').length));
+  const maxMaxCs = Math.max(headers.maxCs.length, ...entries.map(entry => String(entry.maxCsLabel ?? '--').length));
+  const maxMeanCs = Math.max(headers.meanCs.length, ...entries.map(entry => String(entry.meanCsLabel ?? '--').length));
   const maxStatus = Math.max(headers.status.length, ...entries.map(entry => String(entry.status ?? '').length));
 
   const lines = [
-    `\`${headers.coop.padEnd(maxCoop)} | ${headers.duration.padEnd(maxDuration)} | ${headers.tokens.padEnd(maxTokens)} | ${headers.rate.padEnd(maxRate)} | ${headers.status.padEnd(maxStatus)}\``
+    `\`${headers.coop.padEnd(maxCoop)} | ${headers.duration.padEnd(maxDuration)} | ${headers.tokens.padEnd(maxTokens)} | ${headers.rate.padEnd(maxRate)} | ${headers.maxCs.padEnd(maxMaxCs)} | ${headers.meanCs.padEnd(maxMeanCs)} | ${headers.status.padEnd(maxStatus)}\``
   ];
 
-  entries.forEach(entry => {
-    const inlineLabel = `${String(entry.coop ?? '').padEnd(maxCoop)} | ${String(entry.durationLabel ?? '').padEnd(maxDuration)} | ${String(entry.tokensLabel ?? '').padEnd(maxTokens)} | ${String(entry.deliveryRateLabel ?? '').padEnd(maxRate)} | ${String(entry.status ?? '').padEnd(maxStatus)}`;
+    entries.forEach(entry => {
+    const inlineLabel = `${String(entry.coop ?? '')
+      .padEnd(maxCoop)} | ${String(entry.durationLabel ?? '')
+      .padEnd(maxDuration)} | ${String(entry.tokensLabel ?? '')
+      .padEnd(maxTokens)} | ${String(entry.deliveryRateLabel ?? '')
+      .padEnd(maxRate)} | ${String(entry.maxCsLabel ?? '')
+      .padEnd(maxMaxCs)} | ${String(entry.meanCsLabel ?? '')      
+      .padEnd(maxMeanCs)} | ${String(entry.status ?? '')
+      .padEnd(maxStatus)}`;
+
     const coopUrl = `https://eicoop-carpet.netlify.app/${encodedContractId}/${encodeURIComponent(entry.coop)}`;
     lines.push(`\`${inlineLabel}\` [⧉](${coopUrl})`);
   });
