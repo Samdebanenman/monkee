@@ -990,7 +990,8 @@ async function collectIncrementSeries({ contractId, baseCode, cache, candidates,
 
 async function buildCoopsToCheck(contractId) {
   const baseCodes = buildExtendedPlusCodes();
-  const savedCoops = new Set(listCoops(contractId).map(coop => String(coop).toLowerCase()));
+  const savedCoopList = listCoops(contractId).map(coop => String(coop).trim()).filter(Boolean);
+  const savedCoops = new Set(savedCoopList.map(coop => coop.toLowerCase()));
   const candidates = [];
   const added = new Set();
   const freeCache = new Map();
@@ -1012,6 +1013,10 @@ async function buildCoopsToCheck(contractId) {
       added,
     });
   }));
+
+  for (const savedCoop of savedCoopList) {
+    pushCandidate(candidates, added, savedCoop);
+  }
 
   return { candidates, savedCoops };
 }
@@ -1048,18 +1053,19 @@ export async function buildBnLeaderboardReport({ contractId }) {
       return;
     }
 
+    const isSavedCoop = savedCoops.has(coop.toLowerCase());
+
     const isBnCoop = hasKnownMembersForContributors({
       contributors,
       contractId: normalizedContractId,
       coopCode: coop,
     });
-    if (!isBnCoop) {
+    if (!isBnCoop && !isSavedCoop) {
       return;
     }
 
     const auditFailures = collectAuditFailures(contributors);
     const auditPassed = auditFailures.length === 0;
-    const isSavedCoop = savedCoops.has(coop.toLowerCase());
     const isFinished = isCoopFinished(coopStatus);
     const rawDurationSeconds = calculateTotalDurationSeconds(selectedContract, coopStatus, contributors);
     const { durationSeconds, durationLabel } = normalizeDuration(rawDurationSeconds);
