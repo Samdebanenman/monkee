@@ -2,9 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { requireMamaBird } from '../utils/permissions.js';
 import { extractDiscordId, chunkContent, createTextComponentMessage } from '../services/discord.js';
 import { linkAltAccount, unlinkAltAccount } from '../services/coopService.js';
-import { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries } from '../services/memberService.js';
-
-const API_URL = 'https://eiapi.up.railway.app/allMaj';
+import { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries, fetchMembersPayloadFromApi } from '../services/memberService.js';
 const MAX_DETAIL_ROWS = 5;
 
 function formatConflict(conflict) {
@@ -24,24 +22,9 @@ function formatSkipped(entry) {
   return formatInvalid(entry);
 }
 
-async function fetchMembersPayload() {
-  const response = await fetch(API_URL, { headers: { accept: 'application/json' } });
-  if (!response.ok) {
-    throw new Error(`request failed with status ${response.status}`);
-  }
-  return response.json();
-}
-
 async function loadMembersPayload(interaction) {
   try {
-    const payload = await fetchMembersPayload();
-    if (!Array.isArray(payload)) {
-      await interaction.editReply(
-        createTextComponentMessage('Unexpected API response: expected an array of member records.', { flags: 64 })
-      );
-      return null;
-    }
-    return payload;
+    return await fetchMembersPayloadFromApi();
   } catch (err) {
     await interaction.editReply(
       createTextComponentMessage(`Failed to fetch member data: ${err.message ?? err}`, { flags: 64 })

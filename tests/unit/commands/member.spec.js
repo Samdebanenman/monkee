@@ -20,13 +20,14 @@ vi.mock('../../../services/memberService.js', () => ({
   setIgnForMember: vi.fn(),
   setMembersActiveStatus: vi.fn(),
   syncMembersFromApiEntries: vi.fn(),
+  fetchMembersPayloadFromApi: vi.fn(),
 }));
 
 import { execute } from '../../../commands/member.js';
 import { requireMamaBird } from '../../../utils/permissions.js';
 import { extractDiscordId } from '../../../services/discord.js';
 import { linkAltAccount, unlinkAltAccount } from '../../../services/coopService.js';
-import { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries } from '../../../services/memberService.js';
+import { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries, fetchMembersPayloadFromApi } from '../../../services/memberService.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -163,16 +164,7 @@ describe('commands/member setactive', () => {
 
 describe('commands/member updatemembers', () => {
   it('handles unexpected API payloads', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
-    syncMembersFromApiEntries.mockReturnValue({
-      total: 0,
-      updated: 0,
-      unchanged: 0,
-      conflicts: [],
-      invalid: [],
-      skipped: [],
-      failures: [],
-    });
+    fetchMembersPayloadFromApi.mockRejectedValue(new TypeError('Unexpected API response: expected an array of member records.'));
 
     const interaction = createInteraction({
       options: createOptions({ subcommand: 'updatemembers' }),

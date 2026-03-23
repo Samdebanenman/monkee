@@ -7,6 +7,8 @@ import {
   updateMemberActiveByInternalId,
 } from '../utils/database/index.js';
 
+const MEMBER_API_URL = 'https://eiapi.up.railway.app/allMaj';
+
 function normalizeDiscordId(value) {
   if (!value) return '';
   return String(value).trim();
@@ -156,6 +158,25 @@ export function syncMembersFromApiEntries(entries = []) {
   return summary;
 }
 
+export async function fetchMembersPayloadFromApi() {
+  const response = await fetch(MEMBER_API_URL, { headers: { accept: 'application/json' } });
+  if (!response.ok) {
+    throw new Error(`request failed with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  if (!Array.isArray(payload)) {
+    throw new TypeError('Unexpected API response: expected an array of member records.');
+  }
+
+  return payload;
+}
+
+export async function syncMembersFromMajApi() {
+  const payload = await fetchMembersPayloadFromApi();
+  return syncMembersFromApiEntries(payload);
+}
+
 export function hasKnownMembersForContributors({ contributors = [], contractId, coopCode } = {}) {
   const seen = new Set();
   const igns = [];
@@ -182,7 +203,14 @@ export function hasKnownMembersForContributors({ contributors = [], contractId, 
   return linked.length > 0;
 }
 
-export default { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries, hasKnownMembersForContributors };
+export default {
+  setIgnForMember,
+  setMembersActiveStatus,
+  syncMembersFromApiEntries,
+  fetchMembersPayloadFromApi,
+  syncMembersFromMajApi,
+  hasKnownMembersForContributors,
+};
 
 function processMemberEntry(entry, summary) {
   const discordId = normalizeDiscordId(entry?.ID);

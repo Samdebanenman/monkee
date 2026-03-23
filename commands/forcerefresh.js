@@ -4,6 +4,7 @@ import { refreshContracts } from '../services/contractService.js';
 import { fetchAndCacheColeggtibles } from '../utils/coleggtibles.js';
 import { createTextComponentMessage } from '../services/discord.js';
 import { listAllMembers, updateMemberDiscordNameByDiscordId } from '../utils/database/membersRepository.js';
+import { syncMembersFromMajApi } from '../services/memberService.js';
 
 export const data = new SlashCommandBuilder()
   .setName('forcerefresh')
@@ -18,13 +19,14 @@ export async function execute(interaction) {
     const contracts = await refreshContracts();
     const coleggtibles = await fetchAndCacheColeggtibles();
     const discordRefresh = await refreshDiscordNames(interaction.client);
+    const ignRefresh = await refreshMemberIgns();
     const count = Array.isArray(contracts) ? contracts.length : 0;
     const coleggtibleCount = Array.isArray(coleggtibles) ? coleggtibles.length : 0;
     const epoch = Math.floor(Date.now() / 1000);
 
     await interaction.editReply(
       createTextComponentMessage(
-        `Contracts refreshed. Loaded ${count} contracts and ${coleggtibleCount} coleggtibles as of <t:${epoch}:f>. Discord names refreshed: ${discordRefresh.updated} updated, ${discordRefresh.unchanged} unchanged, ${discordRefresh.failed} failed.`,
+        `Contracts refreshed. Loaded ${count} contracts and ${coleggtibleCount} coleggtibles as of <t:${epoch}:f>. Discord names refreshed: ${discordRefresh.updated} updated, ${discordRefresh.unchanged} unchanged, ${discordRefresh.failed} failed. IGN sync: ${ignRefresh.updated} updated, ${ignRefresh.unchanged} unchanged, ${ignRefresh.conflicts} conflicts, ${ignRefresh.invalid} invalid, ${ignRefresh.skipped} skipped, ${ignRefresh.failures} failed.`,
         { flags: 64 }
       )
     );
@@ -68,9 +70,22 @@ async function refreshDiscordNames(client) {
       updateMemberDiscordNameByDiscordId(discordId, username);
       summary.updated += 1;
     } catch (error) {
+      console.warn(`Failed to refresh Discord name for ${discordId}:`, error?.message ?? String(error));
       summary.failed += 1;
     }
   }
 
   return summary;
+}
+
+async function refreshMemberIgns() {
+  const summary = await syncMembersFromMajApi();
+  return {
+    updated: summary.updated ?? 0,
+    unchanged: summary.unchanged ?? 0,
+    conflicts: Array.isArray(summary.conflicts) ? summary.conflicts.length : 0,
+    invalid: Array.isArray(summary.invalid) ? summary.invalid.length : 0,
+    skipped: Array.isArray(summary.skipped) ? summary.skipped.length : 0,
+    failures: Array.isArray(summary.failures) ? summary.failures.length : 0,
+  };
 }
