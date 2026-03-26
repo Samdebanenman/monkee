@@ -288,6 +288,71 @@ describe('services/bnLeaderboardService', () => {
     expect(entry.status).toContain('⌛︎');
   });
 
+  it('uses productionParams.sr when contributionRate is zero', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          contributionRate: 0,
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 0,
+            sr: 2,
+          },
+        },
+      ],
+      secondsRemaining: 100,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.deliveryRatePerHour).toBe(7200);
+  });
+
+  it('uses delivered fallback when contributionAmount is zeroed', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          userName: 'pusher',
+          contributionAmount: 0,
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 900,
+            elr: 100,
+            sr: 100,
+          },
+        },
+      ],
+      allGoalsAchieved: true,
+      secondsRemaining: 0,
+      secondsSinceAllGoalsAchieved: 0,
+      totalAmount: 900,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.maxCs).toBeGreaterThan(0);
+  });
+
   it('fails stone audit when sr/elr mismatch >5% and stones are mixed', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
     listCoops.mockReturnValue(['noo']);
@@ -413,6 +478,364 @@ describe('services/bnLeaderboardService', () => {
     expect(entry.status).toContain('⌛︎');
     const compactLabels = ['habs', 'vehicles', 'silos', 'research', 'artifacts', 'full habs', 'stones'];
     expect(entry.auditFailures[0].reasons.some(reason => compactLabels.includes(reason))).toBe(true);
+  });
+
+  it('passes audit when SIAB is used as the fourth artifact with two stones', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 0,
+            elr: 100,
+            sr: 100,
+          },
+          farmInfo: {
+            ...contributor(1).farmInfo,
+            equippedArtifacts: [
+              {
+                spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+              {
+                spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+              {
+                spec: { name: 'INTERSTELLAR_COMPASS', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+              {
+                spec: { name: 'SHIP_IN_A_BOTTLE', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      secondsRemaining: 100,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.status).toContain('✓');
+    expect(entry.auditFailures).toEqual([]);
+  });
+
+  it('fails audit when SIAB exceeds its 2-slot cap', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 0,
+            elr: 100,
+            sr: 100,
+          },
+          farmInfo: {
+            ...contributor(1).farmInfo,
+            equippedArtifacts: [
+              {
+                spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' },
+                stones: [{ spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }],
+              },
+              {
+                spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' },
+                stones: [{ spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }],
+              },
+              {
+                spec: { name: 'INTERSTELLAR_COMPASS', rarity: 'LEGENDARY' },
+                stones: [{ spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }],
+              },
+              {
+                spec: { name: 'SHIP_IN_A_BOTTLE', rarity: 'LEGENDARY' },
+                stones: [
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                  { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      secondsRemaining: 100,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.status).toContain('✗');
+    const compactLabels = ['habs', 'vehicles', 'silos', 'research', 'artifacts', 'full habs', 'stones'];
+    expect(entry.auditFailures[0].reasons.some(reason => compactLabels.includes(reason))).toBe(true);
+  });
+
+  it('uses only explicit SIAB data for teamwork bonus', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo', '2noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockImplementation(async (_contract, code) => {
+      if (code === 'noo' || code === '2noo') return { coopCode: code, free: false };
+      return { coopCode: code, free: true };
+    });
+
+    const baseFarmInfo = contributor(1).farmInfo;
+    const sharedArtifacts = [
+      {
+        spec: { name: 'TACHYON_DEFLECTOR', level: 'GREATER', rarity: 'LEGENDARY' },
+        stones: [
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+        ],
+      },
+      {
+        spec: { name: 'QUANTUM_METRONOME', level: 'GREATER', rarity: 'LEGENDARY' },
+        stones: [
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+        ],
+      },
+      {
+        spec: { name: 'INTERSTELLAR_COMPASS', level: 'GREATER', rarity: 'LEGENDARY' },
+        stones: [
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+        ],
+      },
+    ];
+
+    getCoopStatus.mockImplementation(async (_contract, code) => {
+      const fourthArtifact = code === 'noo'
+        ? {
+          spec: { name: 'ORNATE_GUSSET', level: 'GREATER', rarity: 'LEGENDARY' },
+          stones: [
+            { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+            { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          ],
+        }
+        : {
+          spec: { name: 'SHIP_IN_A_BOTTLE', level: 'GREATER', rarity: 'LEGENDARY' },
+          stones: [
+            { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+            { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          ],
+        };
+
+      return {
+        contributors: [
+          {
+            ...contributor(1),
+            buffHistory: code === '2noo'
+              ? [
+                { serverTimestamp: 2000, earnings: 2 },
+                { serverTimestamp: 3000, earnings: 1 },
+              ]
+              : [],
+            productionParams: {
+              farmPopulation: 100,
+              farmCapacity: 100,
+              delivered: 0,
+              elr: 100,
+              sr: 100,
+            },
+            farmInfo: {
+              ...baseFarmInfo,
+              equippedArtifacts: [...sharedArtifacts, fourthArtifact],
+            },
+          },
+        ],
+        allGoalsAchieved: true,
+        secondsRemaining: 0,
+        secondsSinceAllGoalsAchieved: 0,
+        clientTimestamp: 3000,
+      };
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const gussetEntry = result.entries.find(item => item.coop === 'noo');
+    const siabEntry = result.entries.find(item => item.coop === '2noo');
+    expect(gussetEntry).toBeTruthy();
+    expect(siabEntry).toBeTruthy();
+    expect(siabEntry.maxCs).toBeGreaterThan(gussetEntry.maxCs);
+    expect(siabEntry.meanCs).toBeGreaterThan(gussetEntry.meanCs);
+  });
+
+  it('applies capped artifact buff with max-runs assumption', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 345600 }]);
+    listCoops.mockReturnValue(['noo', '2noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockImplementation(async (_contract, code) => {
+      if (code === 'noo' || code === '2noo') return { coopCode: code, free: false };
+      return { coopCode: code, free: true };
+    });
+
+    const base = contributor(1);
+    getCoopStatus.mockImplementation(async (_contract, code) => ({
+      contributors: [
+        {
+          ...base,
+          contributionAmount: 800,
+          contributionRate: 1,
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 800,
+            elr: 100,
+            sr: 100,
+          },
+          farmInfo: {
+            ...base.farmInfo,
+            equippedArtifacts: code === '2noo'
+              ? [
+                { spec: { name: 'TACHYON_DEFLECTOR', level: 'GREATER', rarity: 'LEGENDARY' }, stones: [] },
+                { spec: { name: 'QUANTUM_METRONOME', level: 'GREATER', rarity: 'LEGENDARY' }, stones: [] },
+                { spec: { name: 'INTERSTELLAR_COMPASS', level: 'GREATER', rarity: 'LEGENDARY' }, stones: [] },
+                { spec: { name: 'SHIP_IN_A_BOTTLE', level: 'GREATER', rarity: 'LEGENDARY' }, stones: [] },
+              ]
+              : [
+                { spec: { name: 'TACHYON_DEFLECTOR', level: 'GREATER', rarity: 'LEGENDARY' }, stones: [] },
+                { spec: { name: 'QUANTUM_METRONOME', level: 'GREATER', rarity: 'LEGENDARY' }, stones: [] },
+                { spec: { name: 'INTERSTELLAR_COMPASS', level: 'GREATER', rarity: 'LEGENDARY' }, stones: [] },
+                { spec: { name: 'ORNATE_GUSSET', level: 'GREATER', rarity: 'LEGENDARY' }, stones: [] },
+              ],
+          },
+        },
+      ],
+      allGoalsAchieved: true,
+      secondsRemaining: 0,
+      secondsSinceAllGoalsAchieved: 0,
+      totalAmount: 1000,
+      grade: 'GRADE_AAA',
+    }));
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const noSiab = result.entries.find(item => item.coop === 'noo');
+    const withSiab = result.entries.find(item => item.coop === '2noo');
+    expect(noSiab).toBeTruthy();
+    expect(withSiab).toBeTruthy();
+    expect(withSiab.maxCs).toBeGreaterThan(noSiab.maxCs);
+  });
+
+  it('uses buffHistory earnings transition to infer SIAB uptime', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo', '2noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockImplementation(async (_contract, code) => {
+      if (code === 'noo' || code === '2noo') return { coopCode: code, free: false };
+      return { coopCode: code, free: true };
+    });
+
+    const baseFarmInfo = contributor(1).farmInfo;
+    const artifactsWithGusset = [
+      {
+        spec: { name: 'TACHYON_DEFLECTOR', level: 'GREATER', rarity: 'LEGENDARY' },
+        stones: [
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+        ],
+      },
+      {
+        spec: { name: 'QUANTUM_METRONOME', level: 'GREATER', rarity: 'LEGENDARY' },
+        stones: [
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+        ],
+      },
+      {
+        spec: { name: 'INTERSTELLAR_COMPASS', level: 'GREATER', rarity: 'LEGENDARY' },
+        stones: [
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+        ],
+      },
+      {
+        spec: { name: 'ORNATE_GUSSET', level: 'GREATER', rarity: 'LEGENDARY' },
+        stones: [
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+          { spec: { name: 'TACHYON_STONE', level: 'NORMAL' } },
+        ],
+      },
+    ];
+
+    getCoopStatus.mockImplementation(async (_contract, code) => ({
+      contributors: [
+        {
+          ...contributor(1),
+          buffHistory: code === '2noo'
+            ? [
+              { serverTimestamp: 90438.0395, eggLayingRate: 1.2, earnings: 1 },
+              { serverTimestamp: 91868.5485, eggLayingRate: 1.2, earnings: 1.6 },
+            ]
+            : [],
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 0,
+            elr: 100,
+            sr: 100,
+          },
+          farmInfo: {
+            ...baseFarmInfo,
+            equippedArtifacts: artifactsWithGusset,
+          },
+        },
+      ],
+      allGoalsAchieved: true,
+      secondsRemaining: 0,
+      secondsSinceAllGoalsAchieved: 0,
+      clientTimestamp: 3000,
+    }));
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const shortWindowEntry = result.entries.find(item => item.coop === 'noo');
+    const tailWindowEntry = result.entries.find(item => item.coop === '2noo');
+    expect(shortWindowEntry).toBeTruthy();
+    expect(tailWindowEntry).toBeTruthy();
+    expect(tailWindowEntry.maxCs).toBeGreaterThan(shortWindowEntry.maxCs);
+    expect(tailWindowEntry.meanCs).toBeGreaterThan(shortWindowEntry.meanCs);
   });
 
   it('uses actual completion time when goals are achieved before contract expiry', async () => {
