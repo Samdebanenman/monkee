@@ -114,7 +114,7 @@ describe('services/bnLeaderboardService', () => {
             {
               ...contributor(1),
               productionParams: { farmPopulation: 90, farmCapacity: 100, delivered: 0 },
-              boostTokens: 12,
+              boostTokensSpent: 12,
             },
           ],
           secondsRemaining: 100,
@@ -1003,7 +1003,7 @@ describe('services/bnLeaderboardService', () => {
     expect(entry.durationLabel).toBe('11h0m');
   });
 
-  it('uses average contributor timestamp fallback to match payload-like offline duration', async () => {
+  it('uses median contributor timestamp fallback to match payload-like offline duration', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 100000, coopDurationSeconds: 604800 }]);
     listCoops.mockReturnValue(['noo']);
     hasKnownMembersForContributors.mockReturnValue(true);
@@ -1069,6 +1069,6 @@ describe('services/bnLeaderboardService', () => {
 
     const entry = result.entries.find(item => item.coop === 'noo');
     expect(entry).toBeTruthy();
-    expect(entry.durationLabel).toBe('12h42m');
+    expect(entry.durationLabel).toBe('11h38m');
   });
 });

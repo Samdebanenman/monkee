@@ -282,7 +282,7 @@ describe('bnLeaderboard scoring service', () => {
   const scoringService = new BnLeaderboardScoringService({ artifactsService });
 
   it('covers token/rate and cs-summary edge branches', () => {
-    expect(scoringService.calculateTotalTokens([{ boostTokens: 3 }, { boost_tokens: 2 }])).toBe(5);
+    expect(scoringService.calculateTotalTokens([{ boostTokensSpent: 3 }, { boost_tokens_spent: 2 }])).toBe(5);
     expect(scoringService.calculateTotalDeliveryRatePerHour([
       { contributionRate: 0, productionParams: { sr: 2 } },
       { contribution_rate: 1 },

@@ -95,7 +95,7 @@ export class BnLeaderboardScoringService {
   calculateTotalTokens(contributors) {
     let total = 0;
     for (const contributor of contributors) {
-      total += getValue(contributor, 'boostTokens', 'boost_tokens') ?? 0;
+      total += getValue(contributor, 'boostTokensSpent', 'boost_tokens_spent') ?? 0;
     }
     return total;
   }
