@@ -43,14 +43,16 @@ describe('commands/bn-leaderboard', () => {
   it('renders leaderboard report from service', async () => {
     buildBnLeaderboardReport.mockResolvedValue({
       ok: true,
+      contractId: 'video-games',
       contractName: 'Contract One',
       entries: [
         {
           coop: 'moo',
           durationLabel: '12h0m',
-          tokensLabel: '20',
           deliveryRateLabel: '1.20bTqQ/hour',
+          maxCs: 86217,
           maxCsLabel: '86,217',
+          meanCs: 86116,
           meanCsLabel: '86,116',
           status: '✗',
           auditFailures: [{ contributor: 'p1', reasons: ['required artifacts missing'] }],
@@ -58,9 +60,10 @@ describe('commands/bn-leaderboard', () => {
         {
           coop: 'zoo',
           durationLabel: '13h0m',
-          tokensLabel: '35',
           deliveryRateLabel: '980.00q/hour',
+          maxCs: 51122,
           maxCsLabel: '51,122',
+          meanCs: 49877,
           meanCsLabel: '49,877',
           status: '✓',
           auditFailures: [],
@@ -83,18 +86,36 @@ describe('commands/bn-leaderboard', () => {
     expect(message).toContain('Contract One');
     expect(message).toContain('moo');
     expect(message).toContain('zoo');
-    expect(message).toContain('tokens');
+    expect(message).toContain('Time Leaderboard');
+    expect(message).toContain('CS Leaderboard');
     expect(message).toContain('rate');
-    expect(message).toContain('max cs');
-    expect(message).toContain('mean cs');
-    expect(message).toContain('1.20bTqQ');
+    expect(message).toContain('duration');
+    expect(message).toContain('max');
+    expect(message).toContain('mean');
+    expect(message).toContain('status');
+    expect(message).toContain('1.2...');
+    expect(message).toContain('✗');
+    expect(message).toContain('✓');
+    expect(message).toContain('[⧉](https://eicoop-carpet.netlify.app/video-games/moo)');
+    expect(message).toContain('[⧉](https://eicoop-carpet.netlify.app/video-games/zoo)');
+    expect(message).toContain('Audit failures by coop:');
+    expect(message).toContain('moo');
+    expect(message).toContain('-# `✓` = audit passed');
+    expect(message).toContain('-# `✗` = audit failed');
     expect(message).not.toContain('Unchecked coops (API issues):');
+
+    const inlineRows = [...message.matchAll(/`([^`]*)`/g)].map(match => match[1]);
+    expect(inlineRows.length).toBeGreaterThan(0);
+    for (const row of inlineRows) {
+      expect(row.length).toBeLessThanOrEqual(35);
+    }
 
     const followups = interaction.followUp.mock.calls.map(call => call?.[0]?.content ?? '').join('\n');
     expect(followups).toContain('Unchecked coops (API issues):');
     expect(followups).toContain('loo');
-    expect(followups).toContain('Audit failures by coop:');
-    expect(followups).toContain('moo');
+    expect(followups).not.toContain('Audit failures by coop:');
+    expect(followups).not.toContain('-# `✓` = audit passed');
+    expect(followups).not.toContain('-# `✗` = audit failed');
   });
 
   it('handles unknown contract from service', async () => {
