@@ -1,11 +1,17 @@
 import { getValue, toNumber, getContributorRatePerSecond } from './common.js';
 
-function calculateAverage(values) {
+function calculateMedian(values) {
   if (!Array.isArray(values) || values.length === 0) {
     return 0;
   }
-  const total = values.reduce((sum, value) => sum + value, 0);
-  return total / values.length;
+
+  const sorted = [...values].sort((left, right) => left - right);
+  const midpoint = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) {
+    return sorted[midpoint];
+  }
+
+  return (sorted[midpoint - 1] + sorted[midpoint]) / 2;
 }
 
 function calculateOfflineSecondsFromContributorTimestamps(contributors) {
@@ -34,7 +40,7 @@ function calculateOfflineSecondsFromContributorTimestamps(contributors) {
     return 0;
   }
 
-  return Math.max(0, calculateAverage(candidateSeconds));
+  return Math.max(0, calculateMedian(candidateSeconds));
 }
 
 function calculateCoopOfflineSeconds(coopStatus, contributors) {
@@ -108,6 +114,7 @@ export class BnLeaderboardDurationService {
       ? Math.max(0, contractLength - secondsRemaining)
       : null;
 
+    const includePending = coopStatus?.allMembersReporting === false;
     const remainingSeconds = calculateOfflineAdjustedRemainingSeconds(contract, coopStatus, contributors, elapsedSecondsNow);
     const offlineSeconds = calculateCoopOfflineSeconds(coopStatus, contributors);
 
@@ -122,7 +129,8 @@ export class BnLeaderboardDurationService {
     }
 
     if (Number.isFinite(contractLength) && Number.isFinite(secondsRemaining)) {
-      const activeElapsedSeconds = Math.max(0, contractLength - secondsRemaining - offlineSeconds);
+      const offlinePenaltySeconds = includePending ? 0 : offlineSeconds;
+      const activeElapsedSeconds = Math.max(0, contractLength - secondsRemaining - offlinePenaltySeconds);
       return Math.max(0, activeElapsedSeconds + remainingSeconds);
     }
 

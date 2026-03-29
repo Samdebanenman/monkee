@@ -161,6 +161,7 @@ dist
 
 
 data/
+scripts/
 
 # Google service account keys
 google-credentials.json
