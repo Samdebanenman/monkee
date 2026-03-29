@@ -181,7 +181,7 @@ function formatTimeLeaderboardLines(entries, contractId) {
   ]);
   const columns = computeColumnWidths(TIME_COLUMNS, rows);
 
-  const lines = ['Time Leaderboard', `⧉ \`${buildInlineRow(columns.map(column => column.label), columns)}\``];
+  const lines = ['Fastest Coops', `⧉ \`${buildInlineRow(columns.map(column => column.label), columns)}\``];
 
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];

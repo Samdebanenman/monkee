@@ -86,7 +86,7 @@ describe('commands/bn-leaderboard', () => {
     expect(message).toContain('Contract One');
     expect(message).toContain('moo');
     expect(message).toContain('zoo');
-    expect(message).toContain('Time Leaderboard');
+    expect(message).toContain('Fastest Coops');
     expect(message).toContain('CS Leaderboard');
     expect(message).toContain('rate');
     expect(message).toContain('duration');
