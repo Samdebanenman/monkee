@@ -114,7 +114,7 @@ export async function execute(interaction) {
 	}
 	switch (subcommand) {
 		case 'update':
-			await handleUpdatePlayerInfos(interaction);
+			await handleUpdatePlayerInfos(interaction, user);
 			break;
 		case 'contracts':
 			await handleUpdatePlayerContracts(interaction);
@@ -132,9 +132,9 @@ export async function execute(interaction) {
 	}
 }
 
-async function handleUpdatePlayerInfos(interaction) {
+async function handleUpdatePlayerInfos(interaction, existingUser) {
 	try {
-		const user = {
+		const requestedUpdate = {
 			discordId: interaction.user.id,
 			discordName: interaction.user.username,
 			te: interaction.options.getInteger('te'),
@@ -142,10 +142,10 @@ async function handleUpdatePlayerInfos(interaction) {
 			hasUltra: interaction.options.getBoolean('ultra'),
 			note: interaction.options.getString('note'),
 		};
-		const hasDeflector = user.deflector != null;
-		const hasTe = user.te != null;
-		const hasUltra = user.hasUltra != null;
-		const hasNote = user.note != null;
+		const hasDeflector = requestedUpdate.deflector != null;
+		const hasTe = requestedUpdate.te != null;
+		const hasUltra = requestedUpdate.hasUltra != null;
+		const hasNote = requestedUpdate.note != null;
 		if (!hasDeflector && !hasTe && !hasUltra && !hasNote) {
 			await interaction.reply(
 				createTextComponentMessage(`You need to update at least one field.`, { flags: 64 }),
@@ -153,19 +153,26 @@ async function handleUpdatePlayerInfos(interaction) {
 			return;
 		}
 
-		await updatePlannerUser(user.discordId, {
-			username: user.discordName,
-			te: user.te,
-			deflector: user.deflector,
-			ultra: user.hasUltra,
-			note: user.note,
-		});
+		const updates = {
+			username: requestedUpdate.discordName,
+			te: hasTe ? requestedUpdate.te : existingUser.te,
+			deflector: hasDeflector ? requestedUpdate.deflector : existingUser.deflector,
+			ultra: hasUltra ? requestedUpdate.hasUltra : existingUser.hasUltra,
+			note: hasNote ? requestedUpdate.note : existingUser.note,
+		};
 
-		let replyMessage = `## ✅ **${user.discordName}**, your BN info has been saved successfully!`;
-		if (user.te != null) replyMessage += `\n- TE: **${user.te}**`;
-		if (user.deflector) replyMessage += `\n- Deflector: **${user.deflector}**`;
-		if (user.hasUltra != null) replyMessage += `\n- Ultra: **${user.hasUltra ? 'Yes' : 'No'}**`;
-		if (user.note != null) replyMessage += `\n- Note: ${user.note || '_empty_'}`;
+		const updatedUser = await updatePlannerUser(requestedUpdate.discordId, updates);
+
+		const finalTe = updatedUser?.te ?? updates.te;
+		const finalDeflector = updatedUser?.deflector ?? updates.deflector;
+		const finalUltra = updatedUser?.hasUltra ?? updates.ultra;
+		const finalNote = updatedUser?.note ?? updates.note;
+
+		let replyMessage = `## ✅ **${requestedUpdate.discordName}**, your BN info has been saved successfully!`;
+		replyMessage += `\n- TE: **${finalTe}**`;
+		replyMessage += `\n- Deflector: **${finalDeflector}**`;
+		replyMessage += `\n- Ultra: **${finalUltra ? 'Yes' : 'No'}**`;
+		replyMessage += `\n- Note: ${finalNote || '_empty_'}`;
 
 
 		await interaction.reply(

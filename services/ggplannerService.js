@@ -149,7 +149,17 @@ export async function listPlannerContracts({ includeInactive = false, limit } = 
 
 export async function updatePlannerUser(discordId, updates) {
 	const normalizedUpdates = { ...updates };
-	if (updates?.deflector !== undefined) {
+	const isTeMissing = updates?.te === undefined || updates?.te === null;
+	if (isTeMissing) {
+		delete normalizedUpdates.te;
+	} else {
+		normalizedUpdates.te = Number.isFinite(Number(updates.te)) ? Number(updates.te) : 0;
+	}
+
+	const isDeflectorMissing = updates?.deflector === undefined || updates?.deflector === null;
+	if (isDeflectorMissing) {
+		delete normalizedUpdates.deflector;
+	} else {
 		const plannerDeflector = normalizeDeflectorForPlanner(updates.deflector);
 		if (plannerDeflector) {
 			normalizedUpdates.deflector = plannerDeflector;
@@ -157,13 +167,25 @@ export async function updatePlannerUser(discordId, updates) {
 			delete normalizedUpdates.deflector;
 		}
 	}
-	if (updates?.ultra !== undefined) {
+
+	const isUltraMissing = updates?.ultra === undefined || updates?.ultra === null;
+	if (isUltraMissing) {
+		delete normalizedUpdates.ultra;
+	} else {
 		normalizedUpdates.ultra = Boolean(updates.ultra);
 	}
-	if (updates?.pushed !== undefined) {
+
+	const isPushedMissing = updates?.pushed === undefined || updates?.pushed === null;
+	if (isPushedMissing) {
+		delete normalizedUpdates.pushed;
+	} else {
 		normalizedUpdates.pushed = Boolean(updates.pushed);
 	}
-	if (updates?.note !== undefined) {
+
+	const isNoteMissing = updates?.note === undefined || updates?.note === null;
+	if (isNoteMissing) {
+		delete normalizedUpdates.note;
+	} else {
 		normalizedUpdates.note = String(updates.note || '').slice(0, 150);
 	}
 
