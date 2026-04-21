@@ -1,5 +1,6 @@
+import { DateTime } from 'luxon';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
-import { REFERENCE_HOUR_UTC } from '../utils/eggStandartTime.js';
+import { ORDERED_EGG_HOURS, REFERENCE_HOUR_UTC } from '../utils/eggStandartTime.js';
 
 export const WEEK_DAYS = [
 	{ label: 'Monday', value: '1' },
@@ -33,16 +34,33 @@ export const MAX_EPIC_DEFLECTORS = new Map([
     [12, 11],
 ]);
 
-function getHourOptions({ timeMode = 'egg', localHourLabels = new Map() } = {}) {
+function formatLocalHourLabel(selectedDay, estHour, timezone) {
+	if (!timezone) {
+		return null;
+	}
+
+	try {
+		const baseTime = DateTime
+			.now()
+			.setZone('America/Los_Angeles')
+			.startOf('week')
+			.set({ hour: 9, minute: 0, second: 0, millisecond: 0 })
+			.plus({ days: selectedDay - 1, hours: estHour })
+			.setZone(timezone);
+		const localDay = baseTime.toFormat('ccc');
+		const localTime = baseTime.toFormat('h:mm a').replace(':00', '').replace(' ', '').toLowerCase();
+		return `${localDay} ${localTime}`;
+	} catch {
+		return null;
+	}
+}
+
+function getHourOptions(selectedDay, { timeMode = 'egg', timezone } = {}) {
 	const hours = [];
-	const orderedHours = [
-		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-		-4, -3, -2, -1,
-	];
-	for (const estHour of orderedHours) {
+	for (const estHour of ORDERED_EGG_HOURS) {
 		const utcHour = (REFERENCE_HOUR_UTC + estHour + 24) % 24;
 		const eggLabel = `${estHour > 0 ? '+' : ''}${estHour}`;
-		const localLabel = localHourLabels.get(estHour) || eggLabel;
+		const localLabel = formatLocalHourLabel(selectedDay, estHour, timezone) || eggLabel;
 		hours.push({
 			value: `${utcHour}`,
 			label: timeMode === 'local' ? localLabel : eggLabel,
@@ -57,7 +75,7 @@ function getHourOptions({ timeMode = 'egg', localHourLabels = new Map() } = {}) 
 export async function createScheduleComponents(
 	selectedDay,
 	schedule,
-	{ timeMode = 'egg', localHourLabels = new Map() } = {},
+	{ timeMode = 'egg', timezone } = {},
 ) {
 	const dayButtons = WEEK_DAYS.map((day) =>
 		new ButtonBuilder()
@@ -78,7 +96,7 @@ export async function createScheduleComponents(
 		dayButtons.slice(5),
 	);
 
-	const hourOptions = getHourOptions({ timeMode, localHourLabels });
+	const hourOptions = getHourOptions(selectedDay, { timeMode, timezone });
 	const savedHoursForDay = schedule.get(selectedDay) || new Set();
 
 	const hourSelect = new ActionRowBuilder().addComponents(

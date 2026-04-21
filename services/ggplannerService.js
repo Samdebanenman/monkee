@@ -92,6 +92,8 @@ function normalizeUser(user) {
 		contracts: Array.isArray(user.contracts) ? user.contracts.map(String) : [],
 		availability: Array.isArray(user.availability) ? user.availability.map(Boolean) : new Array(168).fill(false),
 		is_pushed: Boolean(user.pushed),
+		timezone: String(user.timezone || 'UTC'),
+		note: typeof user.note === 'string' ? user.note.slice(0, 150) : '',
 	};
 }
 
@@ -160,6 +162,9 @@ export async function updatePlannerUser(discordId, updates) {
 	}
 	if (updates?.pushed !== undefined) {
 		normalizedUpdates.pushed = Boolean(updates.pushed);
+	}
+	if (updates?.note !== undefined) {
+		normalizedUpdates.note = String(updates.note || '').slice(0, 150);
 	}
 
 	const payload = await plannerRequest('update-member', {

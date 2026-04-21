@@ -36,6 +36,12 @@ export const data = new SlashCommandBuilder()
 				option
 					.setName('ultra')
 					.setDescription('Do you have Ultra? (Yes/No)')
+			)
+			.addStringOption((option) =>
+				option
+					.setName('note')
+					.setDescription('A short note for reruns (max 150 chars).')
+					.setMaxLength(150),
 			),
 	)
 	.addSubcommand((subcommand) =>
@@ -134,11 +140,13 @@ async function handleUpdatePlayerInfos(interaction) {
 			te: interaction.options.getInteger('te'),
 			deflector: interaction.options.getString('def'),
 			hasUltra: interaction.options.getBoolean('ultra'),
+			note: interaction.options.getString('note'),
 		};
 		const hasDeflector = user.deflector != null;
 		const hasTe = user.te != null;
 		const hasUltra = user.hasUltra != null;
-		if (!hasDeflector && !hasTe && !hasUltra) {
+		const hasNote = user.note != null;
+		if (!hasDeflector && !hasTe && !hasUltra && !hasNote) {
 			await interaction.reply(
 				createTextComponentMessage(`You need to update at least one field.`, { flags: 64 }),
 			);
@@ -150,12 +158,14 @@ async function handleUpdatePlayerInfos(interaction) {
 			te: user.te,
 			deflector: user.deflector,
 			ultra: user.hasUltra,
+			note: user.note,
 		});
 
 		let replyMessage = `## ✅ **${user.discordName}**, your BN info has been saved successfully!`;
 		if (user.te != null) replyMessage += `\n- TE: **${user.te}**`;
 		if (user.deflector) replyMessage += `\n- Deflector: **${user.deflector}**`;
 		if (user.hasUltra != null) replyMessage += `\n- Ultra: **${user.hasUltra ? 'Yes' : 'No'}**`;
+		if (user.note != null) replyMessage += `\n- Note: ${user.note || '_empty_'}`;
 
 
 		await interaction.reply(
@@ -239,13 +249,11 @@ async function handleUpdatePlayerSchedule(interaction) {
 		return;
 	}
 	let schedule = getScheduleFromAvailability(member.availability);
-	const localLabelMap = new Map();
-
 	const reply = await interaction.editReply({
 		content: `Hey ${interaction.user.toString()}, select a day to set your available hours.`,
 		components: await createScheduleComponents(selectedDay, schedule, {
 			timeMode,
-			localHourLabels: localLabelMap,
+			timezone: member.timezone,
 		}),
 	});
 
@@ -265,7 +273,7 @@ async function handleUpdatePlayerSchedule(interaction) {
 					components: await createScheduleComponents(
 						selectedDay,
 						schedule,
-						{ timeMode, localHourLabels: localLabelMap },
+						{ timeMode, timezone: member.timezone },
 					),
 				});
 			} else if (i.customId === 'hour_select') {
@@ -282,7 +290,7 @@ async function handleUpdatePlayerSchedule(interaction) {
 					components: await createScheduleComponents(
 						selectedDay,
 						schedule,
-						{ timeMode, localHourLabels: localLabelMap },
+						{ timeMode, timezone: member.timezone },
 					),
 				});
 			} else if (i.customId === 'toggle_time') {
@@ -292,7 +300,7 @@ async function handleUpdatePlayerSchedule(interaction) {
 					components: await createScheduleComponents(
 						selectedDay,
 						schedule,
-						{ timeMode, localHourLabels: localLabelMap },
+						{ timeMode, timezone: member.timezone },
 					),
 				});
 			} else if (i.customId === 'finish_schedule') {
