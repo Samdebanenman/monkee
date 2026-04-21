@@ -1,18 +1,16 @@
 import { SlashCommandBuilder } from 'discord.js';
 import {
-  createScheduleComponents,
-  DEFLECTOR_CHOICES,
+	createScheduleComponents,
+	DEFLECTOR_CHOICES,
 } from '../services/bnPlayerService.js';
 import { fetchActiveContracts } from '../services/contractService.js';
 import { createTextComponentMessage } from '../services/discord.js';
 import {
-	fetchLocalTimeLabelsFromSheet,
-  getUserSchedule,
-  updateContractsInSheet,
-  updatePlayerInfoInSheet,
-  updateScheduleInSheet,
-} from '../services/googleSheetService.js';
-import { getMemberRecord, getMemberTabName } from '../utils/database/membersRepository.js';
+	getRegisteredPlannerUser,
+	getScheduleFromAvailability,
+	updatePlannerScheduleForDay,
+	updatePlannerUser,
+} from '../services/ggplannerService.js';
 
 export const data = new SlashCommandBuilder()
 	.setName('bn-me')
@@ -20,7 +18,7 @@ export const data = new SlashCommandBuilder()
 	.addSubcommand((subcommand) =>
 		subcommand
 			.setName('update')
-			.setDescription("Update your player infos on Quail's Sheet.")
+			.setDescription('Update your player info in GGPlanner.')
 			.addStringOption((option) =>
 				option
 					.setName('def')
@@ -98,10 +96,13 @@ export async function autocomplete(interaction) {
 
 export async function execute(interaction) {
 	const subcommand = interaction.options.getSubcommand();
-	const user = getMemberRecord(interaction.user.id);
+	const user = await getRegisteredPlannerUser(interaction.user.id);
 	if (!user) {
 		await interaction.reply(
-			createTextComponentMessage(`You isn't a monkee member, please ask to a MamaBird to add you`, { flags: 64 }),
+			createTextComponentMessage(
+				'You are not registered in GGPlanner yet. Please log in to GGPlanner with Discord and ask for approval first.',
+				{ flags: 64 },
+			),
 		);
 		return;
 	}
@@ -127,35 +128,32 @@ export async function execute(interaction) {
 
 async function handleUpdatePlayerInfos(interaction) {
 	try {
-		const member = getMemberTabName(interaction.user.id);
-		if (!member?.sheet_tab) {
-			await interaction.reply(
-				createTextComponentMessage(
-					'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
-					{ flags: 64 },
-				),
-			);
-			return;
-		}
 		const user = {
-			tabName: member.sheet_tab,
 			discordId: interaction.user.id,
 			discordName: interaction.user.username,
 			te: interaction.options.getInteger('te'),
 			deflector: interaction.options.getString('def'),
 			hasUltra: interaction.options.getBoolean('ultra'),
 		};
-		if (!user.deflector && !user.te && !user.hasUltra) {
+		const hasDeflector = user.deflector != null;
+		const hasTe = user.te != null;
+		const hasUltra = user.hasUltra != null;
+		if (!hasDeflector && !hasTe && !hasUltra) {
 			await interaction.reply(
 				createTextComponentMessage(`You need to update at least one field.`, { flags: 64 }),
 			);
 			return;
 		}
 
-		await updatePlayerInfoInSheet(user);
+		await updatePlannerUser(user.discordId, {
+			username: user.discordName,
+			te: user.te,
+			deflector: user.deflector,
+			ultra: user.hasUltra,
+		});
 
 		let replyMessage = `## ✅ **${user.discordName}**, your BN info has been saved successfully!`;
-		if (user.te) replyMessage += `\n- TE: **${user.te}**`;
+		if (user.te != null) replyMessage += `\n- TE: **${user.te}**`;
 		if (user.deflector) replyMessage += `\n- Deflector: **${user.deflector}**`;
 		if (user.hasUltra != null) replyMessage += `\n- Ultra: **${user.hasUltra ? 'Yes' : 'No'}**`;
 
@@ -179,22 +177,27 @@ async function handleUpdatePlayerContracts(interaction) {
 	try {
 		const wanted = interaction.options.getBoolean('wanted', true);
 		const contractId = interaction.options.getString('contract', true);
-		const member = getMemberTabName(interaction.user.id);
-		if (!member?.sheet_tab) {
+		const member = await getRegisteredPlannerUser(interaction.user.id);
+		if (!member) {
 			await interaction.editReply(
 				createTextComponentMessage(
-					'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
+					'You are not registered in GGPlanner yet. Please log in and get approved first.',
 					{ flags: 64 },
 				),
 			);
 			return;
 		}
 
-		await updateContractsInSheet(
-			member.sheet_tab,
-			contractId,
-			wanted,
-		);
+		const contracts = new Set(member.contracts);
+		if (wanted) {
+			contracts.add(contractId);
+		} else {
+			contracts.delete(contractId);
+		}
+
+		await updatePlannerUser(interaction.user.id, {
+			contracts: Array.from(contracts),
+		});
 
 		const replyMessage = `## ✅ **${interaction.user.username}**, your selected contracts have been updated!`;
 
@@ -225,27 +228,18 @@ async function handleUpdatePlayerSchedule(interaction) {
 	await interaction.deferReply({ flags: 64 });
 	let selectedDay = 1;
 	let timeMode = 'egg';
-	const member = getMemberTabName(interaction.user.id);
-	if (!member?.sheet_tab) {
+	let member = await getRegisteredPlannerUser(interaction.user.id);
+	if (!member) {
 		await interaction.editReply(
 			createTextComponentMessage(
-				'Your sheet tab is not linked yet. Please ask a MamaBird to set your tab with /bn-set player_tab.',
+				'You are not registered in GGPlanner yet. Please log in and get approved first.',
 				{ flags: 64 },
 			),
 		);
 		return;
 	}
-	const tabName = member.sheet_tab;
-	let schedule = await getUserSchedule(tabName);
-	const orderedHours = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, -4, -3, -2, -1];
+	let schedule = getScheduleFromAvailability(member.availability);
 	const localLabelMap = new Map();
-	const localLabels = await fetchLocalTimeLabelsFromSheet(tabName);
-	orderedHours.forEach((hour, index) => {
-		const label = localLabels[index];
-		if (label) {
-			localLabelMap.set(hour, label);
-		}
-	});
 
 	const reply = await interaction.editReply({
 		content: `Hey ${interaction.user.toString()}, select a day to set your available hours.`,
@@ -276,12 +270,12 @@ async function handleUpdatePlayerSchedule(interaction) {
 				});
 			} else if (i.customId === 'hour_select') {
 				const selectedHours = i.values.map((v) => Number.parseInt(v, 10));
-				await updateScheduleInSheet(
-					tabName,
+				member = await updatePlannerScheduleForDay(
+					interaction.user.id,
 					selectedDay,
 					selectedHours,
 				);
-				schedule = await getUserSchedule(tabName);
+				schedule = getScheduleFromAvailability(member.availability);
 
 				await i.update({
 					content: `Hey ${interaction.user.toString()}, select a day to set your available hours.`,

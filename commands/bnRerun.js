@@ -1,15 +1,16 @@
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import {
 	groupPlayersByHour,
-	MAX_EPIC_DEFLECTORS,
 	WEEK_DAYS,
 } from '../services/bnPlayerService.js';
 import { fetchActiveContracts } from '../services/contractService.js';
 import { getContractById } from '../utils/database/contractsRepository.js';
 import { formatHourRanges } from '../utils/eggStandartTime.js';
 import { createTextComponentMessage } from '../services/discord.js';
-import { getMemberRecord, listAllMembers } from '../utils/database/membersRepository.js';
-import { findPlayersForRerun } from '../services/googleSheetService.js';
+import {
+	findPlannerPlayersForRerun,
+	getRegisteredPlannerUser,
+} from '../services/ggplannerService.js';
 
 export const data = new SlashCommandBuilder()
 	.setName('bn-rerun')
@@ -43,15 +44,6 @@ export const data = new SlashCommandBuilder()
 	)
 	.addStringOption((option) =>
 		option
-			.setName('pushed')
-			.setDescription(
-				'Select a player to be pushed and optimize for push-run.',
-			)
-			.setRequired(false)
-			.setAutocomplete(true),
-	)
-	.addStringOption((option) =>
-		option
 			.setName('hours')
 			.setDescription(
 				'Optional list of game hours to filter (e.g., +0,-2,+4).',
@@ -59,38 +51,127 @@ export const data = new SlashCommandBuilder()
 			.setRequired(false),
 	);
 
+function parseRequestedHours(hoursInput) {
+	return String(hoursInput || '')
+		.split(',')
+		.map((value) => Number.parseInt(value.trim(), 10))
+		.filter((value) => !Number.isNaN(value));
+}
+
+async function replyRegisteredOnly(interaction) {
+	await interaction.editReply(
+		createTextComponentMessage(
+			'You are not registered in GGPlanner yet. Please log in and get approved first.',
+		),
+	);
+}
+
+async function resolveRerunUser(interaction) {
+	const callerUser = await getRegisteredPlannerUser(interaction.user.id);
+	if (!callerUser) {
+		return { error: 'caller-not-registered' };
+	}
+	return { requiredUser: callerUser };
+}
+
+function buildHourSlotPlayers(hourPlayers, requiredUserId) {
+	const requiredPlayer = hourPlayers.find(
+		(player) => player.discord_id === requiredUserId,
+	);
+	if (!requiredPlayer) {
+		return null;
+	}
+	const otherPlayers = hourPlayers.filter(
+		(player) => player.discord_id !== requiredUserId,
+	);
+	return { requiredPlayer, otherPlayers };
+}
+
+function buildFinalPlayers({ requiredPlayer, otherPlayers }) {
+	for (let i = otherPlayers.length - 1; i > 0; i -= 1) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[otherPlayers[i], otherPlayers[j]] = [otherPlayers[j], otherPlayers[i]];
+	}
+
+	return [requiredPlayer, ...otherPlayers].filter(Boolean);
+}
+
+function buildAvailableSlots({ playersByHour, requiredUserId, contract }) {
+	const availableSlots = [];
+	for (const [hour, hourPlayers] of playersByHour.entries()) {
+		const playerSet = buildHourSlotPlayers(hourPlayers, requiredUserId);
+		if (!playerSet) {
+			continue;
+		}
+
+		const finalPlayers = buildFinalPlayers({
+			requiredPlayer: playerSet.requiredPlayer,
+			otherPlayers: playerSet.otherPlayers,
+		});
+		if (finalPlayers.length < contract.max_coop_size) {
+			continue;
+		}
+
+		availableSlots.push({
+			hour,
+			players: finalPlayers,
+			playerCount: finalPlayers.length,
+			totalTE: finalPlayers
+				.slice(0, contract.max_coop_size)
+				.reduce((sum, player) => sum + (Number.parseInt(player.te, 10) || 0), 0),
+		});
+	}
+	return availableSlots;
+}
+
+function groupSlotsByPlayers(availableSlots) {
+	const groupedSlots = new Map();
+	for (const slot of availableSlots) {
+		const playerIds = [...slot.players]
+			.sort((a, b) => b.discord_id.localeCompare(a.discord_id))
+			.map((player) => player.discord_id)
+			.join(',');
+
+		if (!groupedSlots.has(playerIds)) {
+			groupedSlots.set(playerIds, {
+				hours: [],
+				players: slot.players,
+				playerCount: slot.playerCount,
+				totalTE: slot.totalTE,
+			});
+		}
+		groupedSlots.get(playerIds).hours.push(slot.hour);
+	}
+	return Array.from(groupedSlots.values());
+}
+
 export async function execute(interaction) {
 	await interaction.deferReply();
 
 	const contractId = interaction.options.getString('contract', true);
 	const day = interaction.options.getString('day', true);
-	const pushedUserId = interaction.options.getString('pushed');
-	const hoursInput = interaction.options.getString('hours') || '';
+	const hoursInput = interaction.options.getString('hours');
 	const isUltraOnly = interaction.options.getBoolean('ultra_only') || false;
-	const hours = hoursInput.split(',').map((h) => Number.parseInt(h.trim(), 10)).filter((h) => !Number.isNaN(h));
-	const isPush = !!pushedUserId;
+	const hours = parseRequestedHours(hoursInput);
 
-	const requiredUser = getMemberRecord(pushedUserId || interaction.user.id);
-	if (!requiredUser) {
-		await interaction.editReply(
-			createTextComponentMessage(
-				`You isn't a monkee member, please ask to a MamaBird to add you`
-			),
-		);
+	const rerunUsers = await resolveRerunUser(interaction);
+	if (rerunUsers.error === 'caller-not-registered') {
+		await replyRegisteredOnly(interaction);
 		return;
 	}
+	const requiredUser = rerunUsers.requiredUser;
 
 	const contract = await getContractById(contractId);
 	if (!contract) {
 		await interaction.editReply(
 			createTextComponentMessage(
-				`Could not find contract info for \`${contract.name}\`. Make sure it's a valid contract.`,
+				`Could not find contract info for \`${contractId}\`. Make sure it's a valid contract.`,
 			),
 		);
 		return;
 	}
 
-	const players = await findPlayersForRerun(contractId, day, hours, isUltraOnly);
+	const players = await findPlannerPlayersForRerun(contractId, day, hours, isUltraOnly);
 
 	if (players.length === 0) {
 		const dayLabel =
@@ -104,69 +185,11 @@ export async function execute(interaction) {
 	}
 
 	const playersByHour = groupPlayersByHour(players);
-
-	let availableSlots = [];
-	for (const [hour, hourPlayers] of playersByHour.entries()) {
-		if (!hourPlayers.some((p) => p.sheet_tab == requiredUser.sheet_tab)) {
-			continue;
-		}
-
-		const requiredPlayer = hourPlayers.find(
-			(p) => p.sheet_tab == requiredUser.sheet_tab,
-		);
-		const otherPlayers = hourPlayers.filter(
-			(p) => p.sheet_tab != requiredUser.sheet_tab,
-		);
-		let finalPlayers;
-
-		if (isPush) {
-			// Filter only T4L;
-			const LeggyPlayers = otherPlayers.filter((p) => p.deflector === 'T4L');
-			
-			// Get MaxEpics for this contracts sorted by TE
-			const maxEpics = MAX_EPIC_DEFLECTORS.get(contract.max_coop_size);
-			const epicPlayers = otherPlayers
-				.filter((p) => p.deflector === 'T4E')
-				.sort((a, b) => (Number.parseInt(b.te, 10) || 0) - (Number.parseInt(a.te, 10) || 0))
-				.slice(0, maxEpics);
-			
-			// Form players to pushRun
-			const filteredPushPlayers = [...LeggyPlayers, ...epicPlayers];
-			if (filteredPushPlayers.length < contract.max_coop_size) {
-				continue;
-			}
-			
-			// Push run: sort by TE, keeping the push user on top.
-			filteredPushPlayers.sort(
-				(a, b) => (Number.parseInt(b.te, 10) || 0) - (Number.parseInt(a.te, 10) || 0),
-			);
-			finalPlayers = [requiredPlayer, ...filteredPushPlayers].filter(
-				Boolean,
-			);
-		} else {
-			// Not a push run: shuffle players randomly.
-			for (let i = otherPlayers.length - 1; i > 0; i--) {
-				const j = Math.floor(Math.random() * (i + 1));
-				[otherPlayers[i], otherPlayers[j]] = [
-					otherPlayers[j],
-					otherPlayers[i],
-				];
-			}
-			finalPlayers = [requiredPlayer, ...otherPlayers].filter(Boolean);
-		}
-
-		if (finalPlayers.length >= contract.max_coop_size) {
-			availableSlots.push({
-				hour,
-				players: finalPlayers,
-				playerCount: finalPlayers.length,
-				totalTE: finalPlayers.slice(0, contract.max_coop_size).reduce(
-					(sum, p) => sum + (Number.parseInt(p.te, 10) || 0),
-					0,
-				),
-			});
-		}
-	}
+	const availableSlots = buildAvailableSlots({
+		playersByHour,
+		requiredUserId: requiredUser.discord_id,
+		contract,
+	});
 
 	if (availableSlots.length === 0) {
 		await interaction.editReply(
@@ -178,33 +201,9 @@ export async function execute(interaction) {
 	}
 
 	// Group slots that have the exact same set of players
-	const groupedSlots = new Map();
-	for (const slot of availableSlots) {
-		const playerIds = [...slot.players]
-			.sort((a, b) => b.sheet_tab.localeCompare(a.sheet_tab))
-			.map((p) => p.sheet_tab)
-			.join(',');
-		if (!groupedSlots.has(playerIds)) {
-			groupedSlots.set(playerIds, {
-				hours: [],
-				players: slot.players,
-				playerCount: slot.playerCount,
-				totalTE: slot.totalTE,
-			});
-		}
-		groupedSlots.get(playerIds).hours.push(slot.hour);
-	}
-
-	const finalSlots = Array.from(groupedSlots.values());
-    let title = `Rerun Slots to you for \`${contract.name}\``;
-
-	if (isPush) {
-		finalSlots.sort((a, b) => b.totalTE - a.totalTE);
-		const pushLabel = requiredUser.discord_name ?? requiredUser.discord_id ?? 'Unknown';
-        title = `Rerun Slots to push \`${pushLabel}\` for \`${contract.name}\``;
-	} else {
-		finalSlots.sort((a, b) => b.playerCount - a.playerCount);
-	}
+	const finalSlots = groupSlotsByPlayers(availableSlots);
+	finalSlots.sort((a, b) => b.playerCount - a.playerCount);
+	const title = `Rerun Slots for \`${contract.name}\``;
 
 	const dayLabel = WEEK_DAYS.find((d) => d.value === day)?.label;
 	const embed = new EmbedBuilder()
@@ -212,30 +211,20 @@ export async function execute(interaction) {
 		.setDescription(
 			`Showing available slots for **${dayLabel}** with at least **${contract.max_coop_size}** players.`,
 		)
-		.setColor(isPush ? '#FFD700' : '#0099FF')
+		.setColor('#0099FF')
 		.setTimestamp();
-
-	if (isPush) {
-		embed.setFooter({
-			text: 'Slots sorted by highest total TE (Push Mode)',
-		});
-	} else {
-		embed.setFooter({ text: 'Slots sorted by most players' });
-	}
+	embed.setFooter({ text: 'Slots sorted by most players' });
 
 	const topSlots = finalSlots.slice(0, 5);
 	for (const slot of topSlots) {
 		let playerList;
 		playerList = slot.players
-			.map((p) => `\`${p.sheet_tab}\` - ${p.deflector} - ${p.te}`)
+			.map((p) => `\`${p.discord_name ?? p.discord_id}\` - ${p.deflector} - ${p.te}`)
 			.join('\n');
 
 		const hourLabels = formatHourRanges(slot.hours);
 
-		let title = `${hourLabels} - ${slot.playerCount} Players`;
-		if (isPush) {
-			title += ` (Total TE: ${slot.totalTE})`;
-		}
+		const title = `${hourLabels} - ${slot.playerCount} Players`;
 
 		embed.addFields({
 			name: title,
@@ -281,28 +270,6 @@ export async function autocomplete(interaction) {
 				'Error fetching recent contracts for autocomplete:',
 				error,
 			);
-			await interaction.respond([]);
-		}
-	} else if (focusedOption.name === 'pushed') {
-		try {
-			const members = listAllMembers();
-			const filtered = members
-				.filter(
-					(member) =>
-						member.is_pushed &&
-						String(member.discord_name ?? member.discord_id ?? '')
-							.toLowerCase()
-							.includes(focusedValue),
-				)
-				.map((member) => ({
-					name: member.discord_name ?? member.discord_id ?? 'Unknown',
-					value: member.discord_id,
-				}))
-				.slice(0, 25);
-
-			await interaction.respond(filtered);
-		} catch (error) {
-			console.error('Error fetching players for autocomplete:', error);
 			await interaction.respond([]);
 		}
 	}
