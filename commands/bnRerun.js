@@ -10,6 +10,7 @@ import { createTextComponentMessage } from '../services/discord.js';
 import {
 	findPlannerPlayersForRerun,
 	getRegisteredPlannerUser,
+	listPlannerContracts,
 } from '../services/ggplannerService.js';
 
 export const data = new SlashCommandBuilder()
@@ -171,7 +172,22 @@ export async function execute(interaction) {
 		return;
 	}
 
-	const players = await findPlannerPlayersForRerun(contractId, day, hours, isUltraOnly);
+	const plannerContracts = await listPlannerContracts({ includeInactive: false });
+	const plannerContract = plannerContracts.find(
+		(item) => String(item.contractId || '').trim() === contractId,
+	);
+	if (!plannerContract?.id) {
+		await interaction.editReply(
+			createTextComponentMessage(
+				`No active GGPlanner contract mapping found for \`${contractId}\`.`,
+			),
+		);
+		return;
+	}
+
+	const plannerContractId = String(plannerContract.id);
+
+	const players = await findPlannerPlayersForRerun(plannerContractId, day, hours, isUltraOnly);
 
 	if (players.length === 0) {
 		const dayLabel =
