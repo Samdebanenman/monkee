@@ -545,6 +545,72 @@ describe('services/bnLeaderboardService', () => {
     expect(entry.auditFailures).toEqual([]);
   });
 
+  it('passes audit when a holder replaces the deflector slot', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
+    listCoops.mockReturnValue(['noo']);
+    hasKnownMembersForContributors.mockReturnValue(true);
+
+    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    getCoopStatus.mockResolvedValue({
+      contributors: [
+        {
+          ...contributor(1),
+          productionParams: {
+            farmPopulation: 100,
+            farmCapacity: 100,
+            delivered: 0,
+            elr: 100,
+            sr: 100,
+          },
+          farmInfo: {
+            ...contributor(1).farmInfo,
+            equippedArtifacts: [
+              {
+                spec: { name: 'THE_CHALICE', rarity: 'LEGENDARY' },
+                stones: [
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                ],
+              },
+              {
+                spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' },
+                stones: [
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                ],
+              },
+              {
+                spec: { name: 'INTERSTELLAR_COMPASS', rarity: 'LEGENDARY' },
+                stones: [
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                ],
+              },
+              {
+                spec: { name: 'ORNATE_GUSSET', rarity: 'LEGENDARY' },
+                stones: [
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                  { name: 'TACHYON_STONE', level: 'NORMAL' },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      secondsRemaining: 100,
+    });
+
+    const result = await buildBnLeaderboardReport({ contractId: 'c1' });
+    expect(result.ok).toBe(true);
+
+    const entry = result.entries.find(item => item.coop === 'noo');
+    expect(entry).toBeTruthy();
+    expect(entry.auditFailures).toEqual([]);
+  });
+
   it('fails audit when SIAB exceeds its 2-slot cap', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'C1', eggGoal: 1000, coopDurationSeconds: 1000 }]);
     listCoops.mockReturnValue(['noo']);

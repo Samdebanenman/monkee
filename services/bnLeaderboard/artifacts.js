@@ -1,13 +1,25 @@
 import { getArray, getValue } from './common.js';
 
-const REQUIRED_CORE_ARTIFACT_ENUMS = new Set([26, 24, 27]);
 const REQUIRED_CORE_ARTIFACT_NAMES = new Set([
-  'TACHYON_DEFLECTOR',
   'QUANTUM_METRONOME',
   'INTERSTELLAR_COMPASS',
 ]);
-const FOURTH_ARTIFACT_ENUM_OPTIONS = new Set([8, 25]);
-const FOURTH_ARTIFACT_NAME_OPTIONS = new Set(['ORNATE_GUSSET', 'SHIP_IN_A_BOTTLE']);
+const HOLDER_ARTIFACT_NAMES = new Set([
+  'LUNAR_TOTEM',
+  'NEODYMIUM_MEDALLION',
+  'DEMETERS_NECKLACE',
+  'THE_CHALICE',
+  'TUNGSTEN_ANKH',
+  'AURELIAN_BROOCH',
+  'PUZZLE_CUBE',
+  'DILITHIUM_MONOCLE',
+]);
+const FLEXIBLE_ARTIFACT_NAMES = new Set([
+  'TACHYON_DEFLECTOR',
+  'SHIP_IN_A_BOTTLE',
+  'ORNATE_GUSSET',
+  ...HOLDER_ARTIFACT_NAMES,
+]);
 
 const ALLOWED_STONE_NAMES = new Set(['TACHYON_STONE', 'QUANTUM_STONE']);
 const STONE_NAME_BY_ENUM = new Map([
@@ -16,11 +28,19 @@ const STONE_NAME_BY_ENUM = new Map([
 ]);
 
 const ARTIFACT_NAME_BY_ENUM = new Map([
+  [0, 'LUNAR_TOTEM'],
+  [3, 'NEODYMIUM_MEDALLION'],
+  [6, 'DEMETERS_NECKLACE'],
+  [9, 'THE_CHALICE'],
+  [12, 'TUNGSTEN_ANKH'],
+  [21, 'AURELIAN_BROOCH'],
+  [23, 'PUZZLE_CUBE'],
   [26, 'TACHYON_DEFLECTOR'],
   [24, 'QUANTUM_METRONOME'],
   [27, 'INTERSTELLAR_COMPASS'],
   [25, 'SHIP_IN_A_BOTTLE'],
   [8, 'ORNATE_GUSSET'],
+  [28, 'DILITHIUM_MONOCLE'],
 ]);
 
 const ARTIFACT_STONE_SLOT_CAPS = new Map([
@@ -29,6 +49,14 @@ const ARTIFACT_STONE_SLOT_CAPS = new Map([
   ['INTERSTELLAR_COMPASS', 2],
   ['SHIP_IN_A_BOTTLE', 2],
   ['ORNATE_GUSSET', 3],
+  ['LUNAR_TOTEM', 3],
+  ['NEODYMIUM_MEDALLION', 3],
+  ['DEMETERS_NECKLACE', 3],
+  ['THE_CHALICE', 3],
+  ['TUNGSTEN_ANKH', 3],
+  ['AURELIAN_BROOCH', 3],
+  ['PUZZLE_CUBE', 3],
+  ['DILITHIUM_MONOCLE', 3],
 ]);
 
 const RARITY_SLOT_CAPS = new Map([
@@ -275,29 +303,15 @@ export class BnLeaderboardArtifactsService {
   }
 
   auditArtifacts(equippedArtifacts) {
-    const foundNames = new Set();
-    const foundEnums = new Set();
+    const normalizedNames = equippedArtifacts
+      .map(artifact => normalizeArtifactName(artifact?.spec?.name))
+      .filter(Boolean);
 
-    for (const artifact of equippedArtifacts) {
-      const spec = artifact?.spec ?? {};
-      const nameValue = spec?.name;
+    const foundNames = new Set(normalizedNames);
+    const hasCoreArtifacts = [...REQUIRED_CORE_ARTIFACT_NAMES].every(name => foundNames.has(name));
+    const flexibleArtifacts = normalizedNames.filter(name => FLEXIBLE_ARTIFACT_NAMES.has(name));
 
-      if (typeof nameValue === 'string') {
-        foundNames.add(nameValue);
-        continue;
-      }
-
-      if (Number.isFinite(nameValue)) {
-        foundEnums.add(nameValue);
-      }
-    }
-
-    const hasCoreNames = [...REQUIRED_CORE_ARTIFACT_NAMES].every(name => foundNames.has(name));
-    const hasCoreEnums = [...REQUIRED_CORE_ARTIFACT_ENUMS].every(value => foundEnums.has(value));
-    const hasFourthName = [...FOURTH_ARTIFACT_NAME_OPTIONS].some(name => foundNames.has(name));
-    const hasFourthEnum = [...FOURTH_ARTIFACT_ENUM_OPTIONS].some(value => foundEnums.has(value));
-
-    return (hasCoreNames && hasFourthName) || (hasCoreEnums && hasFourthEnum);
+    return hasCoreArtifacts && flexibleArtifacts.length >= 2;
   }
 
   auditStoneSetup(productionParams, equippedArtifacts) {

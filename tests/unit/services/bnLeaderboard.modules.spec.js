@@ -100,7 +100,10 @@ describe('bnLeaderboard artifacts service', () => {
     expect(percents.siabPercent).toBe(80);
 
     expect(artifactsService.auditArtifacts([{ spec: { name: 26 } }, { spec: { name: 24 } }, { spec: { name: 27 } }, { spec: { name: 8 } }])).toBe(true);
+    expect(artifactsService.auditArtifacts([{ spec: { name: 3 } }, { spec: { name: 24 } }, { spec: { name: 27 } }, { spec: { name: 8 } }])).toBe(true);
+    expect(artifactsService.auditArtifacts([{ spec: { name: 'THE_CHALICE' } }, { spec: { name: 'QUANTUM_METRONOME' } }, { spec: { name: 'INTERSTELLAR_COMPASS' } }, { spec: { name: 'TUNGSTEN_ANKH' } }])).toBe(true);
     expect(artifactsService.auditArtifacts([{ spec: { name: 'TACHYON_DEFLECTOR' } }])).toBe(false);
+    expect(artifactsService.auditArtifacts([{ spec: { name: 21 } }, { spec: { name: 12 } }, { spec: { name: 27 } }, { spec: { name: 8 } }])).toBe(false);
   });
 
   it('covers artifact percent branches for string and unknown inputs', () => {
@@ -186,6 +189,47 @@ describe('bnLeaderboard artifacts service', () => {
       { elr: 10, sr: 9.8, farmPopulation: 100 },
       [{ spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' }, stones: [{ spec: { name: 36, level: 2 } }, { spec: { name: 36, level: 2 } }] }]
     );
+    expect(balanced).toBeNull();
+  });
+
+  it('accepts holder artifacts as three-slot audit artifacts', () => {
+    const balanced = artifactsService.auditStoneSetup(
+      { elr: 100, sr: 95, farmPopulation: 100 },
+      [
+        {
+          spec: { name: 'NEODYMIUM_MEDALLION', rarity: 'LEGENDARY' },
+          stones: [
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+          ],
+        },
+        {
+          spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' },
+          stones: [
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+          ],
+        },
+        {
+          spec: { name: 'INTERSTELLAR_COMPASS', rarity: 'LEGENDARY' },
+          stones: [
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+          ],
+        },
+        {
+          spec: { name: 'ORNATE_GUSSET', rarity: 'LEGENDARY' },
+          stones: [
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+            { name: 'QUANTUM_STONE', level: 'NORMAL' },
+          ],
+        },
+      ]
+    );
+
     expect(balanced).toBeNull();
   });
 });
