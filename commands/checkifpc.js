@@ -1,6 +1,6 @@
 import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
-import { checkCoopForKnownPlayers, findFreeCoopCodes, listCoops } from '../services/coopService.js';
+import { checkCoopForKnownPlayers, getCoopAvailability, listCoops } from '../services/coopService.js';
 import {
   createTextComponentMessage,
 } from '../services/discord.js';
@@ -14,6 +14,7 @@ const DEFAULT_CONCURRENCY = 12;
 const PROGRESS_BAR_WIDTH = 20;
 const PROGRESS_UPDATE_INTERVAL_MS = 1000;
 const MAX_DISCORD_MESSAGE_LENGTH = 2000;
+const MAX_INCREMENT_PREFIX = 100;
 
 function buildProgressBar(completed, total, width = PROGRESS_BAR_WIDTH) {
   const safeTotal = Math.max(1, Number(total) || 1);
@@ -56,10 +57,94 @@ function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
     ? mode
     : CODE_OPTION_DEFAULT;
 
-  const prefixes = normalizedMode === CODE_OPTION_DEFAULT ? letters : [...letters, ...digits];
+  const prefixes = normalizedMode === CODE_OPTION_DEFAULT
+    ? letters
+    : normalizedMode === CODE_OPTION_EXTENDED
+      ? [...letters, ...digits]
+      : [...letters, '-', ...digits];
   const suffixes = normalizedMode === CODE_OPTION_EXTENDED_PLUS ? ['oo', 'ooo'] : ['oo'];
 
   return prefixes.flatMap(prefix => suffixes.map(suffix => `${prefix}${suffix}`));
+}
+
+function pushCandidate(candidates, added, coopCode) {
+  const normalized = String(coopCode ?? '').trim().toLowerCase();
+  if (!normalized || added.has(normalized)) return;
+  added.add(normalized);
+  candidates.push(String(coopCode).trim());
+}
+
+async function isFreeCoop(contractId, coopCode, cache, onChecked, meta = {}) {
+  const key = coopCode.toLowerCase();
+  if (cache.has(key)) {
+    return cache.get(key);
+  }
+
+  const result = await getCoopAvailability(contractId, coopCode);
+  if (typeof onChecked === 'function') {
+    await onChecked({ coopCode, ...meta });
+  }
+
+  const status = result?.error
+    ? { state: 'unknown', error: result.error }
+    : { state: result?.free ? 'free' : 'occupied', error: null };
+
+  cache.set(key, status);
+  return status;
+}
+
+async function resolveCoopState(contractId, coopCode, cache, onChecked, meta = {}) {
+  const status = await isFreeCoop(contractId, coopCode, cache, onChecked, meta);
+  if (status.state !== 'unknown') {
+    return status;
+  }
+
+  return {
+    state: 'occupied',
+    assumedOccupied: true,
+    reason: status.error ?? 'availability-check-failed',
+  };
+}
+
+async function buildNonFreeCoops(contractId, baseCodes, onAvailabilityChecked) {
+  const nonFree = [];
+  const added = new Set();
+  const availabilityCache = new Map();
+
+  for (const baseCode of baseCodes) {
+    const baseStatus = await resolveCoopState(
+      contractId,
+      baseCode,
+      availabilityCache,
+      onAvailabilityChecked,
+      { isIncrement: false },
+    );
+
+    if (baseStatus.state === 'free') {
+      continue;
+    }
+
+    pushCandidate(nonFree, added, baseCode);
+
+    for (let prefix = 1; prefix <= MAX_INCREMENT_PREFIX; prefix += 1) {
+      const incrementCode = `${prefix}${baseCode}`;
+      const incrementStatus = await resolveCoopState(
+        contractId,
+        incrementCode,
+        availabilityCache,
+        onAvailabilityChecked,
+        { isIncrement: true },
+      );
+
+      if (incrementStatus.state === 'free') {
+        break;
+      }
+
+      pushCandidate(nonFree, added, incrementCode);
+    }
+  }
+
+  return nonFree;
 }
 
 export const data = new SlashCommandBuilder()
@@ -118,6 +203,9 @@ export async function execute(interaction) {
         lastUpdatedAt: 0,
         intervalMs: PROGRESS_UPDATE_INTERVAL_MS,
         pendingUpdate: Promise.resolve(),
+        addTotal(amount = 0) {
+          this.total += Math.max(0, Number(amount) || 0);
+        },
         update(force = false) {
           const now = Date.now();
           if (!force && now - this.lastUpdatedAt < this.intervalMs) return this.pendingUpdate;
@@ -145,14 +233,19 @@ export async function execute(interaction) {
 
   const resultsLines = [];
   for (const [name, id] of selectedContracts) {
-    const { filteredResults } = await findFreeCoopCodes(id, coopCodesToCheck);
-    const freeSet = new Set(filteredResults);
-    const nonFree = coopCodesToCheck.filter(code => !freeSet.has(code));
+    const nonFree = await buildNonFreeCoops(id, coopCodesToCheck, async ({ isIncrement }) => {
+      if (progress && isIncrement) {
+        progress.addTotal(1);
+      }
+      await updateProgress(1);
+    });
     const existing = listCoops(id);
     const existingSet = new Set(existing.map(coop => String(coop).toLowerCase()));
     const candidates = nonFree.filter(code => !existingSet.has(code.toLowerCase()));
     const skippedCount = nonFree.length - candidates.length;
-    await updateProgress(filteredResults.length + skippedCount);
+    if (progress) {
+      progress.addTotal(candidates.length);
+    }
 
     resultsLines.push(`**${name}**`);
 

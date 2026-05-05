@@ -14,5 +14,5 @@ const kafka = new Kafka({
 });
 
 export function getKafka() {
-  return kafka;
+  return kafka; 
 }
