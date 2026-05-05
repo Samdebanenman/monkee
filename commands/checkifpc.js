@@ -125,22 +125,48 @@ async function buildNonFreeCoops(contractId, baseCodes, onAvailabilityChecked) {
     }
 
     pushCandidate(nonFree, added, baseCode);
+    const firstCode = `1${baseCode}`;
+    const secondCode = `2${baseCode}`;
 
-    for (let prefix = 1; prefix <= MAX_INCREMENT_PREFIX; prefix += 1) {
-      const incrementCode = `${prefix}${baseCode}`;
-      const incrementStatus = await resolveCoopState(
-        contractId,
-        incrementCode,
-        availabilityCache,
-        onAvailabilityChecked,
-        { isIncrement: true },
-      );
+    const firstStatus = await resolveCoopState(
+      contractId,
+      firstCode,
+      availabilityCache,
+      onAvailabilityChecked,
+      { isIncrement: true },
+    );
+    if (firstStatus.state !== 'free') {
+      pushCandidate(nonFree, added, firstCode);
+    }
 
-      if (incrementStatus.state === 'free') {
-        break;
+    const secondStatus = await resolveCoopState(
+      contractId,
+      secondCode,
+      availabilityCache,
+      onAvailabilityChecked,
+      { isIncrement: true },
+    );
+    if (secondStatus.state !== 'free') {
+      pushCandidate(nonFree, added, secondCode);
+    }
+
+    if (firstStatus.state !== 'free' && secondStatus.state !== 'free') {
+      for (let prefix = 3; prefix <= MAX_INCREMENT_PREFIX; prefix += 1) {
+        const incrementCode = `${prefix}${baseCode}`;
+        const incrementStatus = await resolveCoopState(
+          contractId,
+          incrementCode,
+          availabilityCache,
+          onAvailabilityChecked,
+          { isIncrement: true },
+        );
+
+        if (incrementStatus.state === 'free') {
+          break;
+        }
+
+        pushCandidate(nonFree, added, incrementCode);
       }
-
-      pushCandidate(nonFree, added, incrementCode);
     }
   }
 

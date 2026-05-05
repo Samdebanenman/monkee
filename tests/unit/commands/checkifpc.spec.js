@@ -88,4 +88,28 @@ describe('commands/checkifpc', () => {
     expect(checkCoopForKnownPlayers).toHaveBeenCalledWith('c1', '2-oo');
     expect(checkCoopForKnownPlayers).not.toHaveBeenCalledWith('c1', '3-oo');
   });
+
+  it('checks 2-prefix even when 1-prefix is free', async () => {
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'Contract 1' }]);
+    listCoops.mockReturnValue([]);
+    checkCoopForKnownPlayers.mockResolvedValue({ ok: true, matched: [], missing: [] });
+
+    getCoopAvailability.mockImplementation(async (_contractId, coopCode) => {
+      if (coopCode === 'coo') return { coopCode, free: false };
+      if (coopCode === '1coo') return { coopCode, free: true };
+      if (coopCode === '2coo') return { coopCode, free: false };
+      if (coopCode === '3coo') return { coopCode, free: false };
+      return { coopCode, free: true };
+    });
+
+    const interaction = createInteraction({
+      options: createOptions({ strings: { contract: 'c1', searchlist: 'extended' } }),
+    });
+
+    await execute(interaction);
+
+    expect(checkCoopForKnownPlayers).toHaveBeenCalledWith('c1', 'coo');
+    expect(checkCoopForKnownPlayers).toHaveBeenCalledWith('c1', '2coo');
+    expect(checkCoopForKnownPlayers).not.toHaveBeenCalledWith('c1', '3coo');
+  });
 });
