@@ -21,8 +21,8 @@ const TIME_COLUMNS = [
 
 const CS_COLUMNS = [
   { key: 'coop', label: 'coop', min: 4, max: 7, mode: 'coop' },
-  { key: 'max', label: 'max', min: 3, max: 6, mode: 'compact' },
-  { key: 'mean', label: 'mean', min: 4, max: 6, mode: 'compact' },
+  { key: 'max', label: 'max', min: 3, max: 7, mode: 'compact' },
+  { key: 'mean', label: 'mean', min: 4, max: 7, mode: 'compact' },
   { key: 'status', label: 'status', min: 2, max: 6, mode: 'status' },
 ];
 

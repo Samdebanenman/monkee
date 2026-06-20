@@ -50,10 +50,10 @@ describe('commands/bn-leaderboard', () => {
           coop: 'moo',
           durationLabel: '12h0m',
           deliveryRateLabel: '1.20bTqQ/hour',
-          maxCs: 86217,
-          maxCsLabel: '86,217',
-          meanCs: 86116,
-          meanCsLabel: '86,116',
+          maxCs: 146217,
+          maxCsLabel: '146,217',
+          meanCs: 146116,
+          meanCsLabel: '146,116',
           status: '✗',
           auditFailures: [{ contributor: 'p1', reasons: ['required artifacts missing'] }],
         },
@@ -93,6 +93,9 @@ describe('commands/bn-leaderboard', () => {
     expect(message).toContain('max');
     expect(message).toContain('mean');
     expect(message).toContain('status');
+    expect(message).toContain('146,217');
+    expect(message).toContain('146,116');
+    expect(message).not.toContain('146...');
     expect(message).toContain('1.2...');
     expect(message).toContain('✗');
     expect(message).toContain('✓');
