@@ -1,9 +1,5 @@
 import { getArray, getValue } from './common.js';
 
-const REQUIRED_CORE_ARTIFACT_NAMES = new Set([
-  'QUANTUM_METRONOME',
-  'INTERSTELLAR_COMPASS',
-]);
 const HOLDER_ARTIFACT_NAMES = new Set([
   'LUNAR_TOTEM',
   'NEODYMIUM_MEDALLION',
@@ -19,6 +15,10 @@ const FLEXIBLE_ARTIFACT_NAMES = new Set([
   'SHIP_IN_A_BOTTLE',
   'ORNATE_GUSSET',
   ...HOLDER_ARTIFACT_NAMES,
+]);
+const CORE_ARTIFACT_NAMES = new Set([
+  'QUANTUM_METRONOME',
+  'INTERSTELLAR_COMPASS',
 ]);
 
 const ALLOWED_STONE_NAMES = new Set(['TACHYON_STONE', 'QUANTUM_STONE']);
@@ -196,6 +196,20 @@ function getArtifactStoneSlotCap(artifact) {
   return Math.min(artifactCap, rarityCap);
 }
 
+function isLegendaryThreeSlotReplacement(artifact) {
+  const spec = artifact?.spec ?? {};
+  const artifactName = normalizeArtifactName(spec?.name);
+  if (!artifactName || CORE_ARTIFACT_NAMES.has(artifactName)) {
+    return false;
+  }
+
+  return normalizeRarity(spec?.rarity) === 3 && getArtifactStoneSlotCap(artifact) >= 3;
+}
+
+function hasLegendaryThreeSlotReplacement(equippedArtifacts) {
+  return equippedArtifacts.some(artifact => isLegendaryThreeSlotReplacement(artifact));
+}
+
 function collectContributorStones(equippedArtifacts) {
   const stones = [];
   let totalAllowedSlots = 0;
@@ -258,6 +272,16 @@ function getEffectiveLayingRate(productionParams) {
   return { elrEffective };
 }
 
+function getShippingBalance(productionParams) {
+  const { elrEffective } = getEffectiveLayingRate(productionParams);
+  const sr = getValue(productionParams, 'sr', 'sr');
+  if (!Number.isFinite(elrEffective) || !Number.isFinite(sr) || elrEffective <= 0 || sr <= 0) {
+    return null;
+  }
+
+  return { elrEffective, sr, shippingCapped: elrEffective > sr };
+}
+
 function getStoneMismatchAdvice({ stones, totalAllowedSlots, totalEquippedStones, elrEffective, sr }) {
   const totalStones = stones.length;
   const quantumStones = stones.filter(stone => stone.name === 'QUANTUM_STONE').length;
@@ -302,13 +326,21 @@ export class BnLeaderboardArtifactsService {
     return { deflectorPercent, siabPercent };
   }
 
-  auditArtifacts(equippedArtifacts) {
+  auditArtifacts(equippedArtifacts, productionParams = null) {
     const normalizedNames = equippedArtifacts
       .map(artifact => normalizeArtifactName(artifact?.spec?.name))
       .filter(Boolean);
 
     const foundNames = new Set(normalizedNames);
-    const hasCoreArtifacts = [...REQUIRED_CORE_ARTIFACT_NAMES].every(name => foundNames.has(name));
+    const hasMetronome = foundNames.has('QUANTUM_METRONOME');
+    const hasCompass = foundNames.has('INTERSTELLAR_COMPASS');
+    const replacementAvailable = hasLegendaryThreeSlotReplacement(equippedArtifacts);
+    const shippingBalance = getShippingBalance(productionParams);
+    const metronomeCovered = hasMetronome
+      || (replacementAvailable && shippingBalance?.shippingCapped === true);
+    const compassCovered = hasCompass
+      || (replacementAvailable && shippingBalance?.shippingCapped === false);
+    const hasCoreArtifacts = metronomeCovered && compassCovered;
     const flexibleArtifacts = normalizedNames.filter(name => FLEXIBLE_ARTIFACT_NAMES.has(name));
 
     return hasCoreArtifacts && flexibleArtifacts.length >= 2;

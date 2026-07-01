@@ -83,7 +83,7 @@ export class BnLeaderboardAuditService {
     }
 
     const equippedArtifacts = getArray(farmInfo, 'equippedArtifacts', 'equipped_artifacts');
-    if (!this.artifactsService.auditArtifacts(equippedArtifacts)) {
+    if (!this.artifactsService.auditArtifacts(equippedArtifacts, productionParams)) {
       failures.push('artifacts');
     }
 

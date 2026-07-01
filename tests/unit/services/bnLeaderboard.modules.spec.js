@@ -106,6 +106,42 @@ describe('bnLeaderboard artifacts service', () => {
     expect(artifactsService.auditArtifacts([{ spec: { name: 21 } }, { spec: { name: 12 } }, { spec: { name: 27 } }, { spec: { name: 8 } }])).toBe(false);
   });
 
+  it('allows core artifact replacements when sr/elr balance makes the core artifact unnecessary', () => {
+    const missingMetronome = [
+      { spec: { name: 'INTERSTELLAR_COMPASS', rarity: 'LEGENDARY' } },
+      { spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' } },
+      { spec: { name: 'SHIP_IN_A_BOTTLE', rarity: 'LEGENDARY' } },
+      { spec: { name: 'ORNATE_GUSSET', rarity: 'LEGENDARY' } },
+    ];
+    expect(artifactsService.auditArtifacts(missingMetronome, { elr: 110, sr: 100 })).toBe(true);
+
+    const missingCompass = [
+      { spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' } },
+      { spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' } },
+      { spec: { name: 'SHIP_IN_A_BOTTLE', rarity: 'LEGENDARY' } },
+      { spec: { name: 'ORNATE_GUSSET', rarity: 'LEGENDARY' } },
+    ];
+    expect(artifactsService.auditArtifacts(missingCompass, { elr: 90, sr: 100 })).toBe(true);
+  });
+
+  it('rejects core artifact replacements when the replacement or sr/elr balance is invalid', () => {
+    const missingCompassWithEpicReplacement = [
+      { spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' } },
+      { spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' } },
+      { spec: { name: 'SHIP_IN_A_BOTTLE', rarity: 'LEGENDARY' } },
+      { spec: { name: 'ORNATE_GUSSET', rarity: 'EPIC' } },
+    ];
+    expect(artifactsService.auditArtifacts(missingCompassWithEpicReplacement, { elr: 90, sr: 100 })).toBe(false);
+
+    const missingCompassWhileShippingCapped = [
+      { spec: { name: 'QUANTUM_METRONOME', rarity: 'LEGENDARY' } },
+      { spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' } },
+      { spec: { name: 'SHIP_IN_A_BOTTLE', rarity: 'LEGENDARY' } },
+      { spec: { name: 'ORNATE_GUSSET', rarity: 'LEGENDARY' } },
+    ];
+    expect(artifactsService.auditArtifacts(missingCompassWhileShippingCapped, { elr: 110, sr: 100 })).toBe(false);
+  });
+
   it('covers artifact percent branches for string and unknown inputs', () => {
     const percents = artifactsService.getBestArtifactPercentsForCs({
       equippedArtifacts: [
