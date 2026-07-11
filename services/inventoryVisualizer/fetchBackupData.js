@@ -39,10 +39,6 @@ export function normalizePlayerId(playerId) {
     throw new Error('player_id is required');
   }
 
-  if (raw.startsWith('mk2!')) {
-    return raw.slice(4).trim();
-  }
-
   return raw;
 }
 

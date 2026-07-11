@@ -1,4 +1,12 @@
-import { AttachmentBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
+import {
+  ActionRowBuilder,
+  AttachmentBuilder,
+  MessageFlags,
+  ModalBuilder,
+  SlashCommandBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+} from 'discord.js';
 import { createTextComponentMessage } from '../services/discord.js';
 import {
   fetchBackupData,
@@ -7,20 +15,15 @@ import {
   visualiseArtifacts,
 } from '../services/inventoryVisualizer/index.js';
 
-const PLAYER_ID_OPTION = 'eid';
+const PLAYER_ID_INPUT = 'eid';
 const VIRTUE_OPTION = 'virtue';
 const RARER_ITEMS_FIRST_OPTION = 'rarer_items_first';
 const PUBLIC_OPTION = 'public';
+const MODAL_ID_PREFIX = 'inventoryvisualiser:eid';
 
 export const data = new SlashCommandBuilder()
   .setName('inventoryvisualiser')
-  .setDescription('Render an Egg, Inc. artifact inventory image from a player id.')
-  .addStringOption(option =>
-    option
-      .setName(PLAYER_ID_OPTION)
-      .setDescription('your EID **YOUR EID WILL BE SHOWN IN MY LOGS. (I Promise I will not share it with anyone else. :P)**')
-      .setRequired(true)
-  )
+  .setDescription('Render an Egg, Inc. artifact inventory image.')
   .addBooleanOption(option =>
     option
       .setName(VIRTUE_OPTION)
@@ -36,21 +39,23 @@ export const data = new SlashCommandBuilder()
   .addBooleanOption(option =>
     option
       .setName(PUBLIC_OPTION)
-      .setDescription('Post the generated inventory publicly. **YOUR EID WILL BE SHOWN IN COMMAND.** Default: false')
+      .setDescription('Post the generated inventory publicly. Default: false')
       .setRequired(false)
   );
 
-function sanitizeFilenamePart(value) {
-  return String(value ?? 'inventory')
-    .trim()
-    .replaceAll(/[^a-z0-9_-]/gi, '-')
-    .replaceAll(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 64) || 'inventory';
+function getSafePlayerName(backup, playerId) {
+  const playerName = String(backup?.userName || backup?.user_name || '').trim();
+  const normalizedPlayerId = String(playerId ?? '').trim();
+
+  if (!playerName || (normalizedPlayerId && playerName.toLowerCase().includes(normalizedPlayerId.toLowerCase()))) {
+    return 'Egg, Inc. player';
+  }
+
+  return playerName;
 }
 
 function buildSuccessContent({ backup, playerId, artifactData, imageData, virtue }) {
-  const playerName = backup?.userName || backup?.user_name || playerId;
+  const playerName = getSafePlayerName(backup, playerId);
   const { summary } = artifactData;
   const rarity = summary.totalsByRarity;
   const lines = [
@@ -67,19 +72,69 @@ function buildSuccessContent({ backup, playerId, artifactData, imageData, virtue
   return lines.join('\n');
 }
 
-function getErrorMessage(error, playerId) {
+function getErrorMessage(error) {
   if (error instanceof UserBackupEmptyError) {
-    return `No usable backup was returned for ${playerId}.`;
+    return 'No usable backup was returned for that EID.';
   }
 
-  return `Failed to render inventory for ${playerId}: ${error?.message ?? String(error)}`;
+  return 'Failed to render inventory. Check the EID and try again.';
+}
+
+function buildEidModal({ virtue, rarerItemsFirst, publicOutput }) {
+  const eidInput = new TextInputBuilder()
+    .setCustomId(PLAYER_ID_INPUT)
+    .setLabel('Egg, Inc. EID')
+    .setPlaceholder('EI...')
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(1)
+    .setMaxLength(128)
+    .setRequired(true);
+
+  const modalId = [
+    MODAL_ID_PREFIX,
+    virtue ? '1' : '0',
+    rarerItemsFirst ? '1' : '0',
+    publicOutput ? '1' : '0',
+  ].join(':');
+
+  return new ModalBuilder()
+    .setCustomId(modalId)
+    .setTitle('Inventory visualiser')
+    .addComponents(new ActionRowBuilder().addComponents(eidInput));
+}
+
+function parseModalOptions(customId) {
+  const parts = String(customId ?? '').split(':');
+  if (parts.length !== 5 || parts.slice(0, 2).join(':') !== MODAL_ID_PREFIX) {
+    return null;
+  }
+
+  const flags = parts.slice(2);
+  if (flags.some(flag => flag !== '0' && flag !== '1')) {
+    return null;
+  }
+
+  return {
+    virtue: flags[0] === '1',
+    rarerItemsFirst: flags[1] === '1',
+    publicOutput: flags[2] === '1',
+  };
 }
 
 export async function execute(interaction) {
-  const playerId = interaction.options.getString(PLAYER_ID_OPTION, true).trim();
   const virtue = interaction.options.getBoolean(VIRTUE_OPTION) ?? false;
   const rarerItemsFirst = interaction.options.getBoolean(RARER_ITEMS_FIRST_OPTION) ?? true;
   const publicOutput = interaction.options.getBoolean(PUBLIC_OPTION) ?? false;
+
+  await interaction.showModal(buildEidModal({ virtue, rarerItemsFirst, publicOutput }));
+}
+
+export async function handleModalSubmit(interaction) {
+  const options = parseModalOptions(interaction.customId);
+  if (!options) return false;
+
+  const playerId = interaction.fields.getTextInputValue(PLAYER_ID_INPUT).trim();
+  const { virtue, rarerItemsFirst, publicOutput } = options;
 
   await interaction.deferReply(publicOutput ? {} : { flags: MessageFlags.Ephemeral });
 
@@ -87,7 +142,7 @@ export async function execute(interaction) {
     const backupData = await fetchBackupData(playerId);
     const artifactData = getArtifacts(backupData.backup, { virtue, rarerItemsFirst });
     const imageData = await visualiseArtifacts(artifactData.grid);
-    const filename = `${sanitizeFilenamePart(backupData.playerId)}-${virtue ? 'virtue-' : ''}inventory.png`;
+    const filename = `${virtue ? 'virtue-' : ''}inventory.png`;
     const attachment = new AttachmentBuilder(imageData.buffer, { name: filename });
 
     await interaction.editReply({
@@ -103,11 +158,13 @@ export async function execute(interaction) {
     });
   } catch (error) {
     await interaction.editReply(
-      createTextComponentMessage(getErrorMessage(error, playerId), {
+      createTextComponentMessage(getErrorMessage(error), {
         allowedMentions: { parse: [], users: [], roles: [] },
       }),
     );
   }
+
+  return true;
 }
 
-export default { data, execute };
+export default { data, execute, handleModalSubmit };
