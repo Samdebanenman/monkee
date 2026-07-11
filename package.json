@@ -4,6 +4,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@napi-rs/canvas": "1.0.2",
     "axios": "=1.13.2",
     "better-sqlite3": "=12.6.2",
     "cosine-similarity": "=1.0.1",
