@@ -16,6 +16,9 @@ FROM node:${NODE_VERSION}-bullseye-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     COOPS_DB_PATH=/app/data/coops.db
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY --chown=node:node package*.json ./
 COPY --chown=node:node . .
