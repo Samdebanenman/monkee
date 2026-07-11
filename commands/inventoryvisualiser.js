@@ -11,6 +11,7 @@ import { createTextComponentMessage } from '../services/discord.js';
 import {
   fetchBackupData,
   getArtifacts,
+  isValidPlayerId,
   UserBackupEmptyError,
   visualiseArtifacts,
 } from '../services/inventoryVisualizer/index.js';
@@ -84,10 +85,10 @@ function buildEidModal({ virtue, rarerItemsFirst, publicOutput }) {
   const eidInput = new TextInputBuilder()
     .setCustomId(PLAYER_ID_INPUT)
     .setLabel('Egg, Inc. EID')
-    .setPlaceholder('EI...')
+    .setPlaceholder('EI1234567890123456')
     .setStyle(TextInputStyle.Short)
-    .setMinLength(1)
-    .setMaxLength(128)
+    .setMinLength(18)
+    .setMaxLength(18)
     .setRequired(true);
 
   const modalId = [
@@ -135,6 +136,14 @@ export async function handleModalSubmit(interaction) {
 
   const playerId = interaction.fields.getTextInputValue(PLAYER_ID_INPUT).trim();
   const { virtue, rarerItemsFirst, publicOutput } = options;
+
+  if (!isValidPlayerId(playerId)) {
+    await interaction.reply(createTextComponentMessage(
+      'EID must be `EI` followed by 16 digits, for example `EI1234567890123456`.',
+      { flags: MessageFlags.Ephemeral },
+    ));
+    return true;
+  }
 
   await interaction.deferReply(publicOutput ? {} : { flags: MessageFlags.Ephemeral });
 

@@ -1,7 +1,7 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { RARITY } from './artifactMetadata.js';
 
-export const DEFAULT_ICON_BASE_URL = 'https://eggincassets.pages.dev';
+const DEFAULT_ICON_BASE_URL = 'https://eggincassets.pages.dev';
 
 const BACKGROUND_COLOR = '#333333';
 const GRID_SQUARE_SIZE = 134;
@@ -311,5 +311,3 @@ export async function visualiseArtifacts(grid, options = {}) {
     warnings,
   };
 }
-
-export default visualiseArtifacts;

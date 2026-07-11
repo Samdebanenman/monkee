@@ -174,38 +174,12 @@ function addArtifactToInventory(store, artifact, count, warnings) {
   return record;
 }
 
-function getArtifactFromInventoryItem(item) {
-  return item?.artifact ?? item?.completeArtifact ?? null;
-}
-
 function getArtifactInventoryItems(artifactsDb, virtue) {
   if (virtue) {
-    return artifactsDb?.virtueAfxDb?.inventoryItems
-      ?? artifactsDb?.virtue_afx_db?.inventory_items
-      ?? [];
+    return artifactsDb?.virtueAfxDb?.inventoryItems ?? [];
   }
 
-  return artifactsDb?.inventoryItems ?? artifactsDb?.inventory_items ?? [];
-}
-
-function resolveArtifactsDb(input) {
-  if (!input) {
-    return null;
-  }
-
-  if (input.artifactsDb || input.artifacts_db) {
-    return input.artifactsDb ?? input.artifacts_db;
-  }
-
-  if (input.backup) {
-    return resolveArtifactsDb(input.backup);
-  }
-
-  if (input.inventoryItems || input.inventory_items || input.virtueAfxDb || input.virtue_afx_db) {
-    return input;
-  }
-
-  return null;
+  return artifactsDb?.inventoryItems ?? [];
 }
 
 function normalizeStoneList(stones, warnings) {
@@ -256,9 +230,17 @@ function buildGrid({ store, stonedArtifacts, rarerItemsFirst }) {
   for (const artifact of stonedArtifacts) {
     const key = `${artifact.name}:${artifact.level}:${artifact.rarity}`;
     if (!stonedBySpecAndRarity.has(key)) {
-      stonedBySpecAndRarity.set(key, []);
+      stonedBySpecAndRarity.set(key, new Map());
     }
-    stonedBySpecAndRarity.get(key).push(artifact);
+
+    const loadoutKey = artifact.stones.map(stoneKey).join('|');
+    const loadouts = stonedBySpecAndRarity.get(key);
+    const existing = loadouts.get(loadoutKey);
+    if (existing) {
+      existing.count += artifact.count;
+    } else {
+      loadouts.set(loadoutKey, { ...artifact });
+    }
   }
 
   const records = [...store.values()]
@@ -268,12 +250,14 @@ function buildGrid({ store, stonedArtifacts, rarerItemsFirst }) {
   const grid = [];
   for (const record of records) {
     for (const rarity of [RARITY.LEGENDARY, RARITY.EPIC, RARITY.RARE]) {
-      const stoned = stonedBySpecAndRarity.get(`${record.name}:${record.level}:${rarity}`) ?? [];
+      const loadouts = stonedBySpecAndRarity.get(`${record.name}:${record.level}:${rarity}`);
+      const stoned = loadouts ? [...loadouts.values()] : [];
       for (const artifact of stoned) {
-        grid.push(buildGridItem(record, rarity, 1, artifact.stones));
+        grid.push(buildGridItem(record, rarity, artifact.count, artifact.stones));
       }
 
-      const unstonedCount = record.haveRarity[rarity] - stoned.length;
+      const stonedCount = stoned.reduce((total, artifact) => total + artifact.count, 0);
+      const unstonedCount = record.haveRarity[rarity] - stonedCount;
       if (unstonedCount > 0) {
         grid.push(buildGridItem(record, rarity, unstonedCount));
       }
@@ -323,24 +307,21 @@ function summarizeGrid(grid) {
   };
 }
 
-export function getArtifacts(input, options = {}) {
+export function getArtifacts(backup, options = {}) {
   const {
     virtue = false,
     rarerItemsFirst = true,
   } = options;
 
-  const artifactsDb = resolveArtifactsDb(input);
-  if (!artifactsDb) {
-    throw new Error('No artifacts database found in backup data.');
-  }
+  const artifactsDb = backup?.artifactsDb;
 
   const warnings = [];
   const store = createInventoryStore();
   const stonedArtifacts = [];
 
   for (const item of getArtifactInventoryItems(artifactsDb, virtue)) {
-    const completeArtifact = getArtifactFromInventoryItem(item);
-    const count = normalizeCount(item?.quantity ?? item?.count ?? 1);
+    const completeArtifact = item?.artifact;
+    const count = normalizeCount(item?.quantity ?? 1);
     const host = normalizeArtifactSpec(completeArtifact?.spec, warnings);
     if (!host || count <= 0) {
       continue;
@@ -357,9 +338,7 @@ export function getArtifacts(input, options = {}) {
     }
 
     if (stones.length > 0) {
-      for (let index = 0; index < count; index += 1) {
-        stonedArtifacts.push({ ...host, stones });
-      }
+      stonedArtifacts.push({ ...host, count, stones });
     }
   }
 
@@ -368,11 +347,5 @@ export function getArtifacts(input, options = {}) {
     grid,
     summary: summarizeGrid(grid),
     warnings,
-    source: {
-      virtue,
-      rarerItemsFirst,
-    },
   };
 }
-
-export default getArtifacts;

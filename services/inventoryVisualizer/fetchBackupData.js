@@ -5,14 +5,14 @@ import protobuf from 'protobufjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const DEFAULT_PROTO_PATH = path.join(__dirname, '..', '..', 'ei.proto');
-export const BOT_FIRST_CONTACT_ENDPOINT = '/ei/bot_first_contact';
-export const AUXBRAIN_BASE_URLS = Object.freeze([
+const DEFAULT_PROTO_PATH = path.join(__dirname, '..', '..', 'ei.proto');
+const BOT_FIRST_CONTACT_ENDPOINT = '/ei/bot_first_contact';
+const AUXBRAIN_BASE_URLS = Object.freeze([
   'https://ctx-dot-auxbrainhome.appspot.com',
   'https://www.auxbrain.com',
 ]);
 
-export const FIRST_CONTACT_CLIENT = Object.freeze({
+const FIRST_CONTACT_CLIENT = Object.freeze({
   CLIENT_VERSION: 72,
   VERSION: '1.35.7',
   BUILD: '111343',
@@ -26,20 +26,16 @@ const protoRootCache = new Map();
 const protoTypeCache = new Map();
 
 export class UserBackupEmptyError extends Error {
-  constructor(playerId) {
-    super(`${playerId}: backup was empty or unavailable`);
+  constructor() {
+    super('Backup was empty or unavailable');
     this.name = 'UserBackupEmptyError';
-    this.playerId = playerId;
   }
 }
 
-export function normalizePlayerId(playerId) {
-  const raw = String(playerId ?? '').trim();
-  if (!raw) {
-    throw new Error('player_id is required');
-  }
+const PLAYER_ID_PATTERN = /^EI\d{16}$/;
 
-  return raw;
+export function isValidPlayerId(playerId) {
+  return PLAYER_ID_PATTERN.test(String(playerId ?? '').trim());
 }
 
 async function getProtoRoot(protoPath = DEFAULT_PROTO_PATH) {
@@ -113,7 +109,10 @@ export async function fetchBackupData(playerId, options = {}) {
     botName = FIRST_CONTACT_CLIENT.BOT_NAME,
   } = options;
 
-  const normalizedPlayerId = normalizePlayerId(playerId);
+  const normalizedPlayerId = String(playerId ?? '').trim();
+  if (!isValidPlayerId(normalizedPlayerId)) {
+    throw new Error('EID must be EI followed by 16 digits');
+  }
   const EggIncFirstContactRequest = await getProtoType('ei.EggIncFirstContactRequest', protoPath);
   const EggIncFirstContactResponse = await getProtoType('ei.EggIncFirstContactResponse', protoPath);
 
@@ -132,11 +131,11 @@ export async function fetchBackupData(playerId, options = {}) {
 
   if (decoded?.errorCode && decoded.errorCode !== 0) {
     const serverMessage = decoded.errorMessage ? `: ${decoded.errorMessage}` : '';
-    throw new Error(`${normalizedPlayerId}: first contact failed (${decoded.errorCode})${serverMessage}`);
+    throw new Error(`First contact failed (${decoded.errorCode})${serverMessage}`);
   }
 
   if (!decoded?.backup || !decoded.backup.game) {
-    throw new UserBackupEmptyError(normalizedPlayerId);
+    throw new UserBackupEmptyError();
   }
 
   return {
@@ -145,5 +144,3 @@ export async function fetchBackupData(playerId, options = {}) {
     backup: decoded.backup,
   };
 }
-
-export default fetchBackupData;
