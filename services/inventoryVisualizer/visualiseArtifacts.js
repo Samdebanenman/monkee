@@ -1,4 +1,4 @@
-import { createCanvas, loadImage } from '@napi-rs/canvas';
+import { clearAllCache, createCanvas, loadImage } from '@napi-rs/canvas';
 import { RARITY } from './artifactMetadata.js';
 
 const DEFAULT_ICON_BASE_URL = 'https://eggincassets.pages.dev';
@@ -14,8 +14,6 @@ const COUNT_BOX_COLOR = '#5e5e5e';
 const FONT_FAMILY = 'Arial';
 const FONT_SIZE = 27;
 const ICON_TIMEOUT_MS = 10_000;
-
-const iconCache = new Map();
 
 function getIconUrl(iconFile, { iconBaseUrl = DEFAULT_ICON_BASE_URL, iconSize = 256 } = {}) {
   if (!iconFile) {
@@ -42,7 +40,7 @@ async function fetchIconBuffer(url, timeoutMs = ICON_TIMEOUT_MS) {
   }
 }
 
-async function loadIcon(iconFile, options, warnings) {
+async function loadIcon(iconFile, options, warnings, iconCache) {
   const url = getIconUrl(iconFile, options);
   if (!url) {
     return null;
@@ -193,6 +191,17 @@ function drawEmptyState(ctx, width, height, message) {
   ctx.fillText(message, width / 2, height / 2);
 }
 
+function releaseCanvas(canvas) {
+  if (!canvas) {
+    return;
+  }
+
+  // Resizing replaces the native pixel surface, releasing the potentially
+  // large inventory-sized backing store while leaving the encoded PNG intact.
+  canvas.width = 1;
+  canvas.height = 1;
+}
+
 export async function visualiseArtifacts(grid, options = {}) {
   const {
     scale = 1,
@@ -207,107 +216,125 @@ export async function visualiseArtifacts(grid, options = {}) {
   }
 
   const warnings = [];
+  const iconCache = new Map();
   const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
   const numItems = grid.length;
+  let canvas;
 
-  if (numItems === 0) {
-    const canvas = createCanvas(640 * safeScale, 240 * safeScale);
+  try {
+    if (numItems === 0) {
+      canvas = createCanvas(640 * safeScale, 240 * safeScale);
+      const ctx = canvas.getContext('2d');
+      drawEmptyState(ctx, canvas.width, canvas.height, emptyMessage);
+      return {
+        buffer: canvas.toBuffer('image/png'),
+        width: canvas.width,
+        height: canvas.height,
+        mimeType: 'image/png',
+        warnings,
+      };
+    }
+
+    const numItemsPerRow = Math.ceil(Math.sqrt(numItems));
+    const numItemsPerCol = Math.ceil(numItems / numItemsPerRow);
+    const targetWidth = GRID_SQUARE_SIZE * numItemsPerRow + GRID_SQUARE_GAP * (numItemsPerRow + 1);
+    const targetHeight = GRID_SQUARE_SIZE * numItemsPerCol + GRID_SQUARE_GAP * (numItemsPerCol + 1);
+    canvas = createCanvas(targetWidth * safeScale, targetHeight * safeScale);
     const ctx = canvas.getContext('2d');
-    drawEmptyState(ctx, canvas.width, canvas.height, emptyMessage);
-    return {
-      buffer: canvas.toBuffer('image/png'),
+
+    drawRoundedRect(ctx, {
+      left: 0,
+      top: 0,
       width: canvas.width,
       height: canvas.height,
+      rx: 17 * safeScale,
+      ry: 17 * safeScale,
+      fill: BACKGROUND_COLOR,
+    });
+
+    for (let index = 0; index < numItems; index += 1) {
+      const gridItem = grid[index];
+      const row = Math.floor(index / numItemsPerCol);
+      const col = index % numItemsPerCol;
+      const left = (row * GRID_SQUARE_SIZE + (row + 1) * GRID_SQUARE_GAP) * safeScale;
+      const top = (col * GRID_SQUARE_SIZE + (col + 1) * GRID_SQUARE_GAP) * safeScale;
+      const right = left + GRID_SQUARE_SIZE * safeScale;
+      const bottom = top + GRID_SQUARE_SIZE * safeScale;
+
+      drawRoundedRect(ctx, {
+        left,
+        top,
+        width: GRID_SQUARE_SIZE * safeScale,
+        height: GRID_SQUARE_SIZE * safeScale,
+        rx: GRID_SQUARE_ROUNDED_CORNER * safeScale,
+        ry: GRID_SQUARE_ROUNDED_CORNER * safeScale,
+        fill: getRarityFill(ctx, gridItem, left, top, safeScale),
+      });
+
+      const icon = await loadIcon(
+        gridItem.iconFile,
+        { iconBaseUrl, iconSize, iconTimeoutMs },
+        warnings,
+        iconCache,
+      );
+      const iconLeft = left + ((GRID_SQUARE_SIZE - ICON_DISPLAY_SIZE) / 2) * safeScale;
+      const iconTop = top + ((GRID_SQUARE_SIZE - ICON_DISPLAY_SIZE) / 2) * safeScale;
+      if (icon) {
+        drawImageScaled(ctx, icon, {
+          left: iconLeft,
+          top: iconTop,
+          scaleX: (ICON_DISPLAY_SIZE / ICON_NATIVE_SIZE) * safeScale,
+          scaleY: (ICON_DISPLAY_SIZE / ICON_NATIVE_SIZE) * safeScale,
+        });
+      } else {
+        drawPlaceholderIcon(ctx, gridItem, {
+          left: iconLeft,
+          top: iconTop,
+          size: ICON_DISPLAY_SIZE * safeScale,
+          scale: safeScale,
+        });
+      }
+
+      for (let stoneIndex = 0; stoneIndex < gridItem.stones.length; stoneIndex += 1) {
+        const stone = gridItem.stones[stoneIndex];
+        const stoneIcon = await loadIcon(
+          stone.iconFile,
+          { iconBaseUrl, iconSize, iconTimeoutMs },
+          warnings,
+          iconCache,
+        );
+        const stoneLeft = right - (16 + 26 + 22 * stoneIndex) * safeScale;
+        const stoneTop = bottom - (16 + 26) * safeScale;
+        if (stoneIcon) {
+          drawImageScaled(ctx, stoneIcon, {
+            left: stoneLeft,
+            top: stoneTop,
+            scaleX: (26 / ICON_NATIVE_SIZE) * safeScale,
+            scaleY: (26 / ICON_NATIVE_SIZE) * safeScale,
+          });
+        } else {
+          drawPlaceholderIcon(ctx, stone, {
+            left: stoneLeft,
+            top: stoneTop,
+            size: 26 * safeScale,
+            scale: safeScale * 0.35,
+          });
+        }
+      }
+
+      drawCountBox(ctx, gridItem.count, { right, bottom, scale: safeScale });
+    }
+
+    return {
+      buffer: canvas.toBuffer('image/png'),
+      width: targetWidth,
+      height: targetHeight,
       mimeType: 'image/png',
       warnings,
     };
+  } finally {
+    iconCache.clear();
+    releaseCanvas(canvas);
+    clearAllCache();
   }
-
-  const numItemsPerRow = Math.ceil(Math.sqrt(numItems));
-  const numItemsPerCol = Math.ceil(numItems / numItemsPerRow);
-  const targetWidth = GRID_SQUARE_SIZE * numItemsPerRow + GRID_SQUARE_GAP * (numItemsPerRow + 1);
-  const targetHeight = GRID_SQUARE_SIZE * numItemsPerCol + GRID_SQUARE_GAP * (numItemsPerCol + 1);
-  const canvas = createCanvas(targetWidth * safeScale, targetHeight * safeScale);
-  const ctx = canvas.getContext('2d');
-
-  drawRoundedRect(ctx, {
-    left: 0,
-    top: 0,
-    width: canvas.width,
-    height: canvas.height,
-    rx: 17 * safeScale,
-    ry: 17 * safeScale,
-    fill: BACKGROUND_COLOR,
-  });
-
-  for (let index = 0; index < numItems; index += 1) {
-    const gridItem = grid[index];
-    const row = Math.floor(index / numItemsPerCol);
-    const col = index % numItemsPerCol;
-    const left = (row * GRID_SQUARE_SIZE + (row + 1) * GRID_SQUARE_GAP) * safeScale;
-    const top = (col * GRID_SQUARE_SIZE + (col + 1) * GRID_SQUARE_GAP) * safeScale;
-    const right = left + GRID_SQUARE_SIZE * safeScale;
-    const bottom = top + GRID_SQUARE_SIZE * safeScale;
-
-    drawRoundedRect(ctx, {
-      left,
-      top,
-      width: GRID_SQUARE_SIZE * safeScale,
-      height: GRID_SQUARE_SIZE * safeScale,
-      rx: GRID_SQUARE_ROUNDED_CORNER * safeScale,
-      ry: GRID_SQUARE_ROUNDED_CORNER * safeScale,
-      fill: getRarityFill(ctx, gridItem, left, top, safeScale),
-    });
-
-    const icon = await loadIcon(gridItem.iconFile, { iconBaseUrl, iconSize, iconTimeoutMs }, warnings);
-    const iconLeft = left + ((GRID_SQUARE_SIZE - ICON_DISPLAY_SIZE) / 2) * safeScale;
-    const iconTop = top + ((GRID_SQUARE_SIZE - ICON_DISPLAY_SIZE) / 2) * safeScale;
-    if (icon) {
-      drawImageScaled(ctx, icon, {
-        left: iconLeft,
-        top: iconTop,
-        scaleX: (ICON_DISPLAY_SIZE / ICON_NATIVE_SIZE) * safeScale,
-        scaleY: (ICON_DISPLAY_SIZE / ICON_NATIVE_SIZE) * safeScale,
-      });
-    } else {
-      drawPlaceholderIcon(ctx, gridItem, {
-        left: iconLeft,
-        top: iconTop,
-        size: ICON_DISPLAY_SIZE * safeScale,
-        scale: safeScale,
-      });
-    }
-
-    for (let stoneIndex = 0; stoneIndex < gridItem.stones.length; stoneIndex += 1) {
-      const stone = gridItem.stones[stoneIndex];
-      const stoneIcon = await loadIcon(stone.iconFile, { iconBaseUrl, iconSize, iconTimeoutMs }, warnings);
-      const stoneLeft = right - (16 + 26 + 22 * stoneIndex) * safeScale;
-      const stoneTop = bottom - (16 + 26) * safeScale;
-      if (stoneIcon) {
-        drawImageScaled(ctx, stoneIcon, {
-          left: stoneLeft,
-          top: stoneTop,
-          scaleX: (26 / ICON_NATIVE_SIZE) * safeScale,
-          scaleY: (26 / ICON_NATIVE_SIZE) * safeScale,
-        });
-      } else {
-        drawPlaceholderIcon(ctx, stone, {
-          left: stoneLeft,
-          top: stoneTop,
-          size: 26 * safeScale,
-          scale: safeScale * 0.35,
-        });
-      }
-    }
-
-    drawCountBox(ctx, gridItem.count, { right, bottom, scale: safeScale });
-  }
-
-  return {
-    buffer: canvas.toBuffer('image/png'),
-    width: targetWidth,
-    height: targetHeight,
-    mimeType: 'image/png',
-    warnings,
-  };
 }
