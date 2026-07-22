@@ -23,7 +23,7 @@ vi.mock('../../../utils/database/client.js', () => ({
   },
 }));
 
-import { upsertColeggtibles, getStoredColeggtibles } from '../../../utils/database/coleggtiblesRepository.js';
+import { upsertColleggtibles, getStoredColleggtibles } from '../../../utils/database/colleggtiblesRepository.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -35,17 +35,17 @@ beforeEach(() => {
   }
 });
 
-describe('database/coleggtiblesRepository', () => {
+describe('database/colleggtiblesRepository', () => {
   it('no-ops on empty upserts', () => {
-    upsertColeggtibles([]);
+    upsertColleggtibles([]);
   });
 
-  it('upserts coleggtibles and stores buffs', () => {
-    const upsertStmt = [...statementMap.values()].find(s => s.sql.includes('INSERT INTO coleggtibles'));
-    const deleteStmt = [...statementMap.values()].find(s => s.sql.includes('DELETE FROM coleggtible_buffs'));
-    const insertStmt = [...statementMap.values()].find(s => s.sql.includes('INSERT INTO coleggtible_buffs'));
+  it('upserts colleggtibles and stores buffs', () => {
+    const upsertStmt = [...statementMap.values()].find(s => s.sql.includes('INSERT INTO colleggtibles'));
+    const deleteStmt = [...statementMap.values()].find(s => s.sql.includes('DELETE FROM colleggtible_buffs'));
+    const insertStmt = [...statementMap.values()].find(s => s.sql.includes('INSERT INTO colleggtible_buffs'));
 
-    upsertColeggtibles([
+    upsertColleggtibles([
       {
         identifier: ' egg1 ',
         name: 'Egg One',
@@ -66,21 +66,21 @@ describe('database/coleggtiblesRepository', () => {
     expect(insertStmt.run).toHaveBeenNthCalledWith(2, 'egg1', 2, 2, 1.1);
   });
 
-  it('returns stored coleggtibles with buffs', () => {
+  it('returns stored colleggtibles with buffs', () => {
     const listStmt = [...statementMap.values()].find(s => s.sql.includes('SELECT identifier, name, icon_url'));
 
     listStmt.all.mockReturnValue([
       { identifier: 'egg1', name: 'Egg One', icon_url: 'https://example.test/icon.png' },
     ]);
     for (const stmt of statementMap.values()) {
-      if (stmt.sql.includes('FROM coleggtible_buffs')) {
+      if (stmt.sql.includes('FROM colleggtible_buffs')) {
         stmt.all.mockReturnValue([
           { rewardslevel: 1, dimension: 1, value: 1.05 },
         ]);
       }
     }
 
-    const rows = getStoredColeggtibles();
+    const rows = getStoredColleggtibles();
     expect(rows.length).toBe(1);
     expect(rows[0].buffs.length).toBe(1);
     expect(rows[0].buffs[0].rewardsLevel).toBe(1);

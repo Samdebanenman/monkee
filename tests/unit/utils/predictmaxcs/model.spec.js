@@ -4,7 +4,7 @@ vi.mock('../../../../sim-core/src/predictmaxcs/constants.js', async () => {
   const actual = await vi.importActual('../../../../sim-core/src/predictmaxcs/constants.js');
   return {
     ...actual,
-    getDynamicColeggtibles: () => ({
+    getDynamicColleggtibles: () => ({
       elrMult: 1,
       shipMult: 1,
       ihrMult: 1,
@@ -33,7 +33,7 @@ describe('sim-core/src/predictmaxcs/model', () => {
 
   it('builds player configs with siab for player 1', () => {
     const playerConfigs = buildPlayerConfigs({
-      coleggtibles: { chickenMult: 1 },
+      colleggtibles: { chickenMult: 1 },
       players: 2,
       maxChickens: 1000,
       baseELR: 10,

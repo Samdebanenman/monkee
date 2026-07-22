@@ -144,7 +144,7 @@ export async function startPredictCsOrchestration(options) {
     pushCount,
     modifierType,
     modifierValue,
-    coleggtiblesRows,
+    colleggtiblesRows,
   } = options;
 
   const variant = buildPredictCsVariant({
@@ -162,7 +162,7 @@ export async function startPredictCsOrchestration(options) {
     pushCount,
     modifierType,
     modifierValue,
-    coleggtiblesRows,
+    colleggtiblesRows,
   });
 
   const orchestration = {

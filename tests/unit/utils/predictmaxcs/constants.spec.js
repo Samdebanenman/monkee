@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { GameDimension } from '../../../../Enums.js';
 
-import { getDynamicColeggtibles } from '../../../../sim-core/src/predictmaxcs/constants.js';
+import { getDynamicColleggtibles } from '../../../../sim-core/src/predictmaxcs/constants.js';
 
 describe('sim-core/src/predictmaxcs/constants', () => {
   it('returns default multipliers when empty', () => {
-    const result = getDynamicColeggtibles([]);
+    const result = getDynamicColleggtibles([]);
     expect(result).toEqual({
       elrMult: 1,
       shipMult: 1,
@@ -15,7 +15,7 @@ describe('sim-core/src/predictmaxcs/constants', () => {
   });
 
   it('multiplies highest buff per egg and dimension', () => {
-    const result = getDynamicColeggtibles([
+    const result = getDynamicColleggtibles([
       {
         identifier: 'egg1',
         buffs: [

@@ -5,7 +5,7 @@ import {
   DEFLECTOR_TIERS,
   IHR_SET,
   getContractAdjustedBases,
-  getDynamicColeggtibles,
+  getDynamicColleggtibles,
 } from '../../sim-core/src/predictmaxcs/constants.js';
 import { getIhrStoneSlots, getSwapChickenJump, optimizeStones, buildPlayerConfigs } from '../../sim-core/src/predictmaxcs/model.js';
 import { buildDeflectorDisplay, buildDeflectorPlan, getRequiredOtherDeflector } from '../../sim-core/src/predictmaxcs/deflector.js';
@@ -33,11 +33,11 @@ export function normalizeTeValues(values, players, fallbackTe = 0) {
   return values;
 }
 
-export function buildPlayerIhrs(teValues, bases, coleggtibles) {
+export function buildPlayerIhrs(teValues, bases, colleggtibles) {
   const safeValues = Array.isArray(teValues) && teValues.length ? teValues : [0];
   return safeValues.map(value => bases.baseIHR
     * Math.pow(1.01, value)
-    * coleggtibles.ihrMult
+    * colleggtibles.ihrMult
     * IHR_SET.chalice.ihrMult
     * IHR_SET.monocle.ihrMult
     * Math.pow(1.04, getIhrStoneSlots()));
@@ -121,21 +121,21 @@ export function buildPredictMaxCsVariant(options) {
     usePlayer1Siab,
     modifierType,
     modifierValue,
-    coleggtiblesRows,
+    colleggtiblesRows,
   } = options;
 
-  const coleggtibles = getDynamicColeggtibles(coleggtiblesRows ?? null);
+  const colleggtibles = getDynamicColleggtibles(colleggtiblesRows ?? null);
   const bases = getContractAdjustedBases({ modifierType, modifierValue });
   const teValues = normalizeTeValues(assumptions?.teValues, players, assumptions?.te ?? 0);
-  const playerIHRs = buildPlayerIhrs(teValues, bases, coleggtibles);
+  const playerIHRs = buildPlayerIhrs(teValues, bases, colleggtibles);
   const baseIHR = playerIHRs.reduce((sum, value) => sum + value, 0) / Math.max(1, playerIHRs.length);
 
   const maxChickensBase = bases.baseChickens
     * BOOSTED_SET.gusset.chickMult
-    * coleggtibles.chickenMult
+    * colleggtibles.chickenMult
     + (assumptions.swapBonus ? getSwapChickenJump(players) : 0);
-  const baseELR = bases.baseELR * BOOSTED_SET.metro.elrMult * coleggtibles.elrMult;
-  const baseShip = bases.baseShip * BOOSTED_SET.compass.srMult * coleggtibles.shipMult;
+  const baseELR = bases.baseELR * BOOSTED_SET.metro.elrMult * colleggtibles.elrMult;
+  const baseShip = bases.baseShip * BOOSTED_SET.compass.srMult * colleggtibles.shipMult;
 
   const baseElrPerPlayer = maxChickensBase * baseELR;
   const baseSrPerPlayer = baseShip;
@@ -150,7 +150,7 @@ export function buildPredictMaxCsVariant(options) {
   const stoneLayout = optimizeStones(baselineElrForStones, baseSrPerPlayer, totalSlots);
 
   const playerConfigs = buildPlayerConfigs({
-    coleggtibles,
+    colleggtibles,
     players,
     maxChickens: maxChickensBase,
     baseChickens: bases.baseChickens,
@@ -210,10 +210,10 @@ export function buildPredictCsVariant(options) {
     pushCount,
     modifierType,
     modifierValue,
-    coleggtiblesRows,
+    colleggtiblesRows,
   } = options;
 
-  const coleggtibles = getDynamicColeggtibles(coleggtiblesRows ?? null);
+  const colleggtibles = getDynamicColleggtibles(colleggtiblesRows ?? null);
   const bases = getContractAdjustedBases({ modifierType, modifierValue });
   const avgTe = playerTe.reduce((sum, value) => sum + value, 0) / Math.max(1, playerTe.length);
   const assumptions = {
@@ -240,12 +240,12 @@ export function buildPredictCsVariant(options) {
     const ihrSiabPercent = ihrSiab?.siabPercent ?? 0;
     const te = Number.isFinite(playerTe?.[index]) ? playerTe[index] : 0;
 
-    const maxChickens = bases.baseChickens * coleggtibles.chickenMult * gusset.chickMult;
-    const baseELR = bases.baseELR * coleggtibles.elrMult * metro.elrMult;
-    const baseShip = bases.baseShip * coleggtibles.shipMult * compass.srMult;
+    const maxChickens = bases.baseChickens * colleggtibles.chickenMult * gusset.chickMult;
+    const baseELR = bases.baseELR * colleggtibles.elrMult * metro.elrMult;
+    const baseShip = bases.baseShip * colleggtibles.shipMult * compass.srMult;
     const baseIHR = bases.baseIHR
       * Math.pow(1.01, te)
-      * coleggtibles.ihrMult
+      * colleggtibles.ihrMult
       * (Number.isFinite(chalice?.ihrMult) ? chalice.ihrMult : IHR_SET.chalice.ihrMult)
       * (Number.isFinite(monocle?.ihrMult) ? monocle.ihrMult : IHR_SET.monocle.ihrMult)
       * Math.pow(1.04, getIhrStoneSlots());

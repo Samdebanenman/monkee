@@ -1,6 +1,6 @@
 import {
   getContractAdjustedBases,
-  getDynamicColeggtibles,
+  getDynamicColleggtibles,
   DEFLECTOR_TIERS,
   IHR_SET,
 } from '../predictmaxcs/constants.js';
@@ -14,7 +14,7 @@ import { buildTokenPlan } from '../predictmaxcs/tokens.js';
 import { optimizeStones, TOKEN_CANDIDATES } from '../predictmaxcs/model.js';
 
 export async function buildPredictCsModel(options) {
-  const COLEGGTIBLES = getDynamicColeggtibles(options?.coleggtiblesRows ?? null);
+  const COLLEGGTIBLES = getDynamicColleggtibles(options?.colleggtiblesRows ?? null);
   const {
     players,
     durationSeconds,
@@ -59,12 +59,12 @@ export async function buildPredictCsModel(options) {
     const ihrSiabPercent = ihrSiab?.siabPercent ?? 0;
     const te = Number.isFinite(playerTe?.[index]) ? playerTe[index] : 0;
 
-    const maxChickens = bases.baseChickens * COLEGGTIBLES.chickenMult * gusset.chickMult;
-    const baseELR = bases.baseELR * COLEGGTIBLES.elrMult * metro.elrMult;
-    const baseShip = bases.baseShip * COLEGGTIBLES.shipMult * compass.srMult;
+    const maxChickens = bases.baseChickens * COLLEGGTIBLES.chickenMult * gusset.chickMult;
+    const baseELR = bases.baseELR * COLLEGGTIBLES.elrMult * metro.elrMult;
+    const baseShip = bases.baseShip * COLLEGGTIBLES.shipMult * compass.srMult;
     const baseIHR = bases.baseIHR
       * Math.pow(1.01, te)
-      * COLEGGTIBLES.ihrMult
+      * COLLEGGTIBLES.ihrMult
       * (Number.isFinite(chalice?.ihrMult) ? chalice.ihrMult : IHR_SET.chalice.ihrMult)
       * (Number.isFinite(monocle?.ihrMult) ? monocle.ihrMult : IHR_SET.monocle.ihrMult)
       * Math.pow(1.04, getIhrStoneSlotsFromArtifacts(chalice, monocle, ihrDeflector, ihrSiab));

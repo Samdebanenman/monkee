@@ -43,7 +43,7 @@ import {
   parseTe,
 } from '../sim-core/src/predictcs/artifacts.js';
 import { parseSandboxUrl } from '../sim-core/src/predictcs/sandbox.js';
-import { getStoredColeggtibles } from '../utils/database/coleggtiblesRepository.js';
+import { getStoredColleggtibles } from '../utils/database/colleggtiblesRepository.js';
 import { startPredictCsOrchestration } from '../services/simOrchestrator.js';
 
 const sessions = new Map();
@@ -457,7 +457,7 @@ async function handlePredictCsNext({ interaction, sessionId, playerIndex, sessio
     await interaction.deferUpdate();
   }
 
-  const coleggRows = getStoredColeggtibles();
+  const coleggRows = getStoredColleggtibles();
   await interaction.editReply(buildPlainComponentMessage('Running PredictCS simulations...', { components: [] }));
 
   await startPredictCsOrchestration({
@@ -470,7 +470,7 @@ async function handlePredictCsNext({ interaction, sessionId, playerIndex, sessio
     giftMinutes: session.giftMinutes,
     gg: session.gg,
     boostOrderMode: session.boostOrderMode,
-    coleggtiblesRows: coleggRows,
+    colleggtiblesRows: coleggRows,
     playerArtifacts: session.playerArtifacts,
     playerIhrArtifacts: session.playerIhrArtifacts,
     playerTe: session.playerTe,
@@ -796,7 +796,7 @@ async function runPredictCsSandbox(interaction, session, sandboxData, contractOv
     await interaction.editReply(buildPlainComponentMessage('Preparing PredictCS...', { components: [] }));
   }
 
-  const coleggRows = getStoredColeggtibles();
+  const coleggRows = getStoredColleggtibles();
   const queuedMessage = buildPlainComponentMessage('Running PredictCS simulations...', { components: [] });
 
   if (interaction.deferred || interaction.replied) {
@@ -815,7 +815,7 @@ async function runPredictCsSandbox(interaction, session, sandboxData, contractOv
     giftMinutes: session.giftMinutes,
     gg: session.gg,
     boostOrderMode: session.boostOrderMode,
-    coleggtiblesRows: coleggRows,
+    colleggtiblesRows: coleggRows,
     playerArtifacts,
     playerIhrArtifacts,
     playerTe,

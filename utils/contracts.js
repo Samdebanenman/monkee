@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { DateTime } from 'luxon';
 import { getStoredContracts, getMeta, setMeta, upsertContracts } from './database/index.js';
-import { fetchAndCacheColeggtibles } from './coleggtibles.js';
+import { fetchAndCacheColleggtibles } from './colleggtibles.js';
 import { getProtoRoot } from './auxbrain.js';
 
 const CONTRACT_ARCHIVE_URL = 'https://raw.githubusercontent.com/carpetsage/egg/main/periodicals/data/contracts.json';
@@ -111,9 +111,9 @@ async function fetchAndCacheContracts() {
   const rows = response.data.map(obj => mapRemoteContract(obj, ContractType, eggEnum, dimensionEnum));
   upsertContracts(rows);
   try {
-    await fetchAndCacheColeggtibles();
+    await fetchAndCacheColleggtibles();
   } catch (err) {
-    console.error('Failed to refresh coleggtibles cache:', err?.message ?? String(err));
+    console.error('Failed to refresh colleggtibles cache:', err?.message ?? String(err));
   }
   return rows;
 }

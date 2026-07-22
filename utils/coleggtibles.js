@@ -6,7 +6,7 @@ import {
   getProtoType,
   postAuxbrain,
 } from './auxbrain.js';
-import { upsertColeggtibles } from './database/index.js';
+import { upsertColleggtibles } from './database/index.js';
 
 function mapBuffs(buffs = []) {
   if (!Array.isArray(buffs)) return [];
@@ -60,7 +60,7 @@ async function fetchPeriodicalsResponse() {
   return PeriodicalsResponse.decode(messageBuffer);
 }
 
-export async function fetchAndCacheColeggtibles() {
+export async function fetchAndCacheColleggtibles() {
   const periodicals = await fetchPeriodicalsResponse();
   const contracts = periodicals?.contracts ?? null;
   const customEggs = contracts?.customEggs ?? contracts?.custom_eggs ?? [];
@@ -73,10 +73,10 @@ export async function fetchAndCacheColeggtibles() {
     .map(mapCustomEgg)
     .filter(Boolean);
 
-  upsertColeggtibles(rows);
+  upsertColleggtibles(rows);
   return rows;
 }
 
 export default {
-  fetchAndCacheColeggtibles,
+  fetchAndCacheColleggtibles,
 };

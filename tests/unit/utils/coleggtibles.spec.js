@@ -38,11 +38,11 @@ const { auxbrainMock, state } = vi.hoisted(() => {
 vi.mock('../../../utils/auxbrain.js', () => auxbrainMock);
 
 vi.mock('../../../utils/database/index.js', () => ({
-  upsertColeggtibles: vi.fn(),
+  upsertColleggtibles: vi.fn(),
 }));
 
-import { fetchAndCacheColeggtibles } from '../../../utils/coleggtibles.js';
-import { upsertColeggtibles } from '../../../utils/database/index.js';
+import { fetchAndCacheColleggtibles } from '../../../utils/colleggtibles.js';
+import { upsertColleggtibles } from '../../../utils/database/index.js';
 
 const ORIGINAL_EID = process.env.EID;
 
@@ -57,8 +57,8 @@ afterEach(() => {
   process.env.EID = ORIGINAL_EID;
 });
 
-describe('utils/coleggtibles', () => {
-  it('fetches and caches coleggtibles', async () => {
+describe('utils/colleggtibles', () => {
+  it('fetches and caches colleggtibles', async () => {
     state.messageBuffer = Buffer.from('payload');
     state.responseQueue.push({
       contracts: {
@@ -76,11 +76,11 @@ describe('utils/coleggtibles', () => {
       },
     });
 
-    const result = await fetchAndCacheColeggtibles();
+    const result = await fetchAndCacheColleggtibles();
 
     expect(result.length).toBe(1);
-    expect(upsertColeggtibles).toHaveBeenCalledTimes(1);
-    const rows = upsertColeggtibles.mock.calls[0][0];
+    expect(upsertColleggtibles).toHaveBeenCalledTimes(1);
+    const rows = upsertColleggtibles.mock.calls[0][0];
     expect(rows[0].identifier).toBe('egg1');
     expect(rows[0].buffs.length).toBe(2);
   });
@@ -89,9 +89,9 @@ describe('utils/coleggtibles', () => {
     state.messageBuffer = Buffer.from('');
     state.responseQueue.push({ contracts: { customEggs: [] } });
 
-    const result = await fetchAndCacheColeggtibles();
+    const result = await fetchAndCacheColleggtibles();
 
     expect(result).toEqual([]);
-    expect(upsertColeggtibles).not.toHaveBeenCalled();
+    expect(upsertColleggtibles).not.toHaveBeenCalled();
   });
 });

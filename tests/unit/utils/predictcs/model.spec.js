@@ -4,7 +4,7 @@ vi.mock('../../../../sim-core/src/predictmaxcs/constants.js', async () => {
   const actual = await vi.importActual('../../../../sim-core/src/predictmaxcs/constants.js');
   return {
     ...actual,
-    getDynamicColeggtibles: () => ({
+    getDynamicColleggtibles: () => ({
       elrMult: 1,
       shipMult: 1,
       ihrMult: 1,

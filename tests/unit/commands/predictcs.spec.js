@@ -9,8 +9,8 @@ vi.mock('../../../services/simOrchestrator.js', () => ({
   startPredictCsOrchestration: vi.fn(async () => 'orch-1'),
 }));
 
-vi.mock('../../../utils/database/coleggtiblesRepository.js', () => ({
-  getStoredColeggtibles: vi.fn(() => []),
+vi.mock('../../../utils/database/colleggtiblesRepository.js', () => ({
+  getStoredColleggtibles: vi.fn(() => []),
 }));
 
 vi.mock('../../../services/discord.js', () => ({

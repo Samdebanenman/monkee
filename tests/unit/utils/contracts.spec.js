@@ -23,8 +23,8 @@ vi.mock('../../../utils/database/index.js', () => ({
   upsertContracts: vi.fn(),
 }));
 
-vi.mock('../../../utils/coleggtibles.js', () => ({
-  fetchAndCacheColeggtibles: vi.fn(async () => []),
+vi.mock('../../../utils/colleggtibles.js', () => ({
+  fetchAndCacheColleggtibles: vi.fn(async () => []),
 }));
 
 import axios from 'axios';

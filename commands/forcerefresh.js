@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { requireMamaBird } from '../utils/permissions.js';
 import { refreshContracts } from '../services/contractService.js';
-import { fetchAndCacheColeggtibles } from '../utils/coleggtibles.js';
+import { fetchAndCacheColleggtibles } from '../utils/colleggtibles.js';
 import { createTextComponentMessage } from '../services/discord.js';
 import { listAllMembers, updateMemberDiscordNameByDiscordId } from '../utils/database/membersRepository.js';
 import { syncMembersFromMajApi } from '../services/memberService.js';
@@ -17,16 +17,16 @@ export async function execute(interaction) {
 
   try {
     const contracts = await refreshContracts();
-    const coleggtibles = await fetchAndCacheColeggtibles();
+    const colleggtibles = await fetchAndCacheColleggtibles();
     const discordRefresh = await refreshDiscordNames(interaction.client);
     const ignRefresh = await refreshMemberIgns();
     const count = Array.isArray(contracts) ? contracts.length : 0;
-    const coleggtibleCount = Array.isArray(coleggtibles) ? coleggtibles.length : 0;
+    const colleggtibleCount = Array.isArray(colleggtibles) ? colleggtibles.length : 0;
     const epoch = Math.floor(Date.now() / 1000);
 
     await interaction.editReply(
       createTextComponentMessage(
-        `Contracts refreshed. Loaded ${count} contracts and ${coleggtibleCount} coleggtibles as of <t:${epoch}:f>. Discord names refreshed: ${discordRefresh.updated} updated, ${discordRefresh.unchanged} unchanged, ${discordRefresh.failed} failed. IGN sync: ${ignRefresh.updated} updated, ${ignRefresh.unchanged} unchanged, ${ignRefresh.conflicts} conflicts, ${ignRefresh.invalid} invalid, ${ignRefresh.skipped} skipped, ${ignRefresh.failures} failed.`,
+        `Contracts refreshed. Loaded ${count} contracts and ${colleggtibleCount} colleggtibles as of <t:${epoch}:f>. Discord names refreshed: ${discordRefresh.updated} updated, ${discordRefresh.unchanged} unchanged, ${discordRefresh.failed} failed. IGN sync: ${ignRefresh.updated} updated, ${ignRefresh.unchanged} unchanged, ${ignRefresh.conflicts} conflicts, ${ignRefresh.invalid} invalid, ${ignRefresh.skipped} skipped, ${ignRefresh.failures} failed.`,
         { flags: 64 }
       )
     );

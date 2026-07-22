@@ -2,7 +2,7 @@ import {
   BASES,
   BOOSTED_SET,
   getContractAdjustedBases,
-  getDynamicColeggtibles,
+  getDynamicColleggtibles,
   DEFLECTOR_TIERS,
   IHR_SET,
 } from './constants.js';
@@ -34,11 +34,11 @@ export function getAssumptions(teInput = 100) {
   };
 }
 
-function buildPlayerIhrs(teValues, bases, coleggtibles) {
+function buildPlayerIhrs(teValues, bases, colleggtibles) {
   const safeValues = Array.isArray(teValues) && teValues.length ? teValues : [0];
   return safeValues.map(value => bases.baseIHR
     * Math.pow(1.01, value)
-    * coleggtibles.ihrMult
+    * colleggtibles.ihrMult
     * IHR_SET.chalice.ihrMult
     * IHR_SET.monocle.ihrMult
     * Math.pow(1.04, getIhrStoneSlots()));
@@ -63,7 +63,7 @@ function normalizeTeValues(values, players, fallbackTe = 0) {
 }
 
 export async function buildModel(options) {
-  const COLEGGTIBLES = getDynamicColeggtibles(options?.coleggtiblesRows ?? null);
+  const COLLEGGTIBLES = getDynamicColleggtibles(options?.colleggtiblesRows ?? null);
   const {
     players,
     durationSeconds,
@@ -79,15 +79,15 @@ export async function buildModel(options) {
   } = options;
   const bases = getContractAdjustedBases({ modifierType, modifierValue });
   const teValues = normalizeTeValues(assumptions?.teValues, players, assumptions?.te ?? 0);
-  const playerIHRs = buildPlayerIhrs(teValues, bases, COLEGGTIBLES);
+  const playerIHRs = buildPlayerIhrs(teValues, bases, COLLEGGTIBLES);
   const baseIHR = playerIHRs.reduce((sum, value) => sum + value, 0) / Math.max(1, playerIHRs.length);
 
   const maxChickensBase = bases.baseChickens
     * BOOSTED_SET.gusset.chickMult
-    * COLEGGTIBLES.chickenMult
+    * COLLEGGTIBLES.chickenMult
     + (assumptions.swapBonus ? getSwapChickenJump(players) : 0);
-  const baseELR = bases.baseELR * BOOSTED_SET.metro.elrMult * COLEGGTIBLES.elrMult;
-  const baseShip = bases.baseShip * BOOSTED_SET.compass.srMult * COLEGGTIBLES.shipMult;
+  const baseELR = bases.baseELR * BOOSTED_SET.metro.elrMult * COLLEGGTIBLES.elrMult;
+  const baseShip = bases.baseShip * BOOSTED_SET.compass.srMult * COLLEGGTIBLES.shipMult;
 
   const baseElrPerPlayer = maxChickensBase * baseELR;
   const baseSrPerPlayer = baseShip;
@@ -124,7 +124,7 @@ export async function buildModel(options) {
 
   const buildVariantBase = usePlayer1Siab => {
     const playerConfigs = buildPlayerConfigs({
-      coleggtibles: COLEGGTIBLES,
+      colleggtibles: COLLEGGTIBLES,
       players,
       maxChickens: maxChickensBase,
       baseChickens: bases.baseChickens,
@@ -374,7 +374,7 @@ export async function buildModel(options) {
 
 export function buildPlayerConfigs(options) {
   const {
-    coleggtibles,
+    colleggtibles,
     players,
     maxChickens,
     baseChickens = BASES.baseChickens,
@@ -387,7 +387,7 @@ export function buildPlayerConfigs(options) {
   } = options;
 
   const gussetBonus = Math.max(0, (BOOSTED_SET.gusset.chickMult ?? 1) - 1);
-  const player1ChickenPenalty = baseChickens * (coleggtibles?.chickenMult ?? 1) * gussetBonus;
+  const player1ChickenPenalty = baseChickens * (colleggtibles?.chickenMult ?? 1) * gussetBonus;
   const player1SlotPenalty = 1;
   const baseSiabPercent = Number.isFinite(IHR_SET.siabPercent) ? IHR_SET.siabPercent : 0;
   const metroMult = Number.isFinite(BOOSTED_SET?.metro?.elrMult) ? BOOSTED_SET.metro.elrMult : 1;

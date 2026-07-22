@@ -21,7 +21,7 @@ export const IHR_SET = {
   deflector: { slots: 2 },
 };
 
-const DEFAULT_COLEGGTIBLES = {
+const DEFAULT_COLLEGGTIBLES = {
   elrMult: 1,
   shipMult: 1,
   ihrMult: 1,
@@ -99,21 +99,21 @@ function applyBestBuffs(totals, bestByDimension) {
   }
 }
 
-function loadStoredColeggtibles() {
+function loadStoredColleggtibles() {
   try {
     const require = createRequire(import.meta.url);
-    const repo = require('../../../utils/database/coleggtiblesRepository.js');
-    return typeof repo.getStoredColeggtibles === 'function' ? repo.getStoredColeggtibles() : [];
+    const repo = require('../../../utils/database/colleggtiblesRepository.js');
+    return typeof repo.getStoredColleggtibles === 'function' ? repo.getStoredColleggtibles() : [];
   } catch (error) {
     return [];
   }
 }
 
-export function getDynamicColeggtibles(rowsOverride = null) {
-  const rows = Array.isArray(rowsOverride) ? rowsOverride : loadStoredColeggtibles();
-  if (!Array.isArray(rows) || rows.length === 0) return { ...DEFAULT_COLEGGTIBLES };
+export function getDynamicColleggtibles(rowsOverride = null) {
+  const rows = Array.isArray(rowsOverride) ? rowsOverride : loadStoredColleggtibles();
+  if (!Array.isArray(rows) || rows.length === 0) return { ...DEFAULT_COLLEGGTIBLES };
 
-  const totals = { ...DEFAULT_COLEGGTIBLES };
+  const totals = { ...DEFAULT_COLLEGGTIBLES };
 
   for (const egg of rows) {
     const buffs = Array.isArray(egg.buffs) ? egg.buffs : [];

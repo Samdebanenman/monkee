@@ -162,7 +162,7 @@ export async function startPredictMaxCsOrchestration(options) {
     siabOverride,
     modifierType,
     modifierValue,
-    coleggtiblesRows,
+    colleggtiblesRows,
   } = options;
 
   const baseVariant = buildPredictMaxCsVariant({
@@ -176,7 +176,7 @@ export async function startPredictMaxCsOrchestration(options) {
     usePlayer1Siab: false,
     modifierType,
     modifierValue,
-    coleggtiblesRows,
+    colleggtiblesRows,
   });
   baseVariant.id = 'base';
   baseVariant.uniformScores = new Map();
@@ -193,7 +193,7 @@ export async function startPredictMaxCsOrchestration(options) {
     usePlayer1Siab: true,
     modifierType,
     modifierValue,
-    coleggtiblesRows,
+    colleggtiblesRows,
   });
   siabVariant.id = 'siab';
   siabVariant.uniformScores = new Map();

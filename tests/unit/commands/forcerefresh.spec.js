@@ -13,8 +13,8 @@ vi.mock('../../../utils/permissions.js', () => ({
   requireMamaBird: vi.fn(),
 }));
 
-vi.mock('../../../utils/coleggtibles.js', () => ({
-  fetchAndCacheColeggtibles: vi.fn(async () => []),
+vi.mock('../../../utils/colleggtibles.js', () => ({
+  fetchAndCacheColleggtibles: vi.fn(async () => []),
 }));
 
 import { execute } from '../../../commands/forcerefresh.js';

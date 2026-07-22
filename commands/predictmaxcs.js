@@ -3,7 +3,7 @@ import { createTextComponentMessage } from '../services/discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
 import { findContractMatch } from '../sim-core/src/predictmaxcs/contracts.js';
 import { getAssumptions } from '../sim-core/src/predictmaxcs/model.js';
-import { getStoredColeggtibles } from '../utils/database/coleggtiblesRepository.js';
+import { getStoredColleggtibles } from '../utils/database/colleggtiblesRepository.js';
 import { startPredictMaxCsOrchestration } from '../services/simOrchestrator.js';
 
 const DEFAULT_TE = 100;
@@ -132,7 +132,7 @@ export async function execute(interaction) {
 
   const assumptions = getAssumptions(teValues);
   const contractLabel = contractMatch?.name || contractMatch?.id || contractInput;
-  const coleggRows = getStoredColeggtibles();
+  const coleggRows = getStoredColleggtibles();
 
   await interaction.deferReply();
   await interaction.editReply({ content: 'Running PredictMaxCS simulations...' });
@@ -147,7 +147,7 @@ export async function execute(interaction) {
     giftMinutes,
     gg,
     assumptions,
-    coleggtiblesRows: coleggRows,
+    colleggtiblesRows: coleggRows,
     siabOverride,
     modifierType: contractMatch?.modifierType ?? null,
     modifierValue: contractMatch?.modifierValue ?? null,

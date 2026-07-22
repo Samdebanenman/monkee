@@ -1,7 +1,7 @@
 import db from './client.js';
 
-const upsertColeggtibleStmt = db.prepare(`
-  INSERT INTO coleggtibles (
+const upsertColleggtibleStmt = db.prepare(`
+  INSERT INTO colleggtibles (
     identifier,
     name,
     icon_url
@@ -13,12 +13,12 @@ const upsertColeggtibleStmt = db.prepare(`
 `);
 
 const deleteBuffsForEggStmt = db.prepare(`
-  DELETE FROM coleggtible_buffs
+  DELETE FROM colleggtible_buffs
   WHERE egg_identifier = ?
 `);
 
 const insertBuffStmt = db.prepare(`
-  INSERT INTO coleggtible_buffs (
+  INSERT INTO colleggtible_buffs (
     egg_identifier,
     rewardslevel,
     dimension,
@@ -27,15 +27,15 @@ const insertBuffStmt = db.prepare(`
   VALUES (?, ?, ?, ?)
 `);
 
-const getAllColeggtiblesStmt = db.prepare(`
+const getAllColleggtiblesStmt = db.prepare(`
   SELECT identifier, name, icon_url
-  FROM coleggtibles
+  FROM colleggtibles
   ORDER BY name ASC, identifier ASC
 `);
 
 const getBuffsForEggStmt = db.prepare(`
   SELECT rewardslevel, dimension, value
-  FROM coleggtible_buffs
+  FROM colleggtible_buffs
   WHERE egg_identifier = ?
   ORDER BY rewardslevel ASC
 `);
@@ -54,7 +54,7 @@ function toBuffValues(buff, rewardsLevel) {
   return { rewardsLevel, dimension, value };
 }
 
-function upsertColeggtibleRow(row) {
+function upsertColleggtibleRow(row) {
   const identifier = normalizeIdentifier(row.identifier);
   if (!identifier) return;
 
@@ -62,7 +62,7 @@ function upsertColeggtibleRow(row) {
   const iconUrl = normalizeOptional(row.iconUrl);
   const buffs = Array.isArray(row.buffs) ? row.buffs : [];
 
-  upsertColeggtibleStmt.run(identifier, name, iconUrl);
+  upsertColleggtibleStmt.run(identifier, name, iconUrl);
   deleteBuffsForEggStmt.run(identifier);
 
   for (let index = 0; index < buffs.length; index += 1) {
@@ -72,20 +72,20 @@ function upsertColeggtibleRow(row) {
   }
 }
 
-export function upsertColeggtibles(rows = []) {
+export function upsertColleggtibles(rows = []) {
   if (!Array.isArray(rows) || rows.length === 0) return;
 
   const tx = db.transaction((items) => {
     for (const row of items) {
-      upsertColeggtibleRow(row);
+      upsertColleggtibleRow(row);
     }
   });
 
   tx(rows);
 }
 
-export function getStoredColeggtibles() {
-  const rows = getAllColeggtiblesStmt.all() ?? [];
+export function getStoredColleggtibles() {
+  const rows = getAllColleggtiblesStmt.all() ?? [];
   return rows.map(row => ({
     identifier: row.identifier,
     name: row.name,
@@ -99,6 +99,6 @@ export function getStoredColeggtibles() {
 }
 
 export default {
-  upsertColeggtibles,
-  getStoredColeggtibles,
+  upsertColleggtibles,
+  getStoredColleggtibles,
 };
