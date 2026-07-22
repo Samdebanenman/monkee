@@ -6,11 +6,11 @@ vi.mock('../../../services/discord.js', () => ({
 }));
 
 vi.mock('../../../utils/database/index.js', () => ({
-  getStoredcolleggtibles: vi.fn(),
+  getStoredColleggtibles: vi.fn(),
 }));
 
 import { execute, autocomplete } from '../../../commands/colleggtible.js';
-import { getStoredcolleggtibles } from '../../../utils/database/index.js';
+import { getStoredColleggtibles } from '../../../utils/database/index.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -18,7 +18,7 @@ beforeEach(() => {
 
 describe('commands/colleggtible', () => {
   it('renders an embed for a selected colleggtible', async () => {
-    getStoredcolleggtibles.mockReturnValue([
+    getStoredColleggtibles.mockReturnValue([
       {
         identifier: 'egg1',
         name: 'Egg One',
@@ -42,7 +42,7 @@ describe('commands/colleggtible', () => {
   });
 
   it('returns ephemeral error when no colleggtibles exist', async () => {
-    getStoredcolleggtibles.mockReturnValue([]);
+    getStoredColleggtibles.mockReturnValue([]);
 
     const interaction = createInteraction({
       options: createOptions({ strings: { colleggtible: 'egg1' } }),
@@ -57,7 +57,7 @@ describe('commands/colleggtible', () => {
   });
 
   it('autocompletes colleggtible names', async () => {
-    getStoredcolleggtibles.mockReturnValue([
+    getStoredColleggtibles.mockReturnValue([
       { identifier: 'egg1', name: 'Egg One' },
       { identifier: 'egg2', name: 'Another Egg' },
     ]);
