@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { createTextComponentMessage } from '../services/discord.js';
 import { GameDimensionLabels } from '../Enums.js';
-import { getStoredcolleggtibles } from '../utils/database/index.js';
+import { getStoredColleggtibles } from '../utils/database/index.js';
 
 function formatBuff(buff) {
   const dimensionLabel = GameDimensionLabels[buff.dimension] ?? String(buff.dimension ?? 'UNKNOWN');
@@ -25,7 +25,7 @@ export async function execute(interaction) {
   await interaction.deferReply();
 
   try {
-    const rows = getStoredcolleggtibles();
+    const rows = getStoredColleggtibles();
     if (!rows.length) {
       await interaction.editReply(
         createTextComponentMessage('No colleggtibles found in the database.', { flags: 64 })
@@ -66,7 +66,7 @@ export async function execute(interaction) {
 
 export async function autocomplete(interaction) {
   const focused = interaction.options.getFocused()?.toLowerCase?.() ?? '';
-  const rows = getStoredcolleggtibles();
+  const rows = getStoredColleggtibles();
   const options = rows
     .map(entry => ({
       name: entry.name || entry.identifier,
