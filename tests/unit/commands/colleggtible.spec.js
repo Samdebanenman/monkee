@@ -6,19 +6,19 @@ vi.mock('../../../services/discord.js', () => ({
 }));
 
 vi.mock('../../../utils/database/index.js', () => ({
-  getStoredColeggtibles: vi.fn(),
+  getStoredcolleggtibles: vi.fn(),
 }));
 
-import { execute, autocomplete } from '../../../commands/coleggtible.js';
-import { getStoredColeggtibles } from '../../../utils/database/index.js';
+import { execute, autocomplete } from '../../../commands/colleggtible.js';
+import { getStoredcolleggtibles } from '../../../utils/database/index.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('commands/coleggtible', () => {
-  it('renders an embed for a selected coleggtible', async () => {
-    getStoredColeggtibles.mockReturnValue([
+describe('commands/colleggtible', () => {
+  it('renders an embed for a selected colleggtible', async () => {
+    getStoredcolleggtibles.mockReturnValue([
       {
         identifier: 'egg1',
         name: 'Egg One',
@@ -28,7 +28,7 @@ describe('commands/coleggtible', () => {
     ]);
 
     const interaction = createInteraction({
-      options: createOptions({ strings: { coleggtible: 'egg1' } }),
+      options: createOptions({ strings: { colleggtible: 'egg1' } }),
     });
 
     await execute(interaction);
@@ -41,11 +41,11 @@ describe('commands/coleggtible', () => {
     expect(payload.embeds[0].data.image?.url).toBe('https://example.test/icon.png');
   });
 
-  it('returns ephemeral error when no coleggtibles exist', async () => {
-    getStoredColeggtibles.mockReturnValue([]);
+  it('returns ephemeral error when no colleggtibles exist', async () => {
+    getStoredcolleggtibles.mockReturnValue([]);
 
     const interaction = createInteraction({
-      options: createOptions({ strings: { coleggtible: 'egg1' } }),
+      options: createOptions({ strings: { colleggtible: 'egg1' } }),
     });
 
     await execute(interaction);
@@ -53,11 +53,11 @@ describe('commands/coleggtible', () => {
     expect(interaction.editReply).toHaveBeenCalled();
     const payload = interaction.editReply.mock.calls[0][0];
     expect(payload.flags).toBe(64);
-    expect(payload.content).toContain('No coleggtibles');
+    expect(payload.content).toContain('No colleggtibles');
   });
 
-  it('autocompletes coleggtible names', async () => {
-    getStoredColeggtibles.mockReturnValue([
+  it('autocompletes colleggtible names', async () => {
+    getStoredcolleggtibles.mockReturnValue([
       { identifier: 'egg1', name: 'Egg One' },
       { identifier: 'egg2', name: 'Another Egg' },
     ]);
