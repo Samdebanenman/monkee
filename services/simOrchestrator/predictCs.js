@@ -46,37 +46,38 @@ async function handlePhaseUniform(orchestration) {
 
 async function handlePhaseSweep(orchestration) {
   const scenarios = [];
-  for (let playerIndex = 0; playerIndex < orchestration.players; playerIndex += 1) {
-    tokenCandidates.forEach(candidate => {
-      const tokensByPlayer = orchestration.uniformTokens.slice();
-      tokensByPlayer[playerIndex] = candidate;
-      const scenario = {
-        players: orchestration.players,
-        playerDeflectors: orchestration.playerDeflectors,
-        playerConfigs: orchestration.playerConfigs,
-        durationSeconds: orchestration.durationSeconds,
-        targetEggs: orchestration.targetEggs,
-        tokenTimerMinutes: orchestration.tokenTimerMinutes,
-        giftMinutes: orchestration.giftMinutes,
-        gg: orchestration.gg,
-        baseIHR: orchestration.avgIHR,
-        tokensPerPlayer: tokensByPlayer,
-        cxpMode: orchestration.assumptions.cxpMode,
-        boostOrder: orchestration.boostOrder,
-      };
+  const playerIndex = orchestration.sweepPlayerIndex;
+  if (playerIndex >= orchestration.players) return;
 
-      scenarios.push(buildScenarioJob({
-        orchestrationId: orchestration.id,
-        scenarioId: randomUUID(),
-        context: {
-          phase: 'sweep',
-          playerIndex,
-          tokenCandidate: candidate,
-        },
-        scenario,
-      }));
-    });
-  }
+  tokenCandidates.forEach(candidate => {
+    const tokensByPlayer = orchestration.selectedTokens.slice();
+    tokensByPlayer[playerIndex] = candidate;
+    const scenario = {
+      players: orchestration.players,
+      playerDeflectors: orchestration.playerDeflectors,
+      playerConfigs: orchestration.playerConfigs,
+      durationSeconds: orchestration.durationSeconds,
+      targetEggs: orchestration.targetEggs,
+      tokenTimerMinutes: orchestration.tokenTimerMinutes,
+      giftMinutes: orchestration.giftMinutes,
+      gg: orchestration.gg,
+      baseIHR: orchestration.avgIHR,
+      tokensPerPlayer: tokensByPlayer,
+      cxpMode: orchestration.assumptions.cxpMode,
+      boostOrder: orchestration.boostOrder,
+    };
+
+    scenarios.push(buildScenarioJob({
+      orchestrationId: orchestration.id,
+      scenarioId: randomUUID(),
+      context: {
+        phase: 'sweep',
+        playerIndex,
+        tokenCandidate: candidate,
+      },
+      scenario,
+    }));
+  });
 
   await enqueueScenarioBatch(orchestration, scenarios);
 }
@@ -212,6 +213,8 @@ export async function advancePredictCs(orchestration) {
       }
     });
     orchestration.uniformTokens = Array.from({ length: orchestration.players }, () => bestCandidate);
+    orchestration.selectedTokens = orchestration.uniformTokens.slice();
+    orchestration.sweepPlayerIndex = 0;
 
     await handlePhaseSweep(orchestration);
     orchestration.phase = 'sweep';
@@ -219,18 +222,23 @@ export async function advancePredictCs(orchestration) {
   }
 
   if (orchestration.phase === 'sweep') {
-    orchestration.selectedTokens = Array.from({ length: orchestration.players }, (_, index) => {
-      const bucket = orchestration.sweepScores.get(index) ?? new Map();
-      let bestCandidate = orchestration.uniformTokens[index] ?? tokenCandidates[0];
-      let bestScore = -Infinity;
-      bucket.forEach((score, candidate) => {
-        if (score > bestScore) {
-          bestScore = score;
-          bestCandidate = candidate;
-        }
-      });
-      return bestCandidate;
+    const playerIndex = orchestration.sweepPlayerIndex;
+    const bucket = orchestration.sweepScores.get(playerIndex) ?? new Map();
+    let bestCandidate = orchestration.selectedTokens[playerIndex] ?? tokenCandidates[0];
+    let bestScore = -Infinity;
+    bucket.forEach((score, candidate) => {
+      if (score > bestScore) {
+        bestScore = score;
+        bestCandidate = candidate;
+      }
     });
+    orchestration.selectedTokens[playerIndex] = bestCandidate;
+
+    orchestration.sweepPlayerIndex += 1;
+    if (orchestration.sweepPlayerIndex < orchestration.players) {
+      await handlePhaseSweep(orchestration);
+      return;
+    }
 
     await handlePhaseFinal(orchestration);
     orchestration.phase = 'final';

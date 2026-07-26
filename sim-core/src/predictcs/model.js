@@ -319,7 +319,7 @@ async function optimizePredictCsTokens(options) {
 
   for (let index = 0; index < players; index += 1) {
     const candidateTokens = tokenCandidates.map(candidate =>
-      baseTokensByPlayer.map((tokens, idx) => (idx === index ? candidate : tokens)));
+      selectedTokens.map((tokens, idx) => (idx === index ? candidate : tokens)));
     const batch = await evaluateBatch(candidateTokens, completedOffset);
     completedOffset = batch.completedOffset;
 

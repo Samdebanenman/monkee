@@ -98,5 +98,32 @@ describe('sim-core/src/predictmaxcs/model optimization', () => {
     expect(result.tokensByPlayer[0]).toBe(8);
     expect(result.bestCs).toBe(8);
   });
+
+  it('uses each selected token when evaluating the next player', async () => {
+    const { optimizeLateBoostTokensAfterDeflector } = await loadModel();
+    const { simulateScenariosParallel } = await import(
+      '../../../../sim-core/src/predictmaxcs/simulation.js'
+    );
+
+    await optimizeLateBoostTokensAfterDeflector({
+      players: 2,
+      baseTokens: 6,
+      altTokens: 8,
+      baselineDeflectors: [20, 20],
+      playerConfigs: [{}, {}],
+      durationSeconds: 60,
+      targetEggs: 100,
+      tokenTimerMinutes: 2,
+      giftMinutes: 2,
+      gg: false,
+      baseIHR: 100,
+      cxpMode: false,
+      deflectorDisplay: { displayDeflectors: [20, 20] },
+      assumptions: { cxpMode: false, siabPercent: 0 },
+    });
+
+    const secondPlayerScenarios = simulateScenariosParallel.mock.calls[2][0];
+    expect(secondPlayerScenarios.every(scenario => scenario.tokensPerPlayer[0] === 8)).toBe(true);
+  });
 });
 

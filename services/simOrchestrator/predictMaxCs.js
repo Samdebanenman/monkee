@@ -48,39 +48,38 @@ async function handlePhaseUniform(orchestration) {
 
 async function handlePhaseSweep(orchestration) {
   const scenarios = [];
-  const variants = orchestration.variantsToSweep;
-  variants.forEach(variant => {
-    for (let playerIndex = 0; playerIndex < orchestration.players; playerIndex += 1) {
-      tokenCandidates.forEach(candidate => {
-        const tokensByPlayer = variant.uniformTokens.slice();
-        tokensByPlayer[playerIndex] = candidate;
-        const scenario = {
-          players: orchestration.players,
-          playerDeflectors: variant.baselineDeflectors,
-          playerConfigs: variant.playerConfigs,
-          durationSeconds: orchestration.durationSeconds,
-          targetEggs: orchestration.targetEggs,
-          tokenTimerMinutes: orchestration.tokenTimerMinutes,
-          giftMinutes: orchestration.giftMinutes,
-          gg: orchestration.gg,
-          baseIHR: variant.baseIHR,
-          tokensPerPlayer: tokensByPlayer,
-          cxpMode: orchestration.assumptions.cxpMode,
-        };
+  const variant = orchestration.variantsToSweep[orchestration.sweepVariantIndex];
+  const playerIndex = orchestration.sweepPlayerIndex;
+  if (!variant || playerIndex >= orchestration.players) return;
 
-        scenarios.push(buildScenarioJob({
-          orchestrationId: orchestration.id,
-          scenarioId: randomUUID(),
-          context: {
-            phase: 'sweep',
-            variantId: variant.id,
-            playerIndex,
-            tokenCandidate: candidate,
-          },
-          scenario,
-        }));
-      });
-    }
+  tokenCandidates.forEach(candidate => {
+    const tokensByPlayer = variant.selectedTokens.slice();
+    tokensByPlayer[playerIndex] = candidate;
+    const scenario = {
+      players: orchestration.players,
+      playerDeflectors: variant.baselineDeflectors,
+      playerConfigs: variant.playerConfigs,
+      durationSeconds: orchestration.durationSeconds,
+      targetEggs: orchestration.targetEggs,
+      tokenTimerMinutes: orchestration.tokenTimerMinutes,
+      giftMinutes: orchestration.giftMinutes,
+      gg: orchestration.gg,
+      baseIHR: variant.baseIHR,
+      tokensPerPlayer: tokensByPlayer,
+      cxpMode: orchestration.assumptions.cxpMode,
+    };
+
+    scenarios.push(buildScenarioJob({
+      orchestrationId: orchestration.id,
+      scenarioId: randomUUID(),
+      context: {
+        phase: 'sweep',
+        variantId: variant.id,
+        playerIndex,
+        tokenCandidate: candidate,
+      },
+      scenario,
+    }));
   });
 
   await enqueueScenarioBatch(orchestration, scenarios);
@@ -268,6 +267,7 @@ export async function advancePredictMaxCs(orchestration) {
         }
       });
       variant.uniformTokens = Array.from({ length: orchestration.players }, () => bestCandidate);
+      variant.selectedTokens = variant.uniformTokens.slice();
     });
 
     if (orchestration.siabOverride === true) {
@@ -278,26 +278,39 @@ export async function advancePredictMaxCs(orchestration) {
       orchestration.variantsToSweep = orchestration.variants;
     }
 
+    orchestration.sweepVariantIndex = 0;
+    orchestration.sweepPlayerIndex = 0;
     await handlePhaseSweep(orchestration);
     orchestration.phase = 'sweep';
     return;
   }
 
   if (orchestration.phase === 'sweep') {
-    orchestration.variantsToSweep.forEach(variant => {
-      variant.selectedTokens = Array.from({ length: orchestration.players }, (_, index) => {
-        const bucket = variant.sweepScores.get(index) ?? new Map();
-        let bestCandidate = variant.uniformTokens[index] ?? tokenCandidates[0];
-        let bestScore = -Infinity;
-        bucket.forEach((score, candidate) => {
-          if (score > bestScore) {
-            bestScore = score;
-            bestCandidate = candidate;
-          }
-        });
-        return bestCandidate;
-      });
+    const variant = orchestration.variantsToSweep[orchestration.sweepVariantIndex];
+    const playerIndex = orchestration.sweepPlayerIndex;
+    const bucket = variant?.sweepScores.get(playerIndex) ?? new Map();
+    let bestCandidate = variant?.selectedTokens[playerIndex] ?? tokenCandidates[0];
+    let bestScore = -Infinity;
+    bucket.forEach((score, candidate) => {
+      if (score > bestScore) {
+        bestScore = score;
+        bestCandidate = candidate;
+      }
     });
+    variant.selectedTokens[playerIndex] = bestCandidate;
+
+    orchestration.sweepPlayerIndex += 1;
+    if (orchestration.sweepPlayerIndex < orchestration.players) {
+      await handlePhaseSweep(orchestration);
+      return;
+    }
+
+    orchestration.sweepVariantIndex += 1;
+    orchestration.sweepPlayerIndex = 0;
+    if (orchestration.sweepVariantIndex < orchestration.variantsToSweep.length) {
+      await handlePhaseSweep(orchestration);
+      return;
+    }
 
     orchestration.variantsToFinalize = orchestration.variantsToSweep;
     await handlePhaseFinal(orchestration);
