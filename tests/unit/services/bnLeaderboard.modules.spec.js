@@ -216,7 +216,7 @@ describe('bnLeaderboard artifacts service', () => {
     expect(shippingMismatch).toContain('QUANTUM_STONE');
 
     const layingMismatch = artifactsService.auditStoneSetup(
-      { elr: 1, sr: 10, farmPopulation: 100 },
+      { elr: 1, sr: 10, farmPopulation: 1 },
       [{ spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' }, stones: [{ spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }, { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } }] }]
     );
     expect(layingMismatch).toContain('TACHYON_STONE');
@@ -226,6 +226,27 @@ describe('bnLeaderboard artifacts service', () => {
       [{ spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' }, stones: [{ spec: { name: 36, level: 2 } }, { spec: { name: 36, level: 2 } }] }]
     );
     expect(balanced).toBeNull();
+  });
+
+  it('uses population-scaled ELR when laying exceeds twice the shipping rate', () => {
+    const result = artifactsService.auditStoneSetup(
+      {
+        elr: 816.903549,
+        farmPopulation: 14883750000,
+        sr: 5616140513273.833,
+      },
+      [
+        {
+          spec: { name: 'TACHYON_DEFLECTOR', rarity: 'LEGENDARY' },
+          stones: [
+            { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+            { spec: { name: 'QUANTUM_STONE', level: 'NORMAL' } },
+          ],
+        },
+      ]
+    );
+
+    expect(result).toBeNull();
   });
 
   it('accepts holder artifacts as three-slot audit artifacts', () => {

@@ -254,20 +254,10 @@ function collectContributorStones(equippedArtifacts) {
 function getEffectiveLayingRate(productionParams) {
   const elrRaw = getValue(productionParams, 'elr', 'elr');
   const farmPopulation = getValue(productionParams, 'farmPopulation', 'farm_population');
-  const sr = getValue(productionParams, 'sr', 'sr');
 
-  const elrScaled = Number.isFinite(elrRaw) && Number.isFinite(farmPopulation) && farmPopulation > 0
+  const elrEffective = Number.isFinite(elrRaw) && Number.isFinite(farmPopulation) && farmPopulation > 0
     ? elrRaw * farmPopulation
-    : null;
-
-  let elrEffective = elrRaw;
-  if (Number.isFinite(elrRaw) && Number.isFinite(elrScaled) && Number.isFinite(sr) && sr > 0) {
-    const rawDistance = Math.abs(sr - elrRaw);
-    const scaledDistance = Math.abs(sr - elrScaled);
-    if (scaledDistance < rawDistance) {
-      elrEffective = elrScaled;
-    }
-  }
+    : elrRaw;
 
   return { elrEffective };
 }

@@ -559,7 +559,7 @@ describe('services/bnLeaderboardService', () => {
             farmPopulation: 100,
             farmCapacity: 100,
             delivered: 0,
-            elr: 100,
+            elr: 1,
             sr: 100,
           },
           farmInfo: {
