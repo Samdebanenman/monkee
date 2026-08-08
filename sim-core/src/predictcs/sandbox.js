@@ -18,7 +18,7 @@ import {
 } from './artifacts.js';
 
 const BASE62_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const SUPPORTED_VERSIONS = new Set(['v_1', 'v_2', 'v_3', 'v_4', 'v_5']);
+const SUPPORTED_VERSIONS = new Set(['v-1', 'v-2', 'v-3', 'v-4', 'v-5', 'v_5']);
 const DURATION_MULTIPLIERS = [60 * 60 * 24, 60 * 60, 60, 1];
 const EGG_MULTIPLIERS = [1e15, 1e18, 1e12];
 
