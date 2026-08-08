@@ -18,7 +18,7 @@ import {
 } from './artifacts.js';
 
 const BASE62_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const SUPPORTED_VERSIONS = new Set(['v-1', 'v-2', 'v-3', 'v-4', 'v-5']);
+const SUPPORTED_VERSIONS = new Set(['v_1', 'v_2', 'v_3', 'v_4', 'v_5']);
 const DURATION_MULTIPLIERS = [60 * 60 * 24, 60 * 60, 60, 1];
 const EGG_MULTIPLIERS = [1e15, 1e18, 1e12];
 
@@ -122,9 +122,12 @@ export function parseSandboxUrl(raw) {
   }
 
   const { version, decodedData, data2 } = decoded;
+  const normalizedVersion = version.replace('_', '-');
+  const usesCompressedPlayers = version.includes('_');
   const dataParts = String(decodedData).split('-');
-  const singleStr = String(dataParts[0] ?? '').split('');
-  const numPlayers = Number.parseInt(dataParts[7] ?? '', 10);
+  const dataOffset = usesCompressedPlayers ? 1 : 0;
+  const singleStr = String(dataParts[dataOffset] ?? '').split('');
+  const numPlayers = Number.parseInt(dataParts[dataOffset + 7] ?? '', 10);
 
   if (!Number.isFinite(numPlayers) || numPlayers <= 0) {
     return { error: 'Invalid player count in sandbox data.' };
@@ -137,20 +140,42 @@ export function parseSandboxUrl(raw) {
 
   const flagsAndArtifacts = expanded.slice(1).split('');
 
-  let dataIndex = 8;
-  if (version !== 'v-1') {
+  let dataIndex = dataOffset + 8;
+  if (normalizedVersion !== 'v-1') {
     dataIndex += 1; // btvTarget
   }
 
+  const playerGroups = [];
   const playerTe = [];
-  for (let i = 0; i < numPlayers; i += 1) {
-    dataIndex += 1; // player name
-    dataIndex += 1; // tokens
-    if (version === 'v-4' || version === 'v-5') {
-      playerTe.push(parseSandboxNumber(dataParts[dataIndex]));
-      dataIndex += 1;
-    } else {
-      playerTe.push(0);
+
+  if (usesCompressedPlayers) {
+    let playersInGroups = 0;
+    while (playersInGroups < numPlayers) {
+      const count = parseIndex(dataParts[dataIndex]);
+      if (!Number.isInteger(count) || count <= 0 || playersInGroups + count > numPlayers
+        || dataIndex + 2 >= dataParts.length) {
+        return { error: 'Invalid grouped player data.' };
+      }
+
+      const te = parseSandboxNumber(dataParts[dataIndex + 2]);
+      playerGroups.push({ count, te });
+      playerTe.push(...new Array(count).fill(te));
+      playersInGroups += count;
+      dataIndex += 3; // count + tokens + TE
+    }
+  } else {
+    for (let i = 0; i < numPlayers; i += 1) {
+      dataIndex += 1; // player name
+      dataIndex += 1; // tokens
+
+      let te = 0;
+      if (normalizedVersion === 'v-4' || normalizedVersion === 'v-5') {
+        te = parseSandboxNumber(dataParts[dataIndex]);
+        dataIndex += 1;
+      }
+
+      playerGroups.push({ count: 1, te });
+      playerTe.push(te);
     }
   }
 
@@ -158,11 +183,11 @@ export function parseSandboxUrl(raw) {
   const playerArtifacts = [];
   const playerIhrArtifacts = [];
 
-  for (let i = 0; i < numPlayers; i += 1) {
+  for (const group of playerGroups) {
     flagIndex += 2; // mirror + shipping
-    if (version !== 'v-1') {
+    if (normalizedVersion !== 'v-1') {
       flagIndex += 1; // sink
-      if (version !== 'v-2') {
+      if (normalizedVersion !== 'v-2') {
         flagIndex += 1; // creator
       }
     }
@@ -185,26 +210,31 @@ export function parseSandboxUrl(raw) {
     const siabIndex = readTwoDigits(flagsAndArtifacts, flagIndex);
     flagIndex += 2;
 
-    playerArtifacts.push({
+    const artifacts = {
       deflector: pickOption(DEFLECTOR_OPTIONS, deflectorIndex, DEFAULT_DEFLECTOR),
       metro: pickOption(METRO_OPTIONS, metroIndex, DEFAULT_METRO),
       compass: pickOption(COMPASS_OPTIONS, compassIndex, DEFAULT_COMPASS),
       gusset: pickOption(GUSSET_OPTIONS, gussetIndex, DEFAULT_GUSSET),
-    });
+    };
 
-    playerIhrArtifacts.push({
+    const ihrArtifacts = {
       chalice: pickOption(IHR_CHALICE_OPTIONS, chaliceIndex, DEFAULT_IHR_CHALICE),
       monocle: pickOption(IHR_MONOCLE_OPTIONS, monocleIndex, DEFAULT_IHR_MONOCLE),
       deflector: pickOption(IHR_DEFLECTOR_OPTIONS, ihrDeflectorIndex, DEFAULT_IHR_DEFLECTOR),
       siab: pickOption(IHR_SIAB_OPTIONS, siabIndex, DEFAULT_IHR_SIAB),
-    });
+    };
+
+    for (let i = 0; i < group.count; i += 1) {
+      playerArtifacts.push({ ...artifacts });
+      playerIhrArtifacts.push({ ...ihrArtifacts });
+    }
   }
 
   const durUnitIndex = parseIndex(singleStr[4]);
   const eggUnitIndex = parseIndex(singleStr[3]);
-  const durationValue = parseSandboxNumber(dataParts[3]);
-  const targetValue = parseSandboxNumber(dataParts[4]);
-  const tokenTimerMinutes = parseSandboxNumber(dataParts[5]);
+  const durationValue = parseSandboxNumber(dataParts[dataOffset + 3]);
+  const targetValue = parseSandboxNumber(dataParts[dataOffset + 4]);
+  const tokenTimerMinutes = parseSandboxNumber(dataParts[dataOffset + 5]);
 
   const durationMultiplier = Number.isFinite(durUnitIndex) ? DURATION_MULTIPLIERS[durUnitIndex] : null;
   const eggMultiplier = Number.isFinite(eggUnitIndex) ? EGG_MULTIPLIERS[eggUnitIndex] : null;
