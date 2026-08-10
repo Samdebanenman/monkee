@@ -41,8 +41,9 @@ function formatContractLine(row) {
   const eggKey = cleanText(row.egg, 'UNKNOWN').toUpperCase();
   const eggEmoji = EggtoEmoji[eggKey] || EggtoEmoji.UNKNOWN;
   const link = `https://eicoop-carpet.netlify.app/${encodeURIComponent(contractId)}/${encodeURIComponent(coopId)}`;
+  const altMarker = row.isAltOnly ? '\\*' : '';
 
-  return `- ${eggEmoji} ${contractId} [${coopId}](<${link}>)`;
+  return `- ${eggEmoji} ${contractId} [${coopId}](<${link}>)${altMarker}`;
 }
 
 async function sendChunks(interaction, chunks) {
@@ -75,10 +76,12 @@ export async function execute(interaction) {
 
   const scope = interaction.options.getString('history') || DEFAULT_HISTORY_SCOPE;
   const report = fetchContractHistory({ discordId: targetId, scope });
+  const hasAltOnlyCoop = report.rows.some(row => row.isAltOnly);
 
   const lines = [
     `<@${targetId}>'s contract history of the past ${report.timeline}`,
     ...(report.rows.length > 0 ? report.rows.map(formatContractLine) : ['- No coops found.']),
+    ...(hasAltOnlyCoop ? ['\\*alt only coop'] : []),
   ];
   const chunks = chunkContent(lines, { maxLength: MAX_DISCORD_COMPONENT_LENGTH });
   await sendChunks(interaction, chunks);

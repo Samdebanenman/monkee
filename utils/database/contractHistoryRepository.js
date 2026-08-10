@@ -18,21 +18,23 @@ const getContractHistoryForMemberStmt = db.prepare(`
     WHERE main_id IS NULL
     LIMIT 1
   ),
-  family(internal_id, discord_id) AS (
-    SELECT internal_id, discord_id
+  family(internal_id, discord_id, is_main) AS (
+    SELECT internal_id, discord_id, 1
     FROM root
     UNION
-    SELECT child.internal_id, child.discord_id
+    SELECT child.internal_id, child.discord_id, 0
     FROM members child
     JOIN family parent ON child.main_id = parent.internal_id
   )
-  SELECT DISTINCT
+  SELECT
     c.id AS coop_internal_id,
     c.contract AS contract_id,
     c.coop AS coop_id,
     NULLIF(TRIM(k.egg), '') AS egg,
     COALESCE(NULLIF(c.created_at, 0), NULLIF(k.release, 0), 0) AS release,
-    NULLIF(TRIM(k.season), '') AS season
+    NULLIF(TRIM(k.season), '') AS season,
+    MAX(CASE WHEN f.is_main = 1 THEN 1 ELSE 0 END) AS main_participated,
+    MAX(CASE WHEN f.is_main = 0 THEN 1 ELSE 0 END) AS alt_participated
   FROM family f
   JOIN member_coops mc ON mc.member_id = f.internal_id
   JOIN coops c ON c.id = mc.coop_id
@@ -41,6 +43,13 @@ const getContractHistoryForMemberStmt = db.prepare(`
     AND (? IS NULL OR COALESCE(NULLIF(c.created_at, 0), NULLIF(k.release, 0), 0) < ?)
     AND (? = 0 OR NULLIF(TRIM(COALESCE(k.season, '')), '') IS NOT NULL)
     AND (? IS NULL OR k.season = ?)
+  GROUP BY
+    c.id,
+    c.contract,
+    c.coop,
+    NULLIF(TRIM(k.egg), ''),
+    COALESCE(NULLIF(c.created_at, 0), NULLIF(k.release, 0), 0),
+    NULLIF(TRIM(k.season), '')
   ORDER BY release DESC, contract_id ASC, coop_id ASC
 `);
 
@@ -81,6 +90,7 @@ export function getContractHistoryForMember(
       egg: normalizeText(row.egg) || null,
       release: Number(row.release) || 0,
       season: normalizeText(row.season) || null,
+      isAltOnly: Number(row.alt_participated) === 1 && Number(row.main_participated) !== 1,
     }));
 }
 

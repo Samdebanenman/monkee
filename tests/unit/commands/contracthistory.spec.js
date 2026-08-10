@@ -87,6 +87,7 @@ describe('commands/contracthistory', () => {
         egg: 'QUANTUM',
         release: 1770000000,
         season: 'winter_2026',
+        isAltOnly: false,
       }],
     });
     const interaction = createInteraction({
@@ -107,6 +108,29 @@ describe('commands/contracthistory', () => {
     const content = interaction.reply.mock.calls[0][0].content;
     expect(content).toContain("<@234567890123456789>'s contract history of the past total - all");
     expect(content).toContain('c1 [coop-one](<https://eicoop-carpet.netlify.app/c1/coop-one>)');
+    expect(content).not.toContain('alt only coop');
+  });
+
+  it('marks alt-only coops and adds a footnote only when needed', async () => {
+    fetchContractHistory.mockReturnValue({
+      timeline: '3 months',
+      rows: [
+        { contractId: 'both', coopId: 'shared', egg: 'EDIBLE', isAltOnly: false },
+        { contractId: 'alt-contract', coopId: 'alt-coop', egg: 'QUANTUM', isAltOnly: true },
+      ],
+    });
+    const interaction = createInteraction({
+      userId: '123456789012345678',
+      options: createOptions({ strings: { history: '3-months' } }),
+    });
+
+    await execute(interaction);
+
+    const lines = interaction.reply.mock.calls[0][0].content.split('\n');
+    expect(lines[1]).toContain('both [shared](<https://eicoop-carpet.netlify.app/both/shared>)');
+    expect(lines[1]).not.toMatch(/\\\*$/);
+    expect(lines[2]).toContain('alt-contract [alt-coop](<https://eicoop-carpet.netlify.app/alt-contract/alt-coop>)\\*');
+    expect(lines.at(-1)).toBe('\\*alt only coop');
   });
 
   it('rejects an invalid user value after checking permissions', async () => {

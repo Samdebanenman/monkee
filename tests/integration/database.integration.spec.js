@@ -21,6 +21,7 @@ let getMembersByIgns;
 let setAltRelationship;
 let getSeasonHelpers;
 let getAllSeasons;
+let getContractHistoryForMember;
 
 let dbPath;
 
@@ -46,6 +47,7 @@ beforeAll(async () => {
   } = await import('../../utils/database/coopsRepository.js'));
 
   ({ upsertContracts } = await import('../../utils/database/contractsRepository.js'));
+  ({ getContractHistoryForMember } = await import('../../utils/database/contractHistoryRepository.js'));
 
   ({
     ensureMemberRecord,
@@ -141,6 +143,26 @@ describe('integration/database repositories', () => {
     expect(helpers[0].discord_id).toBe('100');
     expect(helpers[0].count).toBe(2);
     expect(helpers[0].breakdown.length).toBe(2);
+  });
+
+  it('includes alt coops and marks only coops without the main account', () => {
+    upsertContracts([{ id: 'c1', name: 'A', release: 100, season: 'fall_2024', egg: 'QUANTUM' }]);
+    addCoop('c1', 'shared', false);
+    addCoop('c1', 'alt-only', false);
+
+    ensureMemberRecord('100');
+    ensureMemberRecord('200');
+    expect(setAltRelationship('100', '200').updated).toBe(true);
+
+    linkMembersToCoop('c1', 'shared', ['100', '200']);
+    linkMembersToCoop('c1', 'alt-only', ['200']);
+
+    const rows = getContractHistoryForMember('100');
+    const shared = rows.find(row => row.coopId === 'shared');
+    const altOnly = rows.find(row => row.coopId === 'alt-only');
+
+    expect(shared).toMatchObject({ egg: 'QUANTUM', isAltOnly: false });
+    expect(altOnly).toMatchObject({ egg: 'QUANTUM', isAltOnly: true });
   });
 
   it('returns ordered seasons from contracts', () => {

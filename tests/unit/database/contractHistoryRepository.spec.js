@@ -31,6 +31,8 @@ describe('database/contractHistoryRepository', () => {
       egg: ' quantum ',
       release: 123.9,
       season: ' fall_2025 ',
+      main_participated: 0,
+      alt_participated: 1,
     }]);
 
     const rows = getContractHistoryForMember(' 111 ', {
@@ -56,6 +58,7 @@ describe('database/contractHistoryRepository', () => {
       egg: 'quantum',
       release: 123.9,
       season: 'fall_2025',
+      isAltOnly: true,
     }]);
   });
 
