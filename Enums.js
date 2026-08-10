@@ -37,6 +37,7 @@ const EggtoEmoji = {
     WOOD: `<:egg_wood:1426348185189613680>`,
     PEGG: `<:egg_pegg:1453517066161229844>`,
     ICE: `<:egg_ice:1488475406536544359>`,
+    GATOREGG: `<:egg_gatoregg:1536485628873674903>`,
 
     UNKNOWN: `<:egg_unknown:1426349264925364244>`,
 };
