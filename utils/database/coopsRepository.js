@@ -1,6 +1,7 @@
 import db from './client.js';
 import { getContractRelease } from './contractsRepository.js';
 import { ensureMemberRecord, getMemberRecord, normalizeDiscordId } from './membersRepository.js';
+import { getAstronomicalSeasonRange } from '../seasons.js';
 
 const BASE_INSERT_COLUMNS = ['contract', 'coop', 'created_at', 'push', 'report'];
 
@@ -350,38 +351,6 @@ export function removePlayersFromCoop(contract, coop, discordIds = []) {
   tx(discordIds);
 
   return { removed: removedCount, removedIds };
-}
-
-function parseSeasonKey(seasonKey) {
-  if (!seasonKey) return null;
-  const match = /^([a-z]+)_(\d{4})$/i.exec(String(seasonKey).trim());
-  if (!match) return null;
-  return { label: match[1].toLowerCase(), year: Number(match[2]) };
-}
-
-function toUtcSeconds(year, monthIndex, day) {
-  return Math.floor(Date.UTC(year, monthIndex, day, 0, 0, 0) / 1000);
-}
-
-function getAstronomicalSeasonRange(seasonKey) {
-  const parsed = parseSeasonKey(seasonKey);
-  if (!parsed || Number.isNaN(parsed.year)) return null;
-
-  const { label, year } = parsed;
-  const normalizedLabel = label === 'autumn' ? 'fall' : label;
-
-  switch (normalizedLabel) {
-    case 'spring':
-      return { start: toUtcSeconds(year, 2, 20), endExclusive: toUtcSeconds(year, 5, 21) };
-    case 'summer':
-      return { start: toUtcSeconds(year, 5, 21), endExclusive: toUtcSeconds(year, 8, 22) };
-    case 'fall':
-      return { start: toUtcSeconds(year, 8, 22), endExclusive: toUtcSeconds(year, 11, 22) };
-    case 'winter':
-      return { start: toUtcSeconds(year - 1, 11, 21), endExclusive: toUtcSeconds(year, 2, 20) };
-    default:
-      return null;
-  }
 }
 
 export function getSeasonHelpers({ season, pushOnly = true, seasonalOnly = true } = {}) {

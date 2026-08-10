@@ -4,6 +4,7 @@ export * from './metaRepository.js';
 export * from './contractsRepository.js';
 export * from './colleggtiblesRepository.js';
 export * from './coopsRepository.js';
+export * from './contractHistoryRepository.js';
 export * from './membersRepository.js';
 
 export { default } from './client.js';
