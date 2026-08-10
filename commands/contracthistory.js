@@ -12,6 +12,7 @@ import {
 } from '../services/discord.js';
 import { requireMamaBird } from '../utils/permissions.js';
 import { EggtoEmoji } from '../Enums.js';
+import { buildCoopUrl } from '../utils/coopLinks.js';
 
 export const data = new SlashCommandBuilder()
   .setName('contracthistory')
@@ -40,7 +41,7 @@ function formatContractLine(row) {
   const coopId = cleanText(row.coopId, 'unknown-coop');
   const eggKey = cleanText(row.egg, 'UNKNOWN').toUpperCase();
   const eggEmoji = EggtoEmoji[eggKey] || EggtoEmoji.UNKNOWN;
-  const link = `https://eicoop-carpet.netlify.app/${encodeURIComponent(contractId)}/${encodeURIComponent(coopId)}`;
+  const link = buildCoopUrl(contractId, coopId);
   const altMarker = row.isAltOnly ? '\\*' : '';
 
   return `- ${eggEmoji} ${contractId} [${coopId}](<${link}>)${altMarker}`;
