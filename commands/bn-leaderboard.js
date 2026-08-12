@@ -188,7 +188,7 @@ function formatTimeLeaderboardLines(entries, contractId) {
     const row = buildInlineRow(rows[index], columns);
 
     const coopUrl = buildCoopUrl(contractId, entry.coop);
-    lines.push(`[⧉](${coopUrl}) \`${row}\``);
+    lines.push(`[⧉](<${coopUrl}>) \`${row}\``);
   }
 
   return lines;
@@ -222,7 +222,7 @@ function formatCsLeaderboardLines(entries, contractId) {
     const row = buildInlineRow(rows[index], columns);
 
     const coopUrl = buildCoopUrl(contractId, entry.coop);
-    lines.push(`[⧉](${coopUrl}) \`${row}\``);
+    lines.push(`[⧉](<${coopUrl}>) \`${row}\``);
   }
 
   return lines;
@@ -277,12 +277,15 @@ export async function execute(interaction) {
 
   const auditFailureLines = formatAuditFailureLines(report.entries);
   const statusLegendLines = formatStatusLegendLines();
+  const updatedTimestamp = Math.floor(Date.now() / 1000);
 
   const leaderboardLines = [
     ...formatTimeLeaderboardLines(report.entries, report.contractId),
     ...formatCsLeaderboardLines(report.entries, report.contractId),
     '',
     ...statusLegendLines,
+    '',
+    `last updated <t:${updatedTimestamp}:R>`,
     ...(auditFailureLines.length > 0 ? ['', ...auditFailureLines] : []),
   ];
   const chunks = chunkContent(leaderboardLines);

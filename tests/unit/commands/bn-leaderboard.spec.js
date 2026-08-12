@@ -99,8 +99,11 @@ describe('commands/bn-leaderboard', () => {
     expect(message).toContain('1.2...');
     expect(message).toContain('✗');
     expect(message).toContain('✓');
-    expect(message).toContain('[⧉](https://eicoop-carpet.netlify.app/video-games/moo)');
-    expect(message).toContain('[⧉](https://eicoop-carpet.netlify.app/video-games/zoo)');
+    expect(message).toContain('[⧉](<https://eicoop-carpet.netlify.app/video-games/moo>)');
+    expect(message).toContain('[⧉](<https://eicoop-carpet.netlify.app/video-games/zoo>)');
+    expect(message).toMatch(/last updated <t:\d+:R>/);
+    expect(message.indexOf('-# `🏳` = coop completed')).toBeLessThan(message.indexOf('last updated <t:'));
+    expect(message.indexOf('last updated <t:')).toBeLessThan(message.indexOf('Audit failures by coop:'));
     expect(message).toContain('Audit failures by coop:');
     expect(message).toContain('moo');
     expect(message).toContain('-# `✓` = audit passed');
