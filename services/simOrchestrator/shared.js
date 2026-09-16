@@ -50,6 +50,7 @@ export function scorePredictMaxCsResult(result, context) {
     durationSeconds: context.durationSeconds,
     players: context.players,
     assumptions: context.assumptions,
+    gradeMultiplier: context.gradeMultiplier,
   });
   return adjusted.adjustedSummaries?.[0]?.cs ?? 0;
 }
@@ -61,6 +62,7 @@ export function scorePredictCsResult(result, context) {
     durationSeconds: context.durationSeconds,
     players: context.players,
     assumptions: context.assumptions,
+    gradeMultiplier: context.gradeMultiplier,
   });
 
   let score = adjusted.adjustedMeanCS;
@@ -122,6 +124,7 @@ export function buildPredictMaxCsVariant(options) {
     modifierType,
     modifierValue,
     colleggtiblesRows,
+    gradeMultiplier,
   } = options;
 
   const colleggtibles = getDynamicColleggtibles(colleggtiblesRows ?? null);
@@ -191,6 +194,7 @@ export function buildPredictMaxCsVariant(options) {
     deflectorDisplay,
     requiredDeflector,
     usePlayer1Siab,
+    gradeMultiplier,
   };
 }
 

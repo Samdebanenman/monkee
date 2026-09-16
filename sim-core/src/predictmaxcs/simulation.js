@@ -117,6 +117,7 @@ export function simulateScenario(options) {
     cxpMode,
     playerConfigs,
     boostOrder,
+    gradeMultiplier,
   } = options;
 
   const totalDeflector = playerDeflectors.reduce((sum, value) => sum + value, 0);
@@ -184,6 +185,7 @@ export function simulateScenario(options) {
     durationDays,
     players,
     cxpMode,
+    gradeMultiplier,
   }));
 
   const maxCS = summaries.reduce((max, entry) => Math.max(max, entry.cs), 0);
@@ -329,6 +331,7 @@ export function buildPlayerSummary(options) {
     durationDays,
     players,
     cxpMode,
+    gradeMultiplier,
   } = options;
 
   const contributionRatio = fairShare > 0 ? player.eggsDelivered / fairShare : 0;
@@ -339,7 +342,13 @@ export function buildPlayerSummary(options) {
     ? player.siabPercent
     : player.siabPercent * siabWindow;
   const teamwork = getTeamwork(btvRat, players, durationDays, Math.min(players - 1, 20), 0, cxpMode);
-  const cs = getCS(contributionRatio, durationSeconds, completionTime, teamwork);
+  const cs = getCS(
+    contributionRatio,
+    durationSeconds,
+    completionTime,
+    teamwork,
+    gradeMultiplier,
+  );
 
   return {
     index: player.index,
@@ -361,13 +370,20 @@ export function computeAdjustedSummaries(options) {
     durationSeconds,
     players,
     assumptions,
+    gradeMultiplier,
   } = options;
 
   const adjustedSummaries = summaries.map((summary, index) => {
     const deflectorPercent = displayDeflectors[index];
     const btvRat = getBtvRate(deflectorPercent, summary.siabPercent ?? assumptions.siabPercent, assumptions.cxpMode);
     const teamwork = getTeamwork(btvRat, players, durationSeconds / 86400, Math.min(players - 1, 20), 0, assumptions.cxpMode);
-    const cs = getCS(summary.contributionRatio, durationSeconds, summary.completionTime, teamwork);
+    const cs = getCS(
+      summary.contributionRatio,
+      durationSeconds,
+      summary.completionTime,
+      teamwork,
+      gradeMultiplier,
+    );
     return {
       ...summary,
       deflector: deflectorPercent,

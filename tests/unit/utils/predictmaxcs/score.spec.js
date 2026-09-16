@@ -1,12 +1,27 @@
 import { describe, expect, it } from 'vitest';
 
-import { getCS, getTeamwork, getBtvRate } from '../../../../sim-core/src/predictmaxcs/score.js';
+import {
+  getCS,
+  getGradeMultiplier,
+  getTeamwork,
+  getBtvRate,
+} from '../../../../sim-core/src/predictmaxcs/score.js';
 
 describe('sim-core/src/predictmaxcs/score', () => {
   it('computes CS score', () => {
     const cs = getCS(1.5, 86400, 36000, 0.5);
     expect(Number.isFinite(cs)).toBe(true);
     expect(cs).toBeGreaterThan(0);
+  });
+
+  it('uses the contract grade multiplier and defaults to AAA', () => {
+    const aaa = getCS(1.5, 86400, 36000, 0.5);
+    const explicitAaa = getCS(1.5, 86400, 36000, 0.5, getGradeMultiplier('AAA'));
+    const c = getCS(1.5, 86400, 36000, 0.5, getGradeMultiplier('C'));
+
+    expect(explicitAaa).toBe(aaa);
+    expect(aaa / c).toBeCloseTo(7, 2);
+    expect(['C', 'B', 'A', 'AA', 'AAA'].map(getGradeMultiplier)).toEqual([1, 2, 3.5, 5, 7]);
   });
 
   it('computes teamwork for legacy mode', () => {

@@ -49,16 +49,23 @@ describe('database/contractsRepository', () => {
     ]);
 
     expect(upsertStmt.run).toHaveBeenCalledTimes(2);
-    expect(upsertStmt.run).toHaveBeenCalledWith('c1', 'Name', 123, 'fall_2024', 'egg', null, null, null, null, null, null);
-    expect(upsertStmt.run).toHaveBeenCalledWith('42', null, 0, '2024', null, null, null, null, null, null, null);
+    expect(upsertStmt.run).toHaveBeenCalledWith('c1', 'Name', 123, 'fall_2024', 'egg', null, null, null, null, null, null, null);
+    expect(upsertStmt.run).toHaveBeenCalledWith('42', null, 0, '2024', null, null, null, null, null, null, null, null);
   });
 
   it('returns stored contracts', () => {
-    const stmt = [...statementMap.values()].find(s => s.sql.includes('SELECT contract_id AS id'));
-    if (stmt) stmt.all.mockReturnValue([{ id: 'c1', name: 'A', season: 'fall', egg: 'egg', release: 1 }]);
+    const stmt = [...statementMap.values()].find(s => s.sql.includes('contract_id AS id'));
+    if (stmt) stmt.all.mockReturnValue([{
+      id: 'c1',
+      name: 'A',
+      season: 'fall',
+      egg: 'egg',
+      release: 1,
+      grade_specs_json: '[{"grade":"AA","eggGoal":10}]',
+    }]);
 
     const rows = getStoredContracts();
-    expect(rows.length).toBeGreaterThanOrEqual(0);
+    expect(rows[0].gradeSpecs).toEqual([{ grade: 'AA', eggGoal: 10 }]);
   });
 
   it('returns null when no release exists', () => {

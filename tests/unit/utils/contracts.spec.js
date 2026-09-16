@@ -28,8 +28,9 @@ vi.mock('../../../utils/colleggtibles.js', () => ({
 }));
 
 import axios from 'axios';
+import { getProtoRoot } from '../../../utils/auxbrain.js';
 import { activeContracts, getAllContracts, refreshContractsCache } from '../../../utils/contracts.js';
-import { getStoredContracts, getMeta, setMeta } from '../../../utils/database/index.js';
+import { getStoredContracts, getMeta, setMeta, upsertContracts } from '../../../utils/database/index.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -69,5 +70,40 @@ describe('utils/contracts', () => {
     axios.get.mockResolvedValue({ data: null });
     await refreshContractsCache();
     expect(setMeta).toHaveBeenCalled();
+  });
+
+  it('stores the simulation fields for all five grades', async () => {
+    axios.get.mockResolvedValue({ data: [{ id: 'graded-contract', proto: '' }] });
+    getProtoRoot.mockResolvedValueOnce({
+      lookupType: () => ({
+        decode: () => ({
+          name: 'Graded Contract',
+          startTime: 100,
+          maxCoopSize: 2,
+          minutesPerToken: 5,
+          gradeSpecs: [1, 2, 3, 4, 5].map(grade => ({
+            grade,
+            lengthSeconds: 1000 + grade,
+            goals: [{ targetAmount: 10000 + grade }],
+            modifiers: [{ dimension: 1, value: 1 + grade / 10 }],
+          })),
+        }),
+      }),
+      lookupEnum: name => (name === 'Egg'
+        ? { valuesById: { 0: 'EDIBLE' } }
+        : { valuesById: { 1: 'INTERNAL_HATCHERY_RATE' } }),
+    });
+
+    await refreshContractsCache();
+
+    const [rows] = upsertContracts.mock.calls.at(-1);
+    expect(rows[0].gradeSpecs.map(spec => spec.grade)).toEqual(['C', 'B', 'A', 'AA', 'AAA']);
+    expect(rows[0].gradeSpecs[3]).toMatchObject({
+      grade: 'AA',
+      coopDurationSeconds: 1004,
+      eggGoal: 10004,
+      modifierType: 'INTERNAL_HATCHERY_RATE',
+      modifierValue: 1.4,
+    });
   });
 });

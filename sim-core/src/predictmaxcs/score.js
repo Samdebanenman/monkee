@@ -1,6 +1,28 @@
-export function getCS(contributionRatio, originalLength, completionTime, tw) {
+export const CONTRACT_GRADE_MULTIPLIERS = Object.freeze({
+  C: 1,
+  B: 2,
+  A: 3.5,
+  AA: 5,
+  AAA: 7,
+});
+
+export function getGradeMultiplier(grade) {
+  return CONTRACT_GRADE_MULTIPLIERS[String(grade || '').toUpperCase()]
+    ?? CONTRACT_GRADE_MULTIPLIERS.AAA;
+}
+
+export function getCS(
+  contributionRatio,
+  originalLength,
+  completionTime,
+  tw,
+  gradeMultiplier = CONTRACT_GRADE_MULTIPLIERS.AAA,
+) {
   let cs = 1 + originalLength / 259200;
-  cs *= 7;
+  const multiplier = Number.isFinite(gradeMultiplier) && gradeMultiplier > 0
+    ? gradeMultiplier
+    : CONTRACT_GRADE_MULTIPLIERS.AAA;
+  cs *= multiplier;
   const fac = contributionRatio > 2.5
     ? 0.02221 * Math.min(contributionRatio, 12.5) + 4.386486
     : 3 * Math.pow(contributionRatio, 0.15) + 1;

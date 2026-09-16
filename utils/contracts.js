@@ -15,6 +15,13 @@ const SEASON_ORDER = ['winter', 'spring', 'summer', 'fall'];
 const THREE_WEEKS = { weeks: 3 };
 const ONE_WEEK = { weeks: 1 };
 const GRADE_AAA = 5;
+const GRADE_NAMES = new Map([
+  [1, 'C'],
+  [2, 'B'],
+  [3, 'A'],
+  [4, 'AA'],
+  [5, 'AAA'],
+]);
 
 function toNumber(value) {
   if (value == null) return null;
@@ -68,6 +75,28 @@ function getModifierFromSpec(eliteSpec, dimensionEnum) {
   return { modifierType, modifierValue };
 }
 
+function mapGradeSpecs(decoded, dimensionEnum) {
+  const gradeSpecs = decoded.gradeSpecs ?? decoded.grade_specs ?? [];
+  if (!Array.isArray(gradeSpecs)) return [];
+
+  return gradeSpecs
+    .map(spec => {
+      const gradeValue = toNumber(spec.grade ?? spec.grade_ ?? null);
+      const grade = GRADE_NAMES.get(gradeValue);
+      if (!grade) return null;
+      const { modifierType, modifierValue } = getModifierFromSpec(spec, dimensionEnum);
+      return {
+        grade,
+        coopDurationSeconds: toNumber(spec.lengthSeconds ?? spec.length_seconds ?? null),
+        eggGoal: getEggGoalFromSpec(spec),
+        modifierType,
+        modifierValue,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => [...GRADE_NAMES.values()].indexOf(a.grade) - [...GRADE_NAMES.values()].indexOf(b.grade));
+}
+
 function mapRemoteContract(obj, ContractType, eggEnum, dimensionEnum) {
   const decoded = ContractType.decode(Buffer.from(obj.proto, 'base64'));
   const name = decoded.name || 'Unknown';
@@ -83,6 +112,7 @@ function mapRemoteContract(obj, ContractType, eggEnum, dimensionEnum) {
     : null;
   const eggGoal = getEggGoalFromSpec(eliteSpec);
   const { modifierType, modifierValue } = getModifierFromSpec(eliteSpec, dimensionEnum);
+  const gradeSpecs = mapGradeSpecs(decoded, dimensionEnum);
 
   return {
     id: obj.id,
@@ -96,6 +126,7 @@ function mapRemoteContract(obj, ContractType, eggEnum, dimensionEnum) {
     minutesPerToken,
     modifierType,
     modifierValue,
+    gradeSpecs,
   };
 }
 

@@ -15,7 +15,8 @@ function ensureContractsTable() {
       egg_goal REAL,
       minutes_per_token REAL,
       modifier_type TEXT,
-      modifier_value REAL
+      modifier_value REAL,
+      grade_specs_json TEXT
     );
   `);
 
@@ -26,6 +27,7 @@ function ensureContractsTable() {
   const hasMinutesPerToken = cols.some(col => col.name === 'minutes_per_token');
   const hasModifierType = cols.some(col => col.name === 'modifier_type');
   const hasModifierValue = cols.some(col => col.name === 'modifier_value');
+  const hasGradeSpecsJson = cols.some(col => col.name === 'grade_specs_json');
 
   if (!hasMaxCoopSize) {
     db.exec('ALTER TABLE contracts ADD COLUMN max_coop_size INTEGER');
@@ -50,6 +52,12 @@ function ensureContractsTable() {
   if (!hasModifierValue) {
     db.exec('ALTER TABLE contracts ADD COLUMN modifier_value REAL');
   }
+
+  if (!hasGradeSpecsJson) {
+    db.exec('ALTER TABLE contracts ADD COLUMN grade_specs_json TEXT');
+  }
+
+  return { addedGradeSpecsJson: !hasGradeSpecsJson };
 }
 
 function ensureMetaTable() {
@@ -185,8 +193,11 @@ function ensureCoopsTable() {
 }
 
 function bootstrap() {
-  ensureContractsTable();
+  const contractsState = ensureContractsTable();
   ensureMetaTable();
+  if (contractsState.addedGradeSpecsJson) {
+    db.prepare('DELETE FROM meta WHERE key = ?').run('lastContractFetch');
+  }
   ensureColleggtiblesTable();
   ensureColleggtibleBuffsTable();
   ensureMembersTable();

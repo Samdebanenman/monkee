@@ -12,9 +12,10 @@ const upsertContractStmt = db.prepare(`
     egg_goal,
     minutes_per_token,
     modifier_type,
-    modifier_value
+    modifier_value,
+    grade_specs_json
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(contract_id) DO UPDATE SET
     name = excluded.name,
     release = excluded.release,
@@ -25,7 +26,8 @@ const upsertContractStmt = db.prepare(`
     egg_goal = excluded.egg_goal,
     minutes_per_token = excluded.minutes_per_token,
     modifier_type = excluded.modifier_type,
-    modifier_value = excluded.modifier_value
+    modifier_value = excluded.modifier_value,
+    grade_specs_json = excluded.grade_specs_json
 `);
 
 const getAllContractsStmt = db.prepare(`
@@ -40,7 +42,8 @@ const getAllContractsStmt = db.prepare(`
     egg_goal,
     minutes_per_token,
     modifier_type,
-    modifier_value
+    modifier_value,
+    grade_specs_json
   FROM contracts
   ORDER BY release DESC
 `);
@@ -59,6 +62,25 @@ function toNumberOrNull(value) {
   return Number.isFinite(value) ? value : null;
 }
 
+function serializeGradeSpecs(value) {
+  if (!Array.isArray(value)) return null;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
+function parseGradeSpecs(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function upsertContractRow(row) {
   const id = normalizeId(row.id);
   if (!id) return;
@@ -73,6 +95,7 @@ function upsertContractRow(row) {
   const minutesPerToken = toNumberOrNull(row.minutesPerToken);
   const modifierType = normalizeOptional(row.modifierType);
   const modifierValue = toNumberOrNull(row.modifierValue);
+  const gradeSpecsJson = serializeGradeSpecs(row.gradeSpecs);
 
   upsertContractStmt.run(
     id,
@@ -85,7 +108,8 @@ function upsertContractRow(row) {
     eggGoal,
     minutesPerToken,
     modifierType,
-    modifierValue
+    modifierValue,
+    gradeSpecsJson
   );
 }
 const getContractByIdStmt = db.prepare('SELECT * FROM contracts WHERE contract_id = ?');
@@ -119,6 +143,7 @@ export function getStoredContracts() {
       minutes_per_token,
       modifier_type,
       modifier_value,
+      grade_specs_json,
     }) => ({
       id,
       name,
@@ -131,6 +156,7 @@ export function getStoredContracts() {
       minutesPerToken: minutes_per_token,
       modifierType: modifier_type,
       modifierValue: modifier_value,
+      gradeSpecs: parseGradeSpecs(grade_specs_json),
     }));
 }
 
