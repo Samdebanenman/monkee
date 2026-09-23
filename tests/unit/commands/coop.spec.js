@@ -22,13 +22,14 @@ vi.mock('../../../services/coopService.js', () => ({
   clearCoopReport: vi.fn(),
   removePlayersFromCoopService: vi.fn(),
   autoPopulateCoopMembers: vi.fn(),
+  findSeasonPusheesInCoop: vi.fn(),
 }));
 
 vi.mock('../../../services/contractService.js', () => ({
   fetchContractSummaries: vi.fn(),
 }));
 
-import { execute, autocomplete } from '../../../commands/coop.js';
+import { execute, autocomplete, handleComponentInteraction } from '../../../commands/coop.js';
 import { requireMamaBird } from '../../../utils/permissions.js';
 import {
   addCoopFromInput,
@@ -41,6 +42,7 @@ import {
   clearCoopReport,
   removePlayersFromCoopService,
   autoPopulateCoopMembers,
+  findSeasonPusheesInCoop,
 } from '../../../services/coopService.js';
 import { isValidHttpUrl } from '../../../services/discord.js';
 import { fetchContractSummaries } from '../../../services/contractService.js';
@@ -50,6 +52,8 @@ beforeEach(() => {
   requireMamaBird.mockResolvedValue(true);
   addCoopFromInput.mockReset();
   autoPopulateCoopMembers.mockReset();
+  findSeasonPusheesInCoop.mockReset();
+  findSeasonPusheesInCoop.mockReturnValue({ seasonal: false, season: null, pushees: [] });
 });
 
 describe('commands/coop execute', () => {
@@ -202,6 +206,49 @@ describe('commands/coop execute', () => {
 
     expect(interaction.editReply).toHaveBeenCalled();
     expect(interaction.editReply.mock.calls[0][0].content).toContain('added as a push coop');
+  });
+
+  it('prompts to add a seasonal coop as push when its season pushee is linked', async () => {
+    addCoopFromInput.mockResolvedValue({ ok: true, contract: 'c1', coop: 'coop1' });
+    autoPopulateCoopMembers.mockResolvedValue({
+      ok: true,
+      matched: [{ discordId: '123', ign: 'pushee', status: 'linked' }],
+      missing: [],
+      departedCount: 0,
+    });
+    findSeasonPusheesInCoop.mockReturnValue({
+      seasonal: true,
+      season: 'fall_2025',
+      pushees: [{ discordId: '123', ign: 'pushee' }],
+    });
+
+    const interaction = createInteraction({
+      options: createOptions({
+        subcommand: 'addcoop',
+        strings: { url: 'c1/coop1' },
+        booleans: { push: false },
+      }),
+    });
+
+    await execute(interaction);
+
+    const reply = interaction.editReply.mock.calls[0][0];
+    expect(reply.content).toContain('Season pushee is in this coop, add as a pushrun?');
+    expect(reply.components).toHaveLength(1);
+  });
+
+  it('sets the push flag from the season-pushee prompt button', async () => {
+    updatePushFlag.mockReturnValue({ ok: true, already: false });
+    const interaction = {
+      customId: 'coop:seasonpush:yes:c1:coop1',
+      update: vi.fn(),
+    };
+
+    const handled = await handleComponentInteraction(interaction);
+
+    expect(handled).toBe(true);
+    expect(updatePushFlag).toHaveBeenCalledWith({ contract: 'c1', coop: 'coop1', push: true });
+    expect(interaction.update).toHaveBeenCalled();
   });
 
   it('handles addreport invalid url', async () => {

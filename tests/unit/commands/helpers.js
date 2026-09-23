@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 
 export function createOptions({
   strings = {},
+  users = {},
   booleans = {},
   integers = {},
   subcommand = null,
@@ -11,6 +12,9 @@ export function createOptions({
   return {
     getString(name) {
       return Object.hasOwn(strings, name) ? strings[name] : null;
+    },
+    getUser(name) {
+      return Object.hasOwn(users, name) ? users[name] : null;
     },
     getBoolean(name) {
       return Object.hasOwn(booleans, name) ? booleans[name] : null;

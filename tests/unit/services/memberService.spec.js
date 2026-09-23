@@ -6,15 +6,26 @@ vi.mock('../../../utils/database/index.js', () => ({
   getMembersByIgns: vi.fn(),
   updateMemberIgnByInternalId: vi.fn(),
   updateMemberActiveByInternalId: vi.fn(),
+  updateMemberPusheeByInternalId: vi.fn(),
+  listMembersByPushee: vi.fn(),
 }));
 
-import { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries } from '../../../services/memberService.js';
+import {
+  getSeasonPushees,
+  removeSeasonPushee,
+  setIgnForMember,
+  setMembersActiveStatus,
+  setSeasonPushee,
+  syncMembersFromApiEntries,
+} from '../../../services/memberService.js';
 import {
   ensureMemberRecord,
   getMemberRecord,
   getMembersByIgns,
   updateMemberIgnByInternalId,
   updateMemberActiveByInternalId,
+  updateMemberPusheeByInternalId,
+  listMembersByPushee,
 } from '../../../utils/database/index.js';
 
 beforeEach(() => {
@@ -61,6 +72,49 @@ describe('services/memberService setIgnForMember', () => {
     const result = setIgnForMember({ targetDiscordId: '111', ign: 'aoo' });
     expect(result.ok).toBe(true);
     expect(result.status).toBe('created');
+  });
+});
+
+describe('services/memberService season pushees', () => {
+  it('sets and normalizes a season pushee', () => {
+    ensureMemberRecord.mockReturnValue({ record: { internal_id: 1, pushee: null }, created: false });
+    getMemberRecord.mockReturnValue({ internal_id: 1, discord_id: '111', pushee: 'fall_2025' });
+
+    const result = setSeasonPushee({ targetDiscordId: '111', season: ' Fall_2025 ' });
+
+    expect(result).toMatchObject({ ok: true, status: 'updated', season: 'fall_2025' });
+    expect(updateMemberPusheeByInternalId).toHaveBeenCalledWith(1, 'fall_2025');
+  });
+
+  it('removes only the matching season assignment', () => {
+    getMemberRecord
+      .mockReturnValueOnce({ internal_id: 1, discord_id: '111', pushee: 'fall_2025' })
+      .mockReturnValueOnce({ internal_id: 1, discord_id: '111', pushee: null });
+
+    const result = removeSeasonPushee({ targetDiscordId: '111', season: 'fall_2025' });
+
+    expect(result.ok).toBe(true);
+    expect(updateMemberPusheeByInternalId).toHaveBeenCalledWith(1, null);
+  });
+
+  it('rejects invalid and mismatched seasons', () => {
+    expect(setSeasonPushee({ targetDiscordId: '111', season: 'banana' })).toEqual({
+      ok: false,
+      reason: 'invalid-season',
+    });
+
+    getMemberRecord.mockReturnValue({ internal_id: 1, pushee: 'spring_2025' });
+    expect(removeSeasonPushee({ targetDiscordId: '111', season: 'fall_2025' })).toMatchObject({
+      ok: false,
+      reason: 'season-mismatch',
+      assignedSeason: 'spring_2025',
+    });
+  });
+
+  it('lists pushees for valid seasons', () => {
+    listMembersByPushee.mockReturnValue([{ discord_id: '111', pushee: 'fall_2025' }]);
+    expect(getSeasonPushees('fall_2025')).toEqual([{ discord_id: '111', pushee: 'fall_2025' }]);
+    expect(getSeasonPushees('invalid')).toEqual([]);
   });
 });
 

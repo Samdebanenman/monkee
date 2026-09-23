@@ -18,6 +18,9 @@ vi.mock('../../../utils/database/index.js', () => ({
   getPastCoops: vi.fn(),
   getPastCoopsByCoop: vi.fn(),
   getMembersByIgns: vi.fn(),
+  getMemberRecord: vi.fn(),
+  getMembersForCoop: vi.fn(),
+  getContractById: vi.fn(),
 }));
 
 vi.mock('../../../services/discord.js', () => ({
@@ -46,6 +49,7 @@ import {
   clearCoopReport,
   autoPopulateCoopMembers,
   findFreeCoopCodes,
+  findSeasonPusheesInCoop,
 } from '../../../services/coopService.js';
 import {
   addCoop as addCoopRecord,
@@ -54,6 +58,9 @@ import {
   setCoopReport,
   linkMembersToCoop,
   getMembersByIgns,
+  getMemberRecord,
+  getMembersForCoop,
+  getContractById,
 } from '../../../utils/database/index.js';
 import { extractDiscordIds, isValidHttpUrl } from '../../../services/discord.js';
 import { isKnownContract, refreshContracts, listCoops } from '../../../services/contractService.js';
@@ -145,6 +152,34 @@ describe('services/coopService updatePushFlag', () => {
     setPush.mockReturnValue({ already: true });
     const result = updatePushFlag({ contract: 'c', coop: 'x', push: true });
     expect(result.already).toBe(true);
+  });
+});
+
+describe('services/coopService findSeasonPusheesInCoop', () => {
+  it('matches only members assigned to the contract season', () => {
+    getContractById.mockReturnValue({ contract_id: 'c', season: 'Fall_2025' });
+    getMembersForCoop.mockReturnValue(['111', '222']);
+    getMemberRecord
+      .mockReturnValueOnce({ discord_id: '111', ign: 'pushee', pushee: 'fall_2025' })
+      .mockReturnValueOnce({ discord_id: '222', ign: 'other', pushee: 'spring_2025' });
+
+    const result = findSeasonPusheesInCoop({ contract: 'c', coop: 'x' });
+
+    expect(result).toEqual({
+      seasonal: true,
+      season: 'fall_2025',
+      pushees: [{ discordId: '111', ign: 'pushee' }],
+    });
+  });
+
+  it('does not match contracts without a season flag', () => {
+    getContractById.mockReturnValue({ contract_id: 'c', season: null });
+    expect(findSeasonPusheesInCoop({ contract: 'c', coop: 'x' })).toEqual({
+      seasonal: false,
+      season: null,
+      pushees: [],
+    });
+    expect(getMembersForCoop).not.toHaveBeenCalled();
   });
 });
 

@@ -262,6 +262,29 @@ describe('integration/services', () => {
     expect(result.departedCount).toBe(1);
   });
 
+  it('finds a linked pushee only for the contract season flag', async () => {
+    upsertContracts([
+      { id: 'seasonal', name: 'Seasonal', release: 100, season: 'fall_2025', egg: 'egg' },
+      { id: 'regular', name: 'Regular', release: 101, season: null, egg: 'egg' },
+    ]);
+    dbIndex.addCoop('seasonal', 'coopA', false);
+    dbIndex.addCoop('regular', 'coopB', false);
+    memberService.setSeasonPushee({ targetDiscordId: '111', season: 'fall_2025' });
+    dbIndex.linkMembersToCoop('seasonal', 'coopA', ['111']);
+    dbIndex.linkMembersToCoop('regular', 'coopB', ['111']);
+
+    expect(coopService.findSeasonPusheesInCoop({ contract: 'seasonal', coop: 'coopA' })).toMatchObject({
+      seasonal: true,
+      season: 'fall_2025',
+      pushees: [{ discordId: '111' }],
+    });
+    expect(coopService.findSeasonPusheesInCoop({ contract: 'regular', coop: 'coopB' })).toEqual({
+      seasonal: false,
+      season: null,
+      pushees: [],
+    });
+  });
+
   it('handles auto-populate fetch failures', async () => {
     coopcheckerMock.fetchCoopContributors.mockRejectedValue(new Error('boom'));
     const result = await coopService.autoPopulateCoopMembers('c1', 'coopX');

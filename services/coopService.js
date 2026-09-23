@@ -17,6 +17,8 @@ import {
   getPastCoopsByCoop,
   getMembersByIgns,
   getMemberRecord,
+  getMembersForCoop,
+  getContractById,
 } from '../utils/database/index.js';
 import { extractDiscordIds, extractDiscordId, isValidHttpUrl } from './discord.js';
 import { isKnownContract, refreshContracts, listCoops as listCoopsForContract } from './contractService.js';
@@ -219,6 +221,32 @@ export function updatePushFlag({ contract, coop, push }) {
   }
 
   return { ok: true, already: false };
+}
+
+export function findSeasonPusheesInCoop({ contract, coop }) {
+  const normalizedContract = contract?.trim();
+  const normalizedCoop = coop?.trim();
+  if (!normalizedContract || !normalizedCoop) {
+    return { seasonal: false, season: null, pushees: [] };
+  }
+
+  const contractRecord = getContractById(normalizedContract);
+  const season = contractRecord?.season == null
+    ? ''
+    : String(contractRecord.season).trim().toLowerCase();
+  if (!season) {
+    return { seasonal: false, season: null, pushees: [] };
+  }
+
+  const pushees = getMembersForCoop(normalizedContract, normalizedCoop)
+    .map(discordId => getMemberRecord(discordId))
+    .filter(record => record && String(record.pushee ?? '').trim().toLowerCase() === season)
+    .map(record => ({
+      discordId: String(record.discord_id),
+      ign: record.ign == null ? null : String(record.ign),
+    }));
+
+  return { seasonal: true, season, pushees };
 }
 
 export function removeCoop({ contract, coop }) {
@@ -551,4 +579,5 @@ export default {
   autoPopulateCoopMembers,
   checkCoopForKnownPlayers,
   addPlayersToCoopWithDetails,
+  findSeasonPusheesInCoop,
 };

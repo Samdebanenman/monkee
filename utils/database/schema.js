@@ -103,6 +103,7 @@ function ensureMembersTable() {
       main_id INTEGER REFERENCES members(internal_id) ON DELETE SET NULL,
       is_mamabird INTEGER NOT NULL DEFAULT 0,
       is_pushed INTEGER NOT NULL DEFAULT 0,
+      pushee TEXT,
       sheet_tab TEXT,
       is_active INTEGER NOT NULL DEFAULT 0
     );
@@ -144,6 +145,10 @@ function migrateMembersTable() {
   const hasDiscordName = cols.some((col) => col.name === 'discord_name');
   if (!hasDiscordName) {
     db.exec(`ALTER TABLE members ADD COLUMN discord_name TEXT;`);
+  }
+  const hasPushee = cols.some((col) => col.name === 'pushee');
+  if (!hasPushee) {
+    db.exec(`ALTER TABLE members ADD COLUMN pushee TEXT;`);
   }
 }
 

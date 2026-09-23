@@ -5,7 +5,10 @@ import {
   getMembersByIgns,
   updateMemberIgnByInternalId,
   updateMemberActiveByInternalId,
+  updateMemberPusheeByInternalId,
+  listMembersByPushee,
 } from '../utils/database/index.js';
+import { getAstronomicalSeasonRange, parseSeasonKey } from '../utils/seasons.js';
 
 const MEMBER_API_URL = 'https://eiapi.up.railway.app/allMaj';
 
@@ -17,6 +20,81 @@ function normalizeDiscordId(value) {
 function normalizeIgn(value) {
   if (value == null) return '';
   return String(value).trim();
+}
+
+function normalizeSeason(value) {
+  if (value == null) return '';
+  const raw = String(value).trim().toLowerCase();
+  const parsed = parseSeasonKey(raw);
+  if (!parsed || !getAstronomicalSeasonRange(raw)) return '';
+  return `${parsed.label}_${parsed.year}`;
+}
+
+function isValidSeason(season) {
+  return Boolean(normalizeSeason(season));
+}
+
+export function setSeasonPushee({ targetDiscordId, season }) {
+  const discordId = normalizeDiscordId(targetDiscordId);
+  if (!discordId) return { ok: false, reason: 'invalid-id' };
+
+  const normalizedSeason = normalizeSeason(season);
+  if (!isValidSeason(normalizedSeason)) {
+    return { ok: false, reason: 'invalid-season' };
+  }
+
+  const { record, created } = ensureMemberRecord(discordId);
+  if (!record) return { ok: false, reason: 'not-found' };
+
+  if (normalizeSeason(record.pushee) === normalizedSeason) {
+    return { ok: true, status: 'unchanged', discordId, season: normalizedSeason };
+  }
+
+  updateMemberPusheeByInternalId(record.internal_id, normalizedSeason);
+  const refreshed = getMemberRecord(discordId);
+  if (normalizeSeason(refreshed?.pushee) !== normalizedSeason) {
+    return { ok: false, reason: 'update-failed' };
+  }
+
+  return {
+    ok: true,
+    status: created ? 'created' : 'updated',
+    discordId,
+    season: normalizedSeason,
+  };
+}
+
+export function removeSeasonPushee({ targetDiscordId, season }) {
+  const discordId = normalizeDiscordId(targetDiscordId);
+  if (!discordId) return { ok: false, reason: 'invalid-id' };
+
+  const normalizedSeason = normalizeSeason(season);
+  if (!isValidSeason(normalizedSeason)) {
+    return { ok: false, reason: 'invalid-season' };
+  }
+
+  const record = getMemberRecord(discordId);
+  if (!record) return { ok: false, reason: 'not-found' };
+
+  const assignedSeason = normalizeSeason(record.pushee);
+  if (!assignedSeason) return { ok: false, reason: 'not-pushee' };
+  if (assignedSeason !== normalizedSeason) {
+    return { ok: false, reason: 'season-mismatch', assignedSeason };
+  }
+
+  updateMemberPusheeByInternalId(record.internal_id, null);
+  const refreshed = getMemberRecord(discordId);
+  if (refreshed?.pushee != null && String(refreshed.pushee).trim() !== '') {
+    return { ok: false, reason: 'update-failed' };
+  }
+
+  return { ok: true, discordId, season: normalizedSeason };
+}
+
+export function getSeasonPushees(season) {
+  const normalizedSeason = normalizeSeason(season);
+  if (!isValidSeason(normalizedSeason)) return [];
+  return listMembersByPushee(normalizedSeason);
 }
 
 export function setIgnForMember({ targetDiscordId, ign }) {
@@ -204,6 +282,9 @@ export function hasKnownMembersForContributors({ contributors = [], contractId, 
 }
 
 export default {
+  setSeasonPushee,
+  removeSeasonPushee,
+  getSeasonPushees,
   setIgnForMember,
   setMembersActiveStatus,
   syncMembersFromApiEntries,

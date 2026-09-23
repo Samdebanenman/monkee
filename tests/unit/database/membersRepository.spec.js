@@ -39,6 +39,8 @@ import {
   ensureMemberRecord,
   updateMemberIgnByInternalId,
   updateMemberActiveByInternalId,
+  updateMemberPusheeByInternalId,
+  listMembersByPushee,
   setAltRelationship,
   removeAltRelationship,
   listMembersWithoutIgn,
@@ -104,6 +106,22 @@ describe('database/membersRepository', () => {
 
     expect(ignResult.changes).toBe(1);
     expect(activeResult.changes).toBe(1);
+  });
+
+  it('updates and lists seasonal pushees', () => {
+    const updateResult = updateMemberPusheeByInternalId(1, ' Fall_2025 ');
+    const setStmt = [...statementMap.values()].find(s => s.sql.includes('UPDATE members SET pushee'));
+    expect(updateResult.changes).toBe(1);
+    expect(setStmt.run).toHaveBeenCalledWith('fall_2025', 1);
+
+    const listStmt = [...statementMap.values()].find(s => s.sql.includes('WHERE pushee = ?'));
+    listStmt.all.mockReturnValue([
+      { discord_id: '111', discord_name: 'Name', ign: 'IGN', pushee: 'fall_2025' },
+    ]);
+    expect(listMembersByPushee(' Fall_2025 ')).toEqual([
+      { discord_id: '111', discord_name: 'Name', ign: 'IGN', pushee: 'fall_2025' },
+    ]);
+    expect(listStmt.all).toHaveBeenCalledWith('fall_2025');
   });
 
   it('returns zero changes for invalid internal ids', () => {

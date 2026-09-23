@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
 import { requireMamaBird } from '../utils/permissions.js';
 import {
   addCoopFromInput,
@@ -12,12 +12,14 @@ import {
   clearCoopReport,
   removePlayersFromCoopService,
   autoPopulateCoopMembers,
+  findSeasonPusheesInCoop,
 } from '../services/coopService.js';
 import { isValidHttpUrl, chunkContent, createTextComponentMessage } from '../services/discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
 
 const CONTRACT_OPTION = 'contract';
 const COOP_OPTION = 'coop';
+const SEASON_PUSH_ACTION = 'seasonpush';
 
 export const data = new SlashCommandBuilder()
   .setName('coop')
@@ -242,7 +244,9 @@ async function handleAddCoop(interaction) {
       lines.push('', 'This coop was added as a push coop, add a report after the coop finishes with </coop addreport:1427617464535089254>');
     }
 
-    await sendChunkedReply(interaction, lines);
+    const prompt = buildSeasonPusheePrompt(result, options.pushFlag);
+    if (prompt) lines.push('', 'Season pushee is in this coop, add as a pushrun?');
+    await sendChunkedReply(interaction, lines, prompt?.components);
     return;
   }
   
@@ -254,7 +258,29 @@ async function handleAddCoop(interaction) {
     lines.push('', 'This coop was added as a push coop, add a report after the coop finishes with </coop addreport:1427617464535089254>');
   }
 
-  await sendChunkedReply(interaction, lines);
+  const prompt = buildSeasonPusheePrompt(result, options.pushFlag);
+  if (prompt) lines.push('', 'Season pushee is in this coop, add as a pushrun?');
+  await sendChunkedReply(interaction, lines, prompt?.components);
+}
+
+function buildSeasonPusheePrompt(result, alreadyPush) {
+  if (alreadyPush) return null;
+
+  const match = findSeasonPusheesInCoop({ contract: result.contract, coop: result.coop });
+  if (!match.seasonal || match.pushees.length === 0) return null;
+
+  const contract = encodeURIComponent(result.contract);
+  const coop = encodeURIComponent(result.coop);
+  const yesButton = new ButtonBuilder()
+    .setCustomId(`coop:${SEASON_PUSH_ACTION}:yes:${contract}:${coop}`)
+    .setLabel('Add as pushrun')
+    .setStyle(ButtonStyle.Primary);
+  const noButton = new ButtonBuilder()
+    .setCustomId(`coop:${SEASON_PUSH_ACTION}:no:${contract}:${coop}`)
+    .setLabel('No')
+    .setStyle(ButtonStyle.Secondary);
+
+  return { components: [new ActionRowBuilder().addComponents(yesButton, noButton)] };
 }
 
 function buildManualAddCoopLines(result, memberResult) {
@@ -381,19 +407,63 @@ function appendAutoFailureSection(lines, reason = 'unknown error') {
   lines.push('', 'automatically found:', `(unable to fetch contributors: ${reason})`, '', "wasn't able to find:", '(unknown)');
 }
 
-async function sendChunkedReply(interaction, lines) {
+async function sendChunkedReply(interaction, lines, components = []) {
   // Chunk long replies to stay within Discord's message limits.
   const chunks = chunkContent(lines);
   const [first, ...rest] = chunks;
 
   await interaction.editReply(
-    createTextComponentMessage(first, { allowedMentions: { users: [] } })
+    createTextComponentMessage(first, { allowedMentions: { users: [] }, components })
   );
   for (const chunk of rest) {
     await interaction.followUp(
       createTextComponentMessage(chunk, { allowedMentions: { users: [] } })
     );
   }
+}
+
+function parseSeasonPushCustomId(customId) {
+  const parts = String(customId ?? '').split(':');
+  if (parts.length !== 5 || parts[0] !== 'coop' || parts[1] !== SEASON_PUSH_ACTION) return null;
+  const [, , action, encodedContract, encodedCoop] = parts;
+  if (!['yes', 'no'].includes(action)) return null;
+
+  try {
+    return {
+      action,
+      contract: decodeURIComponent(encodedContract),
+      coop: decodeURIComponent(encodedCoop),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function handleComponentInteraction(interaction) {
+  const context = parseSeasonPushCustomId(interaction.customId);
+  if (!context) return false;
+  if (!(await requireMamaBird(interaction))) return true;
+
+  if (context.action === 'no') {
+    await interaction.update(
+      createTextComponentMessage(`Coop \`${context.contract}/${context.coop}\` was left as a non-push run.`)
+    );
+    return true;
+  }
+
+  const result = updatePushFlag({ contract: context.contract, coop: context.coop, push: true });
+  if (!result.ok) {
+    await interaction.update(
+      createTextComponentMessage(`Failed to add \`${context.contract}/${context.coop}\` as a pushrun: ${result.reason ?? 'unknown error'}.`)
+    );
+    return true;
+  }
+
+  const status = result.already ? 'was already a pushrun' : 'was added as a pushrun';
+  await interaction.update(
+    createTextComponentMessage(`Coop \`${context.contract}/${context.coop}\` ${status}.`)
+  );
+  return true;
 }
 
 function handleRemove(interaction) {
@@ -655,4 +725,4 @@ export async function autocomplete(interaction) {
   await interaction.respond([]);
 }
 
-export default { data, execute, autocomplete };
+export default { data, execute, autocomplete, handleComponentInteraction };

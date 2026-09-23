@@ -17,6 +17,8 @@ let upsertContracts;
 let ensureMemberRecord;
 let updateMemberIgnByInternalId;
 let updateMemberActiveByInternalId;
+let updateMemberPusheeByInternalId;
+let listMembersByPushee;
 let getMembersByIgns;
 let setAltRelationship;
 let getSeasonHelpers;
@@ -53,6 +55,8 @@ beforeAll(async () => {
     ensureMemberRecord,
     updateMemberIgnByInternalId,
     updateMemberActiveByInternalId,
+    updateMemberPusheeByInternalId,
+    listMembersByPushee,
     getMembersByIgns,
     setAltRelationship,
   } = await import('../../utils/database/membersRepository.js'));
@@ -143,6 +147,23 @@ describe('integration/database repositories', () => {
     expect(helpers[0].discord_id).toBe('100');
     expect(helpers[0].count).toBe(2);
     expect(helpers[0].breakdown.length).toBe(2);
+  });
+
+  it('stores and clears a member season-pushee assignment', () => {
+    const { record } = ensureMemberRecord('111');
+
+    expect(updateMemberPusheeByInternalId(record.internal_id, 'fall_2025').changes).toBe(1);
+    expect(listMembersByPushee('fall_2025')).toEqual([
+      {
+        discord_id: '111',
+        discord_name: null,
+        ign: null,
+        pushee: 'fall_2025',
+      },
+    ]);
+
+    expect(updateMemberPusheeByInternalId(record.internal_id, null).changes).toBe(1);
+    expect(listMembersByPushee('fall_2025')).toEqual([]);
   });
 
   it('includes alt coops and marks only coops without the main account', () => {

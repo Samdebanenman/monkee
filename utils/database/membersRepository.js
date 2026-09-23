@@ -1,7 +1,7 @@
 import db from './client.js';
 import { DEFAULT_MAMABIRD_IDS } from './schema.js';
 
-const findMemberStmt = db.prepare('SELECT internal_id, discord_id, discord_name, ign, main_id, sheet_tab, is_mamabird, is_active FROM members WHERE discord_id = ?');
+const findMemberStmt = db.prepare('SELECT internal_id, discord_id, discord_name, ign, main_id, sheet_tab, is_mamabird, is_active, pushee FROM members WHERE discord_id = ?');
 const findMemberSheetTabNameStmt = db.prepare('SELECT sheet_tab FROM members WHERE discord_id = ?');
 const insertMemberStmt = db.prepare('INSERT INTO members (discord_id) VALUES (?)');
 const countMemberChildrenStmt = db.prepare('SELECT COUNT(*) AS cnt FROM members WHERE main_id = ?');
@@ -16,6 +16,13 @@ const updateMemberIgnStmt = db.prepare('UPDATE members SET ign = ? WHERE interna
 const updateMemberDiscordNameStmt = db.prepare('UPDATE members SET discord_name = ? WHERE discord_id = ?');
 const setMemberActiveStmt = db.prepare('UPDATE members SET is_active = ? WHERE internal_id = ?');
 const setMemberPushedStmt = db.prepare('UPDATE members SET is_pushed = ? WHERE discord_id = ?');
+const setMemberPusheeStmt = db.prepare('UPDATE members SET pushee = ? WHERE internal_id = ?');
+const listMembersByPusheeStmt = db.prepare(`
+  SELECT discord_id, discord_name, ign, pushee
+  FROM members
+  WHERE pushee = ?
+  ORDER BY COALESCE(discord_name, ign, discord_id) COLLATE NOCASE ASC
+`);
 const upsertBnPlayersStmt = db.prepare(`
   INSERT INTO members (discord_id, discord_name, ign, main_id, is_mamabird, is_pushed, sheet_tab, is_active)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -142,6 +149,28 @@ export function updateMemberPushedByDiscordId(discordId, isPushed) {
   const desired = isPushed ? 1 : 0;
   const info = setMemberPushedStmt.run(desired, discordId);
   return { changes: info.changes ?? 0 };
+}
+
+export function updateMemberPusheeByInternalId(internalId, season) {
+  if (!internalId) {
+    return { changes: 0 };
+  }
+
+  const normalizedSeason = season == null ? null : String(season).trim().toLowerCase() || null;
+  const info = setMemberPusheeStmt.run(normalizedSeason, internalId);
+  return { changes: info.changes ?? 0 };
+}
+
+export function listMembersByPushee(season) {
+  const normalizedSeason = season == null ? '' : String(season).trim().toLowerCase();
+  if (!normalizedSeason) return [];
+
+  return listMembersByPusheeStmt.all(normalizedSeason).map(row => ({
+    discord_id: String(row.discord_id),
+    discord_name: row.discord_name == null ? null : String(row.discord_name),
+    ign: row.ign == null ? null : String(row.ign),
+    pushee: String(row.pushee),
+  }));
 }
 
 export function getMemberInternalId(discordId) {
