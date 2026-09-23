@@ -83,6 +83,14 @@ function contributor(rate = 1) {
   };
 }
 
+function mockOccupiedCoops(...coopCodes) {
+  const occupied = new Set(coopCodes.map(code => code.toLowerCase()));
+  getCoopAvailability.mockImplementation(async (_contract, code) => ({
+    coopCode: code,
+    free: !occupied.has(code.toLowerCase()),
+  }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -156,7 +164,7 @@ describe('services/bnLeaderboardService', () => {
     listCoops.mockReturnValue(['noo']);
     hasKnownMembersForContributors.mockReturnValue(true);
 
-    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    mockOccupiedCoops('noo');
     getCoopStatus.mockResolvedValue({
       contributors: [
         {
@@ -293,7 +301,7 @@ describe('services/bnLeaderboardService', () => {
     listCoops.mockReturnValue(['noo']);
     hasKnownMembersForContributors.mockReturnValue(true);
 
-    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    mockOccupiedCoops('noo');
     getCoopStatus.mockResolvedValue({
       contributors: [
         {
@@ -323,7 +331,7 @@ describe('services/bnLeaderboardService', () => {
     listCoops.mockReturnValue(['noo']);
     hasKnownMembersForContributors.mockReturnValue(true);
 
-    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    mockOccupiedCoops('noo');
     getCoopStatus.mockResolvedValue({
       contributors: [
         {
@@ -358,7 +366,7 @@ describe('services/bnLeaderboardService', () => {
     listCoops.mockReturnValue(['noo']);
     hasKnownMembersForContributors.mockReturnValue(true);
 
-    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    mockOccupiedCoops('noo');
     getCoopStatus.mockResolvedValue({
       contributors: [
         {
@@ -427,7 +435,7 @@ describe('services/bnLeaderboardService', () => {
     listCoops.mockReturnValue(['noo']);
     hasKnownMembersForContributors.mockReturnValue(true);
 
-    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    mockOccupiedCoops('noo');
     getCoopStatus.mockResolvedValue({
       contributors: [
         {
@@ -485,7 +493,7 @@ describe('services/bnLeaderboardService', () => {
     listCoops.mockReturnValue(['noo']);
     hasKnownMembersForContributors.mockReturnValue(true);
 
-    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    mockOccupiedCoops('noo');
     getCoopStatus.mockResolvedValue({
       contributors: [
         {
@@ -550,7 +558,7 @@ describe('services/bnLeaderboardService', () => {
     listCoops.mockReturnValue(['noo']);
     hasKnownMembersForContributors.mockReturnValue(true);
 
-    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    mockOccupiedCoops('noo');
     getCoopStatus.mockResolvedValue({
       contributors: [
         {
@@ -616,7 +624,7 @@ describe('services/bnLeaderboardService', () => {
     listCoops.mockReturnValue(['noo']);
     hasKnownMembersForContributors.mockReturnValue(true);
 
-    getCoopAvailability.mockResolvedValue({ coopCode: 'noo', free: false });
+    mockOccupiedCoops('noo');
     getCoopStatus.mockResolvedValue({
       contributors: [
         {

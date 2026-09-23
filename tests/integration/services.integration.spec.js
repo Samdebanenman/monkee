@@ -31,6 +31,7 @@ let contractService;
 let seasonService;
 let mamabirdService;
 let dbIndex;
+let resetDatabase;
 
 beforeAll(async () => {
   dbPath = path.join(os.tmpdir(), `monkee-int-svc-${Date.now()}-${Math.random().toString(16).slice(2)}.db`);
@@ -44,6 +45,17 @@ beforeAll(async () => {
 
   await import('../../utils/database/schema.js');
   ({ default: db } = await import('../../utils/database/client.js'));
+  db.pragma('journal_mode = MEMORY');
+  db.pragma('synchronous = OFF');
+  resetDatabase = db.transaction(() => {
+    db.exec(`
+      DELETE FROM member_coops;
+      DELETE FROM coops;
+      DELETE FROM members;
+      DELETE FROM contracts;
+      DELETE FROM meta;
+    `);
+  });
 
   ({ upsertContracts } = await import('../../utils/database/contractsRepository.js'));
   dbIndex = await import('../../utils/database/index.js');
@@ -60,11 +72,7 @@ beforeEach(() => {
   coopcheckerMock.fetchCoopContributors.mockReset();
   axiosMock.get.mockReset();
 
-  db.exec('DELETE FROM member_coops;');
-  db.exec('DELETE FROM coops;');
-  db.exec('DELETE FROM members;');
-  db.exec('DELETE FROM contracts;');
-  db.exec('DELETE FROM meta;');
+  resetDatabase();
 });
 
 afterAll(() => {
