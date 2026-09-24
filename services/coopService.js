@@ -388,6 +388,14 @@ function normalizeCoopIdentifiers(contract, coop) {
   return { ok: true, contract: normalizedContract, coop: normalizedCoop };
 }
 
+function logCoopFetchError(contract, coop, err) {
+  if (err?.response?.status === 500 && err.response.data === 'eop') {
+    console.error('Failed to fetch coop', contract, coop, err.message);
+    return;
+  }
+  console.error('Failed to fetch coop contributors', contract, coop, err);
+}
+
 function extractUniqueIgns(contributors) {
   const uniqueIgns = [];
   const seenIgns = new Set();
@@ -473,7 +481,7 @@ export async function autoPopulateCoopMembers(contract, coop) {
   try {
     contributors = await fetchCoopContributors(normalized.contract, normalized.coop);
   } catch (err) {
-    console.error('Failed to fetch coop contributors', normalized.contract, normalized.coop, err);
+    logCoopFetchError(normalized.contract, normalized.coop, err);
     return { ok: false, reason: 'fetch-failed', matched: [], missing: [] };
   }
 
@@ -509,7 +517,7 @@ export async function checkCoopForKnownPlayers(contract, coop) {
   try {
     contributors = await fetchCoopContributors(normalized.contract, normalized.coop);
   } catch (err) {
-    console.error('Failed to fetch coop contributors', normalized.contract, normalized.coop, err);
+    logCoopFetchError(normalized.contract, normalized.coop, err);
     return { ok: false, reason: 'fetch-failed', matched: [], missing: [] };
   }
 

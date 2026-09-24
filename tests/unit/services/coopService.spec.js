@@ -48,6 +48,7 @@ import {
   saveCoopReport,
   clearCoopReport,
   autoPopulateCoopMembers,
+  checkCoopForKnownPlayers,
   findFreeCoopCodes,
   findSeasonPusheesInCoop,
 } from '../../../services/coopService.js';
@@ -241,6 +242,48 @@ describe('services/coopService autoPopulateCoopMembers', () => {
     expect(result.matched[0].status).toBe('linked');
     expect(result.missing).toEqual(['foo']);
     expect(result.departedCount).toBe(1);
+  });
+});
+
+describe('services/coopService coop fetch logging', () => {
+  it.each([
+    ['auto-populate', autoPopulateCoopMembers],
+    ['known-player check', checkCoopForKnownPlayers],
+  ])('logs only the message for an exact eop response in %s', async (_, fetchMembers) => {
+    const error = new Error('Request failed with status code 500');
+    error.response = { status: 500, data: 'eop' };
+    fetchCoopContributors.mockRejectedValue(error);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const result = await fetchMembers('contract', 'coop');
+      expect(result.reason).toBe('fetch-failed');
+      expect(log).toHaveBeenCalledExactlyOnceWith(
+        'Failed to fetch coop', 'contract', 'coop', 'Request failed with status code 500'
+      );
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it.each([
+    [500, 'eop '],
+    [500, 'other'],
+    [400, 'eop'],
+  ])('keeps the full error for status %i and body %s', async (status, data) => {
+    const error = new Error('Request failed');
+    error.response = { status, data };
+    fetchCoopContributors.mockRejectedValue(error);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await autoPopulateCoopMembers('contract', 'coop');
+      expect(log).toHaveBeenCalledExactlyOnceWith(
+        'Failed to fetch coop contributors', 'contract', 'coop', error
+      );
+    } finally {
+      log.mockRestore();
+    }
   });
 });
 
