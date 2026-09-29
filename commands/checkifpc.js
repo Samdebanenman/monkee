@@ -9,6 +9,8 @@ const CODE_OPTION_DEFAULT = 'default';
 const CODE_OPTION_EXTENDED = 'extended';
 const CODE_OPTION_EXTENDED_PLUS = 'extended_plus';
 const CONTRACT_OPTION = 'contract';
+const ALL_CONTRACTS_OPTION = 'all';
+const ALL_CONTRACTS_USER_ID = '659339631564947456';
 const SEARCHLIST_OPTION = 'searchlist';
 const DEFAULT_CONCURRENCY = 12;
 const PROGRESS_BAR_WIDTH = 20;
@@ -194,6 +196,15 @@ export async function execute(interaction) {
     return;
   }
 
+  const checkAllContracts = contractInput.toLowerCase() === ALL_CONTRACTS_OPTION;
+  if (checkAllContracts && interaction.user?.id !== ALL_CONTRACTS_USER_ID) {
+    await interaction.reply(createTextComponentMessage(
+      'You are not authorized to check all contracts.',
+      { flags: 64 },
+    ));
+    return;
+  }
+
   await interaction.reply(createTextComponentMessage(
     'Starting check.'
   ));
@@ -203,8 +214,9 @@ export async function execute(interaction) {
   const sortedContracts = [...summaries].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
   const nameById = new Map(sortedContracts.map(c => [c.id, c.name || c.id]));
 
-  const displayName = nameById.get(contractInput) || contractInput;
-  const selectedContracts = [[displayName, contractInput]];
+  const selectedContracts = checkAllContracts
+    ? sortedContracts.filter(contract => contract.id).map(contract => [contract.name || contract.id, contract.id])
+    : [[nameById.get(contractInput) || contractInput, contractInput]];
 
   if (!selectedContracts.length) {
     await interaction.editReply(createTextComponentMessage('No contracts matched your selection.'));
