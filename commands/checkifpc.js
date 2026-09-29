@@ -51,18 +51,8 @@ async function asyncPool(limit, items, iterator) {
 
 function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
   const letters = Array.from({ length: 26 }, (_, index) => String.fromCodePoint(97 + index));
-  const digits = Array.from({ length: 10 }, (_, index) => String(index));
-
-  const normalizedMode = [CODE_OPTION_EXTENDED, CODE_OPTION_EXTENDED_PLUS].includes(mode)
-    ? mode
-    : CODE_OPTION_DEFAULT;
-
-  const prefixes = normalizedMode === CODE_OPTION_DEFAULT
-    ? letters
-    : normalizedMode === CODE_OPTION_EXTENDED
-      ? [...letters, ...digits]
-      : [...letters, '-', ...digits];
-  const suffixes = normalizedMode === CODE_OPTION_EXTENDED_PLUS ? ['oo', 'ooo'] : ['oo'];
+  const prefixes = [...letters, '-'];
+  const suffixes = mode === CODE_OPTION_EXTENDED_PLUS ? ['oo', 'ooo'] : ['oo'];
 
   return prefixes.flatMap(prefix => suffixes.map(suffix => `${prefix}${suffix}`));
 }
