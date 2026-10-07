@@ -4,7 +4,7 @@ import { fetchContractSummaries } from '../services/contractService.js';
 import { findContractMatch } from '../sim-core/src/predictmaxcs/contracts.js';
 import { getAssumptions } from '../sim-core/src/predictmaxcs/model.js';
 import { getStoredColleggtibles } from '../utils/database/colleggtiblesRepository.js';
-import { startPredictMaxCsOrchestration } from '../services/simOrchestrator.js';
+import { runPredictMaxCs } from '../services/simulationRunner.js';
 
 const DEFAULT_TE = 100;
 const TE_MIN = 0;
@@ -137,7 +137,7 @@ export async function execute(interaction) {
   await interaction.deferReply();
   await interaction.editReply({ content: 'Running PredictMaxCS simulations...' });
 
-  await startPredictMaxCsOrchestration({
+  await runPredictMaxCs({
     interaction,
     contractLabel,
     players,

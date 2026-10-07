@@ -5,7 +5,7 @@ import { getStoredColleggtibles } from '../utils/database/colleggtiblesRepositor
 import {
   buildPredictMaxCsVariant,
   scorePredictMaxCsResult,
-} from './simOrchestrator/shared.js';
+} from './simulation/shared.js';
 
 export const GRADE_ORDER = ['C', 'B', 'A', 'AA', 'AAA'];
 export const NOTEWORTHY_RATIO = 0.95;

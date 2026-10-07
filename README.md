@@ -10,6 +10,7 @@ A Discord bot for Egg, Inc. co-op coordination, leaderboards, and a lightweight 
 - SQLite persistence (Better-SQLite3) with automatic schema bootstrap and optional custom DB path.
 - Optional embedding-based IGN matcher (uses OpenAI) and cached embeddings under `data/`.
 - Dockerfile for production builds and packaged runtime.
+- `/predictcs` and `/predictmaxcs` run simulations on demand in the bot using temporary worker threads, with progress updates. No separate simulation service or Kafka broker is required.
 
 ## Requirements
 - Node.js 20+

@@ -8,7 +8,7 @@ vi.mock('../../../utils/database/colleggtiblesRepository.js', () => ({
   getStoredColleggtibles: vi.fn(() => []),
 }));
 
-vi.mock('../../../services/simOrchestrator/shared.js', () => ({
+vi.mock('../../../services/simulation/shared.js', () => ({
   buildPredictMaxCsVariant: vi.fn(options => ({
     ...options,
     baselineDeflectors: Array.from({ length: options.players }, () => 20),
@@ -21,7 +21,7 @@ vi.mock('../../../services/simOrchestrator/shared.js', () => ({
 }));
 
 import { simulateScenariosParallel } from '../../../sim-core/src/predictmaxcs/simulation.js';
-import { buildPredictMaxCsVariant } from '../../../services/simOrchestrator/shared.js';
+import { buildPredictMaxCsVariant } from '../../../services/simulation/shared.js';
 import { checkOptimalGrade } from '../../../services/optimalGradeService.js';
 
 const makeContract = () => ({

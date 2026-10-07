@@ -5,13 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
-import { startResultConsumer } from './services/simResultsConsumer.js';
 
 dotenv.config();
-
-startResultConsumer().catch(error => {
-  console.error('Failed to start simulation result consumer:', error);
-});
 
 const client = new Client({ 
   intents: [
@@ -116,7 +111,8 @@ async function handleModalInteraction(interaction, clientInstance) {
       await command.handleModalSubmit(interaction);
     } catch (error) {
       console.error('Modal submit error:', error);
-      await interaction.reply({
+      const respond = interaction.deferred || interaction.replied ? 'followUp' : 'reply';
+      await interaction[respond]({
         content: 'There was an error handling this form.',
         flags: 64,
       });
@@ -172,7 +168,8 @@ async function handleChatInputInteraction(interaction, clientInstance) {
     await command.execute(interaction);
   } catch (error) {
     console.error(error);
-    await interaction.reply({
+    const respond = interaction.deferred || interaction.replied ? 'followUp' : 'reply';
+    await interaction[respond]({
       content: 'There was an error executing this command.',
       flags: 64,
     });

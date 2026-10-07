@@ -5,8 +5,8 @@ vi.mock('../../../services/contractService.js', () => ({
   fetchContractSummaries: vi.fn(),
 }));
 
-vi.mock('../../../services/simOrchestrator.js', () => ({
-  startPredictMaxCsOrchestration: vi.fn(async () => 'orch-1'),
+vi.mock('../../../services/simulationRunner.js', () => ({
+  runPredictMaxCs: vi.fn(async () => ({})),
 }));
 
 vi.mock('../../../utils/database/colleggtiblesRepository.js', () => ({
@@ -22,14 +22,10 @@ vi.mock('../../../sim-core/src/predictmaxcs/model.js', () => ({
   TOKEN_CANDIDATES: [0, 1, 2, 3, 4, 5, 6, 8],
 }));
 
-vi.mock('../../../services/simQueue.js', () => ({
-  enqueueSimulationJob: vi.fn(async () => {}),
-}));
-
 import { execute, autocomplete } from '../../../commands/predictmaxcs.js';
 import { fetchContractSummaries } from '../../../services/contractService.js';
 import { createTextComponentMessage } from '../../../services/discord.js';
-import { startPredictMaxCsOrchestration } from '../../../services/simOrchestrator.js';
+import { runPredictMaxCs } from '../../../services/simulationRunner.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -75,7 +71,7 @@ describe('commands/predictmaxcs', () => {
     expect(interaction.reply).toHaveBeenCalled();
   });
 
-  it('starts orchestration for valid input', async () => {
+  it('runs simulations for valid input', async () => {
     fetchContractSummaries.mockResolvedValue([
       { id: 'c1', name: 'Test', maxCoopSize: 2, coopDurationSeconds: 3600, eggGoal: 1000, minutesPerToken: 4 },
     ]);
@@ -86,7 +82,7 @@ describe('commands/predictmaxcs', () => {
     expect(interaction.deferReply).toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalledWith({ content: 'Running PredictMaxCS simulations...' });
     expect(createTextComponentMessage).not.toHaveBeenCalled();
-    expect(startPredictMaxCsOrchestration).toHaveBeenCalledTimes(1);
+    expect(runPredictMaxCs).toHaveBeenCalledTimes(1);
   });
 
   it('rejects TE lists that do not match player count', async () => {

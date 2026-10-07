@@ -44,7 +44,7 @@ import {
 } from '../sim-core/src/predictcs/artifacts.js';
 import { parseSandboxUrl } from '../sim-core/src/predictcs/sandbox.js';
 import { getStoredColleggtibles } from '../utils/database/colleggtiblesRepository.js';
-import { startPredictCsOrchestration } from '../services/simOrchestrator.js';
+import { runPredictCs } from '../services/simulationRunner.js';
 
 const sessions = new Map();
 
@@ -460,7 +460,7 @@ async function handlePredictCsNext({ interaction, sessionId, playerIndex, sessio
   const coleggRows = getStoredColleggtibles();
   await interaction.editReply(buildPlainComponentMessage('Running PredictCS simulations...', { components: [] }));
 
-  await startPredictCsOrchestration({
+  await runPredictCs({
     interaction,
     contractLabel: session.contractLabel,
     players: session.players,
@@ -797,15 +797,15 @@ async function runPredictCsSandbox(interaction, session, sandboxData, contractOv
   }
 
   const coleggRows = getStoredColleggtibles();
-  const queuedMessage = buildPlainComponentMessage('Running PredictCS simulations...', { components: [] });
+  const runningMessage = buildPlainComponentMessage('Running PredictCS simulations...', { components: [] });
 
   if (interaction.deferred || interaction.replied) {
-    await interaction.editReply(queuedMessage);
+    await interaction.editReply(runningMessage);
   } else {
-    await interaction.reply(queuedMessage);
+    await interaction.reply(runningMessage);
   }
 
-  await startPredictCsOrchestration({
+  await runPredictCs({
     interaction,
     contractLabel: contractOverride.contractLabel,
     players,
@@ -876,4 +876,3 @@ export async function autocomplete(interaction) {
 
   await interaction.respond(filtered);
 }
-

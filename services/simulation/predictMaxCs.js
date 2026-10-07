@@ -1,77 +1,71 @@
 import { EmbedBuilder } from 'discord.js';
-import { randomUUID } from 'node:crypto';
 import { chunkContent } from '../discord.js';
 import { buildPlayerTableLines, formatEggs, secondsToHuman } from '../../sim-core/src/predictmaxcs/display.js';
 import {
   buildFinalModelFromPredictMaxCs,
   buildPredictMaxCsVariant,
-  buildScenarioJob,
-  enqueueScenarioBatch,
+  setScenarioBatch,
   scorePredictMaxCsResult,
   tokenCandidates,
 } from './shared.js';
 
-async function handlePhaseUniform(orchestration) {
+async function handlePhaseUniform(simulation) {
   const scenarios = [];
-  orchestration.variants.forEach(variant => {
+  simulation.variants.forEach(variant => {
     tokenCandidates.forEach(candidate => {
-      const tokensByPlayer = Array.from({ length: orchestration.players }, () => candidate);
+      const tokensByPlayer = Array.from({ length: simulation.players }, () => candidate);
       const scenario = {
-        players: orchestration.players,
+        players: simulation.players,
         playerDeflectors: variant.baselineDeflectors,
         playerConfigs: variant.playerConfigs,
-        durationSeconds: orchestration.durationSeconds,
-        targetEggs: orchestration.targetEggs,
-        tokenTimerMinutes: orchestration.tokenTimerMinutes,
-        giftMinutes: orchestration.giftMinutes,
-        gg: orchestration.gg,
+        durationSeconds: simulation.durationSeconds,
+        targetEggs: simulation.targetEggs,
+        tokenTimerMinutes: simulation.tokenTimerMinutes,
+        giftMinutes: simulation.giftMinutes,
+        gg: simulation.gg,
         baseIHR: variant.baseIHR,
         tokensPerPlayer: tokensByPlayer,
-        cxpMode: orchestration.assumptions.cxpMode,
+        cxpMode: simulation.assumptions.cxpMode,
       };
 
-      scenarios.push(buildScenarioJob({
-        orchestrationId: orchestration.id,
-        scenarioId: randomUUID(),
+      scenarios.push({
         context: {
           phase: 'uniform',
           variantId: variant.id,
           tokenCandidate: candidate,
         },
         scenario,
-      }));
+      });
     });
   });
 
-  await enqueueScenarioBatch(orchestration, scenarios);
+  await setScenarioBatch(simulation, scenarios);
 }
 
-async function handlePhaseSweep(orchestration) {
+async function handlePhaseSweep(simulation) {
   const scenarios = [];
-  const variant = orchestration.variantsToSweep[orchestration.sweepVariantIndex];
-  const playerIndex = orchestration.sweepPlayerIndex;
-  if (!variant || playerIndex >= orchestration.players) return;
+  const variant = simulation.variantsToSweep[simulation.sweepVariantIndex];
+  const playerIndex = simulation.sweepPlayerIndex;
+  if (!variant || playerIndex >= simulation.players) return;
 
   tokenCandidates.forEach(candidate => {
     const tokensByPlayer = variant.selectedTokens.slice();
     tokensByPlayer[playerIndex] = candidate;
     const scenario = {
-      players: orchestration.players,
+      players: simulation.players,
       playerDeflectors: variant.baselineDeflectors,
       playerConfigs: variant.playerConfigs,
-      durationSeconds: orchestration.durationSeconds,
-      targetEggs: orchestration.targetEggs,
-      tokenTimerMinutes: orchestration.tokenTimerMinutes,
-      giftMinutes: orchestration.giftMinutes,
-      gg: orchestration.gg,
+      durationSeconds: simulation.durationSeconds,
+      targetEggs: simulation.targetEggs,
+      tokenTimerMinutes: simulation.tokenTimerMinutes,
+      giftMinutes: simulation.giftMinutes,
+      gg: simulation.gg,
       baseIHR: variant.baseIHR,
       tokensPerPlayer: tokensByPlayer,
-      cxpMode: orchestration.assumptions.cxpMode,
+      cxpMode: simulation.assumptions.cxpMode,
     };
 
-    scenarios.push(buildScenarioJob({
-      orchestrationId: orchestration.id,
-      scenarioId: randomUUID(),
+    scenarios.push({
       context: {
         phase: 'sweep',
         variantId: variant.id,
@@ -79,45 +73,43 @@ async function handlePhaseSweep(orchestration) {
         tokenCandidate: candidate,
       },
       scenario,
-    }));
+    });
   });
 
-  await enqueueScenarioBatch(orchestration, scenarios);
+  await setScenarioBatch(simulation, scenarios);
 }
 
-async function handlePhaseFinal(orchestration) {
+async function handlePhaseFinal(simulation) {
   const scenarios = [];
-  orchestration.variantsToFinalize.forEach(variant => {
+  simulation.variantsToFinalize.forEach(variant => {
     const scenario = {
-      players: orchestration.players,
+      players: simulation.players,
       playerDeflectors: variant.baselineDeflectors,
       playerConfigs: variant.playerConfigs,
-      durationSeconds: orchestration.durationSeconds,
-      targetEggs: orchestration.targetEggs,
-      tokenTimerMinutes: orchestration.tokenTimerMinutes,
-      giftMinutes: orchestration.giftMinutes,
-      gg: orchestration.gg,
+      durationSeconds: simulation.durationSeconds,
+      targetEggs: simulation.targetEggs,
+      tokenTimerMinutes: simulation.tokenTimerMinutes,
+      giftMinutes: simulation.giftMinutes,
+      gg: simulation.gg,
       baseIHR: variant.baseIHR,
       tokensPerPlayer: variant.selectedTokens,
-      cxpMode: orchestration.assumptions.cxpMode,
+      cxpMode: simulation.assumptions.cxpMode,
     };
 
-    scenarios.push(buildScenarioJob({
-      orchestrationId: orchestration.id,
-      scenarioId: randomUUID(),
+    scenarios.push({
       context: {
         phase: 'final',
         variantId: variant.id,
       },
       scenario,
-    }));
+    });
   });
 
-  await enqueueScenarioBatch(orchestration, scenarios);
+  await setScenarioBatch(simulation, scenarios);
 }
 
-async function finalize(orchestration) {
-  const ranked = orchestration.variantsToFinalize
+async function finalize(simulation) {
+  const ranked = simulation.variantsToFinalize
     .map(variant => ({
       variant,
       score: variant.finalScore ?? -Infinity,
@@ -127,27 +119,28 @@ async function finalize(orchestration) {
   const winner = ranked[0]?.variant;
   if (!winner) return;
 
-  const model = buildFinalModelFromPredictMaxCs(orchestration, winner);
-  const outputLines = buildPlayerTableLines(model, orchestration.assumptions);
+  const model = buildFinalModelFromPredictMaxCs(simulation, winner);
+  const outputLines = buildPlayerTableLines(model, simulation.assumptions);
   outputLines.unshift(
-    `Players: ${orchestration.players} | Duration: ${secondsToHuman(orchestration.durationSeconds)} | Target: ${formatEggs(orchestration.targetEggs)}`,
+    `Players: ${simulation.players} | Duration: ${secondsToHuman(simulation.durationSeconds)} | Target: ${formatEggs(simulation.targetEggs)}`,
   );
 
   const chunks = chunkContent(outputLines, { maxLength: 3800, separator: '\n' });
   const embeds = chunks.map((chunk, index) => new EmbedBuilder()
     .setTitle(index === 0
-      ? `PredictMaxCS (${orchestration.contractLabel})`
+      ? `PredictMaxCS (${simulation.contractLabel})`
       : 'PredictMaxCS (cont.)')
     .setDescription(chunk));
 
   const [first, ...rest] = embeds;
-  await orchestration.interaction.editReply({ content: '', embeds: [first] });
+  await simulation.interaction.editReply({ content: '', embeds: [first] });
   for (const embed of rest) {
-    await orchestration.interaction.followUp({ embeds: [embed] });
+    await simulation.interaction.followUp({ embeds: [embed] });
   }
+  return model;
 }
 
-export async function startPredictMaxCsOrchestration(options) {
+export async function createPredictMaxCsRun(options) {
   const {
     interaction,
     contractLabel,
@@ -201,12 +194,11 @@ export async function startPredictMaxCsOrchestration(options) {
   const variants = [baseVariant, siabVariant];
   const variantMap = new Map(variants.map(variant => [variant.id, variant]));
   const sweepVariantCount = siabOverride == null ? 2 : 1;
-  const expectedJobCount = (tokenCandidates.length * 2)
+  const expectedSimulationCount = (tokenCandidates.length * 2)
     + (tokenCandidates.length * players * sweepVariantCount)
     + sweepVariantCount;
 
-  const orchestration = {
-    id: randomUUID(),
+  const simulation = {
     type: 'predictmaxcs',
     interaction,
     contractLabel,
@@ -226,18 +218,16 @@ export async function startPredictMaxCsOrchestration(options) {
     variantsToFinalize: [],
     phase: 'uniform',
     pending: 0,
-    expectedJobCount,
-    scenarioIds: new Set(),
-    completedJobIds: new Set(),
+    expectedSimulationCount,
   };
 
-  await handlePhaseUniform(orchestration);
-  return orchestration;
+  await handlePhaseUniform(simulation);
+  return simulation;
 }
 
-export function handlePredictMaxCsResult(orchestration, result) {
+export function handlePredictMaxCsResult(simulation, result) {
   const context = result.context ?? {};
-  const variant = orchestration.variantMap.get(context.variantId);
+  const variant = simulation.variantMap.get(context.variantId);
   if (!variant) return;
 
   const score = scorePredictMaxCsResult(result, variant);
@@ -253,11 +243,11 @@ export function handlePredictMaxCsResult(orchestration, result) {
   }
 }
 
-export async function advancePredictMaxCs(orchestration) {
-  if (orchestration.pending > 0) return;
+export async function advancePredictMaxCs(simulation) {
+  if (simulation.pending > 0) return;
 
-  if (orchestration.phase === 'uniform') {
-    orchestration.variants.forEach(variant => {
+  if (simulation.phase === 'uniform') {
+    simulation.variants.forEach(variant => {
       let bestCandidate = tokenCandidates[0];
       let bestScore = -Infinity;
       variant.uniformScores.forEach((score, candidate) => {
@@ -266,28 +256,28 @@ export async function advancePredictMaxCs(orchestration) {
           bestCandidate = candidate;
         }
       });
-      variant.uniformTokens = Array.from({ length: orchestration.players }, () => bestCandidate);
+      variant.uniformTokens = Array.from({ length: simulation.players }, () => bestCandidate);
       variant.selectedTokens = variant.uniformTokens.slice();
     });
 
-    if (orchestration.siabOverride === true) {
-      orchestration.variantsToSweep = [orchestration.variantMap.get('siab')];
-    } else if (orchestration.siabOverride === false) {
-      orchestration.variantsToSweep = [orchestration.variantMap.get('base')];
+    if (simulation.siabOverride === true) {
+      simulation.variantsToSweep = [simulation.variantMap.get('siab')];
+    } else if (simulation.siabOverride === false) {
+      simulation.variantsToSweep = [simulation.variantMap.get('base')];
     } else {
-      orchestration.variantsToSweep = orchestration.variants;
+      simulation.variantsToSweep = simulation.variants;
     }
 
-    orchestration.sweepVariantIndex = 0;
-    orchestration.sweepPlayerIndex = 0;
-    await handlePhaseSweep(orchestration);
-    orchestration.phase = 'sweep';
+    simulation.sweepVariantIndex = 0;
+    simulation.sweepPlayerIndex = 0;
+    await handlePhaseSweep(simulation);
+    simulation.phase = 'sweep';
     return;
   }
 
-  if (orchestration.phase === 'sweep') {
-    const variant = orchestration.variantsToSweep[orchestration.sweepVariantIndex];
-    const playerIndex = orchestration.sweepPlayerIndex;
+  if (simulation.phase === 'sweep') {
+    const variant = simulation.variantsToSweep[simulation.sweepVariantIndex];
+    const playerIndex = simulation.sweepPlayerIndex;
     const bucket = variant?.sweepScores.get(playerIndex) ?? new Map();
     let bestCandidate = variant?.selectedTokens[playerIndex] ?? tokenCandidates[0];
     let bestScore = -Infinity;
@@ -299,26 +289,26 @@ export async function advancePredictMaxCs(orchestration) {
     });
     variant.selectedTokens[playerIndex] = bestCandidate;
 
-    orchestration.sweepPlayerIndex += 1;
-    if (orchestration.sweepPlayerIndex < orchestration.players) {
-      await handlePhaseSweep(orchestration);
+    simulation.sweepPlayerIndex += 1;
+    if (simulation.sweepPlayerIndex < simulation.players) {
+      await handlePhaseSweep(simulation);
       return;
     }
 
-    orchestration.sweepVariantIndex += 1;
-    orchestration.sweepPlayerIndex = 0;
-    if (orchestration.sweepVariantIndex < orchestration.variantsToSweep.length) {
-      await handlePhaseSweep(orchestration);
+    simulation.sweepVariantIndex += 1;
+    simulation.sweepPlayerIndex = 0;
+    if (simulation.sweepVariantIndex < simulation.variantsToSweep.length) {
+      await handlePhaseSweep(simulation);
       return;
     }
 
-    orchestration.variantsToFinalize = orchestration.variantsToSweep;
-    await handlePhaseFinal(orchestration);
-    orchestration.phase = 'final';
+    simulation.variantsToFinalize = simulation.variantsToSweep;
+    await handlePhaseFinal(simulation);
+    simulation.phase = 'final';
     return;
   }
 
-  if (orchestration.phase === 'final') {
-    await finalize(orchestration);
+  if (simulation.phase === 'final') {
+    return finalize(simulation);
   }
 }

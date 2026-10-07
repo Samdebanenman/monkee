@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { computeAdjustedSummaries } from '../../sim-core/src/predictmaxcs/simulation.js';
 import {
   BOOSTED_SET,
@@ -11,7 +10,6 @@ import { getIhrStoneSlots, getSwapChickenJump, optimizeStones, buildPlayerConfig
 import { buildDeflectorDisplay, buildDeflectorPlan, getRequiredOtherDeflector } from '../../sim-core/src/predictmaxcs/deflector.js';
 import { buildBoostOrder } from '../../sim-core/src/predictcs/model.js';
 import { TOKEN_CANDIDATES } from '../../sim-core/src/predictmaxcs/model.js';
-import { enqueueSimulationJobs } from '../simQueue.js';
 
 export const tokenCandidates = TOKEN_CANDIDATES;
 
@@ -85,30 +83,9 @@ export function scorePredictCsResult(result, context) {
   return score;
 }
 
-export function buildScenarioJob({ orchestrationId, scenarioId, context, scenario }) {
-  return {
-    jobId: scenarioId,
-    type: 'simulate',
-    createdAt: Date.now(),
-    payload: {
-      orchestrationId,
-      context,
-      scenario,
-    },
-  };
-}
-
-export async function enqueueScenarioBatch(orchestration, scenarios) {
-  if (!orchestration.scenarioIds) {
-    orchestration.scenarioIds = new Set();
-  }
-  for (const scenario of scenarios) {
-    if (scenario?.jobId) {
-      orchestration.scenarioIds.add(scenario.jobId);
-    }
-  }
-  orchestration.pending += scenarios.length;
-  await enqueueSimulationJobs(scenarios);
+export function setScenarioBatch(simulation, scenarios) {
+  simulation.scenarios = scenarios;
+  simulation.pending = scenarios.length;
 }
 
 export function buildPredictMaxCsVariant(options) {
@@ -308,17 +285,17 @@ export function buildPredictCsVariant(options) {
   };
 }
 
-export function buildFinalModelFromPredictMaxCs(orchestration, winner) {
+export function buildFinalModelFromPredictMaxCs(simulation, winner) {
   return {
-    players: orchestration.players,
-    durationSeconds: orchestration.durationSeconds,
-    targetEggs: orchestration.targetEggs,
-    tokenTimerMinutes: orchestration.tokenTimerMinutes,
-    giftMinutes: orchestration.giftMinutes,
-    gg: orchestration.gg,
-    assumptions: orchestration.assumptions,
-    modifierType: orchestration.modifierType,
-    modifierValue: orchestration.modifierValue,
+    players: simulation.players,
+    durationSeconds: simulation.durationSeconds,
+    targetEggs: simulation.targetEggs,
+    tokenTimerMinutes: simulation.tokenTimerMinutes,
+    giftMinutes: simulation.giftMinutes,
+    gg: simulation.gg,
+    assumptions: simulation.assumptions,
+    modifierType: simulation.modifierType,
+    modifierValue: simulation.modifierValue,
     maxChickens: winner.maxChickensBase,
     baseIHR: winner.baseIHR,
     playerIHRs: winner.playerIHRs,
@@ -337,44 +314,44 @@ export function buildFinalModelFromPredictMaxCs(orchestration, winner) {
     tokensByPlayer: winner.selectedTokens,
     tokenUpgrade: null,
     usePlayer1Siab: winner.usePlayer1Siab,
-    siabScoreDelta: orchestration.siabScoreDelta ?? null,
+    siabScoreDelta: simulation.siabScoreDelta ?? null,
     playerConfigs: winner.playerConfigs,
     deflectorDisplay: winner.deflectorDisplay,
   };
 }
 
-export function buildFinalModelFromPredictCs(orchestration) {
+export function buildFinalModelFromPredictCs(simulation) {
   return {
-    players: orchestration.players,
-    durationSeconds: orchestration.durationSeconds,
-    targetEggs: orchestration.targetEggs,
-    tokenTimerMinutes: orchestration.tokenTimerMinutes,
-    giftMinutes: orchestration.giftMinutes,
-    gg: orchestration.gg,
-    assumptions: orchestration.assumptions,
-    modifierType: orchestration.modifierType,
-    modifierValue: orchestration.modifierValue,
+    players: simulation.players,
+    durationSeconds: simulation.durationSeconds,
+    targetEggs: simulation.targetEggs,
+    tokenTimerMinutes: simulation.tokenTimerMinutes,
+    giftMinutes: simulation.giftMinutes,
+    gg: simulation.gg,
+    assumptions: simulation.assumptions,
+    modifierType: simulation.modifierType,
+    modifierValue: simulation.modifierValue,
     maxChickens: 0,
-    baseIHR: orchestration.avgIHR,
-    playerIHRs: orchestration.playerIHRs,
+    baseIHR: simulation.avgIHR,
+    playerIHRs: simulation.playerIHRs,
     baseElrPerPlayer: 0,
     baseSrPerPlayer: 0,
     elrPerChickenWithStones: 0,
     srWithStones: 0,
-    stoneLayout: orchestration.playerConfigs[0]?.stoneLayout ?? { numTach: 0, numQuant: 0 },
+    stoneLayout: simulation.playerConfigs[0]?.stoneLayout ?? { numTach: 0, numQuant: 0 },
     requiredDeflector: 0,
-    deflectorPlan: buildDeflectorPlan(orchestration.playerDeflectors, DEFLECTOR_TIERS),
-    baselineScenario: orchestration.finalScenario,
-    playerSummaries: orchestration.finalScenario,
-    tokensForPrediction: orchestration.uniformTokens?.[0] ?? 0,
+    deflectorPlan: buildDeflectorPlan(simulation.playerDeflectors, DEFLECTOR_TIERS),
+    baselineScenario: simulation.finalScenario,
+    playerSummaries: simulation.finalScenario,
+    tokensForPrediction: simulation.uniformTokens?.[0] ?? 0,
     hasFixedTokens: true,
     tokenPlan: null,
-    tokensByPlayer: orchestration.selectedTokens,
+    tokensByPlayer: simulation.selectedTokens,
     tokenUpgrade: null,
-    usePlayer1Siab: orchestration.usePlayer1Siab,
+    usePlayer1Siab: simulation.usePlayer1Siab,
     siabScoreDelta: 0,
-    playerConfigs: orchestration.playerConfigs,
-    playerArtifacts: orchestration.playerArtifacts,
-    deflectorDisplay: orchestration.deflectorDisplay,
+    playerConfigs: simulation.playerConfigs,
+    playerArtifacts: simulation.playerArtifacts,
+    deflectorDisplay: simulation.deflectorDisplay,
   };
 }
