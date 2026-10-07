@@ -2,6 +2,7 @@ import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
 import { checkCoopForKnownPlayers, getCoopAvailability, listCoops } from '../services/coopService.js';
 import {
+  chunkContent,
   createTextComponentMessage,
 } from '../services/discord.js';
 
@@ -9,6 +10,8 @@ const CODE_OPTION_DEFAULT = 'default';
 const CODE_OPTION_EXTENDED = 'extended';
 const CODE_OPTION_EXTENDED_PLUS = 'extended_plus';
 const CONTRACT_OPTION = 'contract';
+const ALL_CONTRACTS_OPTION = 'all';
+const ALL_CONTRACTS_USER_ID = '659339631564947456';
 const SEARCHLIST_OPTION = 'searchlist';
 const DEFAULT_CONCURRENCY = 12;
 const PROGRESS_BAR_WIDTH = 20;
@@ -51,18 +54,8 @@ async function asyncPool(limit, items, iterator) {
 
 function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
   const letters = Array.from({ length: 26 }, (_, index) => String.fromCodePoint(97 + index));
-  const digits = Array.from({ length: 10 }, (_, index) => String(index));
-
-  const normalizedMode = [CODE_OPTION_EXTENDED, CODE_OPTION_EXTENDED_PLUS].includes(mode)
-    ? mode
-    : CODE_OPTION_DEFAULT;
-
-  const prefixes = normalizedMode === CODE_OPTION_DEFAULT
-    ? letters
-    : normalizedMode === CODE_OPTION_EXTENDED
-      ? [...letters, ...digits]
-      : [...letters, '-', ...digits];
-  const suffixes = normalizedMode === CODE_OPTION_EXTENDED_PLUS ? ['oo', 'ooo'] : ['oo'];
+  const prefixes = [...letters, '-'];
+  const suffixes = mode === CODE_OPTION_EXTENDED_PLUS ? ['oo', 'ooo'] : ['oo'];
 
   return prefixes.flatMap(prefix => suffixes.map(suffix => `${prefix}${suffix}`));
 }
@@ -204,24 +197,49 @@ export async function execute(interaction) {
     return;
   }
 
-  await interaction.reply(createTextComponentMessage(
-    'Starting check.'
-  ));
+  const checkAllContracts = contractInput.toLowerCase() === ALL_CONTRACTS_OPTION;
+  if (checkAllContracts && interaction.user?.id !== ALL_CONTRACTS_USER_ID) {
+    await interaction.reply(createTextComponentMessage(
+      'You are not authorized to check all contracts.',
+      { flags: 64 },
+    ));
+    return;
+  }
+
+  if (checkAllContracts) {
+    await interaction.deferReply({ flags: 64 });
+    await interaction.deleteReply();
+  } else {
+    await interaction.reply(createTextComponentMessage('Starting check.'));
+  }
 
   const coopCodesToCheck = buildCoopCodes(codesOption);
   const summaries = await fetchContractSummaries();
   const sortedContracts = [...summaries].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
   const nameById = new Map(sortedContracts.map(c => [c.id, c.name || c.id]));
 
-  const displayName = nameById.get(contractInput) || contractInput;
-  const selectedContracts = [[displayName, contractInput]];
+  const selectedContracts = checkAllContracts
+    ? sortedContracts.filter(contract => contract.id).map(contract => [contract.name || contract.id, contract.id])
+    : [[nameById.get(contractInput) || contractInput, contractInput]];
 
   if (!selectedContracts.length) {
-    await interaction.editReply(createTextComponentMessage('No contracts matched your selection.'));
+    const message = createTextComponentMessage('No contracts matched your selection.');
+    if (checkAllContracts) {
+      await interaction.channel.send(message);
+    } else {
+      await interaction.editReply(message);
+    }
     return;
   }
 
+  if (checkAllContracts) {
+    await interaction.channel.send(createTextComponentMessage(
+      `Starting check of ${selectedContracts.length} contracts. Progress will be logged to the console.`,
+    ));
+  }
+
   const totalSteps = selectedContracts.length * coopCodesToCheck.length;
+  let currentContract = '';
   const progress = totalSteps > 0
     ? {
         total: totalSteps,
@@ -237,6 +255,10 @@ export async function execute(interaction) {
           if (!force && now - this.lastUpdatedAt < this.intervalMs) return this.pendingUpdate;
           this.lastUpdatedAt = now;
           const content = formatProgressText(this.completed, this.total);
+          if (checkAllContracts) {
+            console.log(`[checkifpc] ${content}${currentContract ? ` | ${currentContract}` : ''}`);
+            return this.pendingUpdate;
+          }
           this.pendingUpdate = this.pendingUpdate
             .then(() => interaction.editReply(createTextComponentMessage(content)))
             .catch(() => {});
@@ -259,6 +281,7 @@ export async function execute(interaction) {
 
   const resultsLines = [];
   for (const [name, id] of selectedContracts) {
+    currentContract = `${name} (${id})`;
     const nonFree = await buildNonFreeCoops(id, coopCodesToCheck, async ({ isIncrement }) => {
       if (progress && isIncrement) {
         progress.addTotal(1);
@@ -319,6 +342,15 @@ export async function execute(interaction) {
     }
 
     resultsLines.push('');
+  }
+
+  if (checkAllContracts) {
+    await progress?.update(true);
+    for (const chunk of chunkContent(resultsLines.length ? resultsLines : ['No data found.'])) {
+      await interaction.channel.send(createTextComponentMessage(chunk));
+    }
+    console.log(`[checkifpc] Finished checking ${selectedContracts.length} contracts.`);
+    return;
   }
 
   const message = resultsLines.length > 0 ? resultsLines.join('\n') : 'No data found.';

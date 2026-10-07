@@ -52,6 +52,7 @@ export function createInteraction({
     interaction.replied = true;
   });
   interaction.editReply = vi.fn(async () => {});
+  interaction.deleteReply = vi.fn(async () => {});
   interaction.followUp = vi.fn(async () => {});
   interaction.deferReply = vi.fn(async () => {
     interaction.deferred = true;
