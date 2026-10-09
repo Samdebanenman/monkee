@@ -2,6 +2,7 @@ import axios from 'axios';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import protobuf from 'protobufjs';
+import { health } from '../../utils/healthMonitor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -83,23 +84,25 @@ function buildAuxbrainUrl(baseUrl, endpoint) {
 }
 
 async function postAuxbrain(endpoint, requestBase64, { timeout = DEFAULT_TIMEOUT_MS } = {}) {
-  const form = new URLSearchParams({ data: requestBase64 });
-  let lastError = null;
+  return health.observe('gameApi', async () => {
+    const form = new URLSearchParams({ data: requestBase64 });
+    let lastError = null;
 
-  for (const baseUrl of AUXBRAIN_BASE_URLS) {
-    const url = buildAuxbrainUrl(baseUrl, endpoint);
-    try {
-      return await axios.post(url, form.toString(), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        responseType: 'text',
-        timeout,
-      });
-    } catch (error) {
-      lastError = error;
+    for (const baseUrl of AUXBRAIN_BASE_URLS) {
+      const url = buildAuxbrainUrl(baseUrl, endpoint);
+      try {
+        return await axios.post(url, form.toString(), {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          responseType: 'text',
+          timeout,
+        });
+      } catch (error) {
+        lastError = error;
+      }
     }
-  }
 
-  throw lastError;
+    throw lastError;
+  });
 }
 
 export async function fetchBackupData(playerId, options = {}) {

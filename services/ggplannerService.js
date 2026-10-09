@@ -1,4 +1,5 @@
 import { convertEstToUtc, convertUtcToEst } from '../utils/eggStandartTime.js';
+import { observedFetch } from '../utils/healthMonitor.js';
 
 const GGPLANNER_API_BASE_URL = process.env.GGPLANNER_API_BASE_URL;
 const GGPLANNER_API_KEY = process.env.GGPLANNER_API_KEY;
@@ -63,14 +64,15 @@ async function plannerRequest(action, { method = 'GET', body, query = {} } = {})
 		}
 	}
 
-	const response = await fetch(url.toString(), {
+  const response = await observedFetch('planner', () => fetch(url.toString(), {
 		method,
 		headers: {
 			'Content-Type': 'application/json',
 			Authorization: `Bearer ${GGPLANNER_API_KEY}`,
 		},
 		body: body ? JSON.stringify(body) : undefined,
-	});
+    signal: AbortSignal.timeout(15000),
+	}));
 
 	const payload = await response.json().catch(() => ({}));
 	if (!response.ok) {

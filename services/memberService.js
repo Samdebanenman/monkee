@@ -9,6 +9,7 @@ import {
   listMembersByPushee,
 } from '../utils/database/index.js';
 import { getAstronomicalSeasonRange, parseSeasonKey } from '../utils/seasons.js';
+import { observedFetch } from '../utils/healthMonitor.js';
 
 const MEMBER_API_URL = 'https://eiapi.up.railway.app/allMaj';
 
@@ -237,7 +238,9 @@ export function syncMembersFromApiEntries(entries = []) {
 }
 
 export async function fetchMembersPayloadFromApi() {
-  const response = await fetch(MEMBER_API_URL, { headers: { accept: 'application/json' } });
+  const response = await observedFetch('memberApi', () => fetch(MEMBER_API_URL, {
+    headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15000),
+  }));
   if (!response.ok) {
     throw new Error(`request failed with status ${response.status}`);
   }

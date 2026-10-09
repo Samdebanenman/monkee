@@ -1,6 +1,7 @@
 // /utils/openai.js
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { health } from './healthMonitor.js';
 dotenv.config();
 
 let openaiClient = null;
@@ -18,7 +19,7 @@ export async function getMonkeeReply(messages) {
   const client = getOpenAiClient();
   if (!client) return null;
 
-  const response = await client.chat.completions.create({
+  const response = await health.observe('openai', () => client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       {
@@ -47,7 +48,7 @@ export async function getMonkeeReply(messages) {
       ...messages,
     ],
     temperature: 0.8,
-  });
+  }));
 
   return response.choices[0]?.message?.content ?? null;
 }

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { health } from '../utils/healthMonitor.js';
 import { listMembersWithIgn } from '../utils/database/index.js';
 
 const LEADERBOARD_ENDPOINT = 'https://ei_worker.tylertms.workers.dev/leaderboard';
@@ -45,7 +46,7 @@ export async function fetchLeaderboardEntries({ scope }) {
   url.searchParams.set('grade', 5);
 
   try {
-    const response = await axios.get(url.toString(), { timeout: REQUEST_TIMEOUT_MS });
+    const response = await health.observe('leaderboard', () => axios.get(url.toString(), { timeout: REQUEST_TIMEOUT_MS }));
     return sanitizeEntries(response.data);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

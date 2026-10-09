@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { startHealthServer } from '../../utils/healthServer.js';
+import { HealthMonitor } from '../../utils/healthMonitor.js';
 
 const runFile = promisify(execFile);
 const probePath = fileURLToPath(new URL('../../healthcheck.js', import.meta.url));
@@ -35,11 +36,39 @@ async function serve(handler) {
 }
 
 describe('Monkee health check', () => {
+  it('exports Docker snapshots and preserves liveness during noncritical outages', async () => {
+    const monitor = new HealthMonitor({ env: {} });
+    monitor.initialized = true;
+    for (const name of monitor.components.keys()) monitor.record(name);
+    server = await startHealthServer({}, { monitor, port: 0 });
+    expect(JSON.parse((await probe()).stdout).status).toBe('operational');
+    for (let index = 0; index < 3; index++) monitor.record('gameApi', { ok: false, reason: 'Request timed out' });
+    const result = await probe();
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'degraded', coreAvailable: true,
+      components: { gameApi: { status: 'down' } } });
+    monitor.record('application', { ok: false, down: true });
+    await expect(probe()).rejects.toMatchObject({ code: 1, stdout: expect.stringContaining('"status":"down"') });
+  });
+
+  it('does not fail Docker solely because passive optional evidence is unknown', async () => {
+    const monitor = new HealthMonitor({ env: {} });
+    monitor.initialized = true;
+    for (const name of monitor.components.keys()) monitor.record(name);
+    monitor.register('planner');
+    server = await startHealthServer({}, { monitor, port: 0 });
+    expect(JSON.parse((await probe()).stdout)).toMatchObject({ status: 'unknown', coreAvailable: true });
+  });
+
+  it('fails Docker while application initialization is incomplete', async () => {
+    server = await startHealthServer({}, { monitor: new HealthMonitor({ env: {} }), port: 0 });
+    await expect(probe()).rejects.toMatchObject({ code: 1 });
+  });
+
   it('succeeds when the bot responds and follows Discord readiness changes', async () => {
     let ready = false;
     server = await startHealthServer({ isReady: () => ready }, { port: 0 });
 
-    await expect(probe()).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('HTTP 503') });
+    await expect(probe()).rejects.toMatchObject({ code: 1, stdout: expect.stringContaining('Health endpoint unavailable') });
     ready = true;
     await expect(probe()).resolves.toMatchObject({ stderr: '' });
     ready = false;

@@ -3,6 +3,7 @@ import protobuf from 'protobufjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
+import { health } from './healthMonitor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const PROTO_PATH = path.join(__dirname, '..', 'ei.proto');
@@ -71,30 +72,50 @@ function buildAuxbrainUrl(baseUrl, endpoint) {
   return `${baseUrl}${endpoint ?? ''}`;
 }
 
-export async function postAuxbrain(endpoint, requestBase64, { timeout = AUXBRAIN_TIMEOUT_MS } = {}) {
-  const primaryIndex = Math.random() < 0.5 ? 0 : 1;
-  const fallbackIndex = primaryIndex === 0 ? 1 : 0;
-  const attemptOrder = [primaryIndex, fallbackIndex];
-  let lastError;
+export async function postAuxbrain(endpoint, requestBase64, { timeout = AUXBRAIN_TIMEOUT_MS, observe = true } = {}) {
+  const operation = async () => {
+    const primaryIndex = Math.random() < 0.5 ? 0 : 1;
+    const fallbackIndex = primaryIndex === 0 ? 1 : 0;
+    const attemptOrder = [primaryIndex, fallbackIndex];
+    let lastError;
 
-  for (const index of attemptOrder) {
-    const url = buildAuxbrainUrl(AUXBRAIN_BASE_URLS[index], endpoint);
-    try {
-      return await axios.post(
-        url,
-        { data: requestBase64 },
-        {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          responseType: 'text',
-          timeout,
-        },
-      );
-    } catch (error) {
-      lastError = error;
+    for (const index of attemptOrder) {
+      const url = buildAuxbrainUrl(AUXBRAIN_BASE_URLS[index], endpoint);
+      try {
+        return await axios.post(
+          url,
+          { data: requestBase64 },
+          {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            responseType: 'text',
+            timeout,
+          },
+        );
+      } catch (error) {
+        lastError = error;
+      }
     }
-  }
 
-  throw lastError;
+    throw lastError;
+  };
+  return observe ? health.observe('gameApi', operation) : operation();
+}
+
+export async function probeGameApi() {
+  if (!process.env.EID) return;
+  return health.observe('gameApi', async () => {
+    const type = await getProtoType('ei.GetPeriodicalsRequest');
+    const payload = encodeProtoRequest(type, {
+      userId: process.env.EID, currentClientVersion: CLIENT_INFO.CLIENT_VERSION,
+      contractsUnlocked: true, artifactsUnlocked: true,
+    });
+    const response = await postAuxbrain(AUXBRAIN_ENDPOINTS.GET_PERIODICALS, payload,
+      { timeout: health.config.gameTimeout, observe: false });
+    const { messageBuffer } = await decodeAuthenticatedPayload(response.data);
+    if (!messageBuffer.length) throw new Error('Empty API response');
+    const responseType = await getProtoType('ei.PeriodicalsResponse');
+    responseType.decode(messageBuffer);
+  });
 }
 
 export async function decodeAuthenticatedPayload(responseData, { decompress = true } = {}) {

@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { health } from '../utils/healthMonitor.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { convertEstToUtc, convertUtcToEst } from '../utils/eggStandartTime.js';
@@ -152,7 +153,15 @@ async function getSheetsClient() {
 			keyFile: CREDENTIALS_PATH,
 			scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 		});
-		return google.sheets({ version: 'v4', auth });
+		const client = google.sheets({ version: 'v4', auth });
+		for (const [resource, methods] of [[client.spreadsheets, ['get']],
+			[client.spreadsheets.values, ['get', 'batchGet', 'batchUpdate']]]) {
+			for (const method of methods) {
+				const original = resource[method].bind(resource);
+				resource[method] = (...args) => health.observe('sheets', () => original(...args));
+			}
+		}
+		return client;
 	} catch (error) {
 		console.error('Error creating Google Sheets client:', error);
 		return null;

@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Collection, Events, REST, Routes, Partials, ApplicationCommandType, ApplicationCommandOptionType } from 'discord.js';
+import { Client, GatewayIntentBits, Collection, Events, REST, Routes, Partials, ApplicationCommandType, ApplicationCommandOptionType, DefaultRestOptions } from 'discord.js';
 import { getMonkeeReply } from './utils/openai.js';
 import { isMonkeeEnabled } from './commands/monkee.js';
 import fs from 'node:fs';
@@ -6,10 +6,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { startHealthServer } from './utils/healthServer.js';
+import { health, observedDiscordRequest } from './utils/healthMonitor.js';
 
 dotenv.config();
 
 const client = new Client({ 
+  rest: { makeRequest: (...args) => observedDiscordRequest(() => DefaultRestOptions.makeRequest(...args)) },
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.DirectMessages,
@@ -20,6 +22,11 @@ const client = new Client({
 });
 client.commands = new Collection();
 let monkeeMissingKeyNotified = false;
+await startHealthServer(client, { monitor: health });
+health.start(client, {
+  databaseProbe: async () => (await import('./utils/database/client.js')).probeDatabase(),
+  gameProbe: async () => (await import('./utils/auxbrain.js')).probeGameApi(),
+});
 
 // Load command files
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
@@ -42,7 +49,7 @@ client.once(Events.ClientReady, () => {
             type: ApplicationCommandType.Message,
             integration_types: [0, 1],
         }
-      });
+      }).catch(error => console.error('Transcript registration failed:', error));
 });
 
 function formatCommandOptions(optionData) {
@@ -71,10 +78,20 @@ function formatCommandOptions(optionData) {
 }
 
 client.on(Events.InteractionCreate, async interaction => {
-  if (await handleComponentInteraction(interaction, client)) return;
-  if (await handleModalInteraction(interaction, client)) return;
-  if (await handleAutocompleteInteraction(interaction, client)) return;
-  await handleChatInputInteraction(interaction, client);
+  let failed = false;
+  try {
+    if (await handleComponentInteraction(interaction, client)) return;
+    if (await handleModalInteraction(interaction, client)) return;
+    if (await handleAutocompleteInteraction(interaction, client)) return;
+    await handleChatInputInteraction(interaction, client);
+  } catch (error) {
+    failed = true;
+    health.safeRecord('processing', { ok: false, reason: 'Interaction dispatch failed' });
+    console.error('Interaction dispatch failed:', error);
+    return;
+  } finally {
+    if (!failed) health.safeRecord('processing');
+  }
 });
 
 async function handleComponentInteraction(interaction, clientInstance) {
@@ -220,7 +237,7 @@ async function handleMonkeeMessage(client, message) {
 
 
 
-await startHealthServer(client);
+health.initialized = true;
 await client.login(process.env.TOKEN);
 
 const commands = [];
@@ -251,7 +268,9 @@ commands.push({
   contexts: [0, 1, 2],
 });
 
-const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+const rest = new REST({ version: '10',
+  makeRequest: (...args) => observedDiscordRequest(() => DefaultRestOptions.makeRequest(...args)),
+}).setToken(process.env.TOKEN);
 
 try {
   console.log('Registering global slash commands...');

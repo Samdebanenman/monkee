@@ -101,11 +101,12 @@ docker run --rm \
 
 The image sets `NODE_ENV=production` and defaults `COOPS_DB_PATH` to `/app/data/coops.db`.
 
-Docker runs `node healthcheck.js` every 30 seconds. It calls Monkee's local
-`/health` endpoint, which returns success only when the Discord client is ready.
-The probe fails if the bot is disconnected, refuses the request, or does not
-respond within 3 seconds. The endpoint binds to `127.0.0.1:3000` inside the
-container; set `HEALTHCHECK_PORT` to use another port. No published port is needed.
+Docker runs `node healthcheck.js` every 30 seconds against the existing loopback
+`/health` endpoint. It evaluates core application availability and emits a bounded
+component snapshot for Status Server through Docker inspect. Game API or database
+outages can degrade Monkee without failing Docker liveness. See [HEALTH.md](HEALTH.md)
+for thresholds, aggregation, configuration, transport, and deployment details.
+No published port is needed.
 
 ## Data & persistence
 - SQLite lives at `./data/coops.db` by default; schema is bootstrapped on startup.

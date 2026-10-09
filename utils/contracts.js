@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { health } from './healthMonitor.js';
 import { DateTime } from 'luxon';
 import { getStoredContracts, getMeta, setMeta, upsertContracts } from './database/index.js';
 import { fetchAndCacheColleggtibles } from './colleggtibles.js';
@@ -131,7 +132,7 @@ function mapRemoteContract(obj, ContractType, eggEnum, dimensionEnum) {
 }
 
 async function fetchAndCacheContracts() {
-  const response = await axios.get(CONTRACT_ARCHIVE_URL);
+  const response = await health.observe('contractArchive', () => axios.get(CONTRACT_ARCHIVE_URL, { timeout: 15000 }));
   if (!Array.isArray(response.data)) return [];
 
   const root = await getProtoRoot();
