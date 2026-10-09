@@ -25,4 +25,6 @@ COPY --chown=node:node . .
 RUN mkdir -p /app/data \
     && chown -R node:node /app
 USER node
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["node", "healthcheck.js"]
 CMD ["node", "index.js"]

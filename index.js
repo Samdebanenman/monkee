@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
+import { startHealthServer } from './utils/healthServer.js';
 
 dotenv.config();
 
@@ -219,6 +220,7 @@ async function handleMonkeeMessage(client, message) {
 
 
 
+await startHealthServer(client);
 await client.login(process.env.TOKEN);
 
 const commands = [];
