@@ -77,7 +77,7 @@ function toPlannerContractPayload({ sourceMonkeeContract, durationHours }) {
     name: String(sourceMonkeeContract.name || '').trim() || String(sourceMonkeeContract.id || '').trim(),
     day: formatPlannerDayFromRelease(sourceMonkeeContract.release),
     players: Number(sourceMonkeeContract.maxCoopSize) || 0,
-    duration: finalDurationHours > 0 ? finalDurationHours : 0,
+    duration: Math.max(finalDurationHours, 0),
   };
 }
 

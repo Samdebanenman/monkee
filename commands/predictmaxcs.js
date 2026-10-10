@@ -27,7 +27,7 @@ function parseTeInput(teInput, players) {
     return { values: makeDefault(), error: null };
   }
 
-  const numbers = parts.map(part => Number(part));
+  const numbers = parts.map(Number);
   if (numbers.some(value => !Number.isFinite(value))) {
     return { values: null, error: 'TE must be a number or comma-separated list of numbers.' };
   }

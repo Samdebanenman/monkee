@@ -10,7 +10,7 @@ const CODE_OPTION_EXTENDED_PLUS = 'extended_plus';
 const CONTRACT_OPTION = 'contract';
 
 function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
-  const letters = Array.from({ length: 26 }, (_, index) => String.fromCharCode(97 + index));
+  const letters = Array.from({ length: 26 }, (_, index) => String.fromCodePoint(97 + index));
   const digits = Array.from({ length: 10 }, (_, index) => String(index));
 
   const normalizedMode = [CODE_OPTION_EXTENDED, CODE_OPTION_EXTENDED_PLUS].includes(mode)

@@ -236,29 +236,7 @@ async function getPlayerFromSheet(tabName, contractId, day, hours, isUltraOnly) 
 		if (!userRows || userRows.length < 5) return null;
 		if (!contractRowsData || contractRowsData.length < 5) return null
 		
-		// --- Get Selected Contracts ---
-		// Contract IDs are in 'Current Contracts'!E3, E4, E5
-		// Participation flags are in user's sheet at H2, H3, H4
-		const selectedContracts = [];
-		const contractMap = {
-			1: 2, // H2 (user) -> E3 (contracts)
-			2: 3, // H3 (user) -> E4 (contracts)
-			3: 4, // H4 (user) -> E5 (contracts)
-		};
-
-		for (const userRowIndex in contractMap) {
-			const contractRowIndex = contractMap[userRowIndex];
-			const wantsToRun = userRows[userRowIndex]
-				? String(userRows[userRowIndex][7] || '').toUpperCase() ===
-					'TRUE'
-				: false;
-			const contract_id = contractRowsData[contractRowIndex]
-				? String(contractRowsData[contractRowIndex][4] || '').trim()
-				: '';
-			if (wantsToRun && contract_id) {
-				selectedContracts.push(contract_id);
-			}
-		}
+		const selectedContracts = getSelectedContracts(userRows, contractRowsData);
 
 		if (!selectedContracts.includes(contractId)) {
 			return null;
@@ -492,8 +470,8 @@ export async function updateScheduleInSheet(sheetTab, dayOfWeek, utcHours) {
 			const rowIndex = EST_TO_ROW[estHour];
 			const value = availableHours.has(estHour) ? 'TRUE' : 'FALSE';
 			// Using A1 notation. Column B is Monday, C is Tuesday, etc.
-			const columnLetter = String.fromCharCode(
-				'A'.charCodeAt(0) + dayOfWeek,
+			const columnLetter = String.fromCodePoint(
+				'A'.codePointAt(0) + dayOfWeek,
 			);
 			const cell = `${columnLetter}${rowIndex + 1}`;
 			data.push({
@@ -523,3 +501,31 @@ export default {
 	updateScheduleInSheet,
 	updateContractsInSheet,
 };
+
+function getSelectedContracts(userRows, contractRowsData) {
+	// --- Get Selected Contracts ---
+	// Contract IDs are in 'Current Contracts'!E3, E4, E5
+	// Participation flags are in user's sheet at H2, H3, H4
+	const selectedContracts = [];
+	const contractMap = {
+		1: 2, // H2 (user) -> E3 (contracts)
+		2: 3, // H3 (user) -> E4 (contracts)
+		3: 4, // H4 (user) -> E5 (contracts)
+	};
+
+	for (const userRowIndex in contractMap) {
+		const contractRowIndex = contractMap[userRowIndex];
+		const wantsToRun = userRows[userRowIndex]
+			? String(userRows[userRowIndex][7] || '').toUpperCase() ===
+				'TRUE'
+			: false;
+		const contract_id = contractRowsData[contractRowIndex]
+			? String(contractRowsData[contractRowIndex][4] || '').trim()
+			: '';
+		if (wantsToRun && contract_id) {
+			selectedContracts.push(contract_id);
+		}
+	}
+
+	return selectedContracts;
+}

@@ -200,6 +200,15 @@ function normalizeText(value) {
   return value ? value.trim() : '';
 }
 
+function buildLinkPlayersFailureMessage(memberResult, result) {
+  if (memberResult.reason === 'no-users') return 'No valid Discord IDs provided.';
+  if (memberResult.reason === 'unknown-contract') return `Invalid contract ID: ${result.contract}`;
+  if (memberResult.reason === 'coop-not-found') {
+    return `Coop ${result.contract}/${result.coop} does not exist. Add it first with </coop addcoop:1427617464535089254>.`;
+  }
+  return `Failed to link players: ${memberResult.reason ?? 'unknown error'}`;
+}
+
 async function handleAddCoop(interaction) {
   const options = parseAddCoopOptions(interaction);
   if (!options.ok) {
@@ -226,14 +235,7 @@ async function handleAddCoop(interaction) {
     });
 
     if (!memberResult.ok) {
-      let message = `Failed to link players: ${memberResult.reason ?? 'unknown error'}`;
-      if (memberResult.reason === 'no-users') {
-        message = 'No valid Discord IDs provided.';
-      } else if (memberResult.reason === 'unknown-contract') {
-        message = `Invalid contract ID: ${result.contract}`;
-      } else if (memberResult.reason === 'coop-not-found') {
-        message = `Coop ${result.contract}/${result.coop} does not exist. Add it first with </coop addcoop:1427617464535089254>.`;
-      }
+      const message = buildLinkPlayersFailureMessage(memberResult, result);
 
       await interaction.editReply(createTextComponentMessage(message, { allowedMentions: { users: [] } }));
       return;

@@ -43,7 +43,7 @@ function formatContractLine(row) {
   const eggKey = cleanText(row.egg, 'UNKNOWN').toUpperCase();
   const eggEmoji = EggtoEmoji[eggKey] || EggtoEmoji.UNKNOWN;
   const link = buildCoopUrl(contractId, coopId);
-  const altMarker = row.isAltOnly ? '\\*' : '';
+  const altMarker = row.isAltOnly ? String.raw`\*` : '';
 
   return `- ${eggEmoji} ${contractId} [${coopId}](<${link}>)${altMarker}`;
 }
@@ -83,7 +83,7 @@ export async function execute(interaction) {
   const lines = [
     `<@${targetId}>'s contract history of the past ${report.timeline}`,
     ...(report.rows.length > 0 ? report.rows.map(formatContractLine) : ['- No coops found.']),
-    ...(hasAltOnlyCoop ? ['\\*alt only coop'] : []),
+    ...(hasAltOnlyCoop ? [String.raw`\*alt only coop`] : []),
   ];
   const chunks = chunkContent(lines, { maxLength: MAX_DISCORD_COMPONENT_LENGTH });
   await sendChunks(interaction, chunks);

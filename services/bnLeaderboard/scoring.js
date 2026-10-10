@@ -184,11 +184,12 @@ export class BnLeaderboardScoringService {
       const rateWithSiab = getBtvRate(deflectorPercent, effectiveSiabPercent, true);
       const siabRateDelta = Math.max(0, rateWithSiab - rateWithoutSiab);
       const inferredOnly = siabFromArtifacts <= 0 && effectiveSiabPercent > 0;
-      const siabActiveSeconds = siabRateDelta > 0
-        ? (inferredOnly
+      let siabActiveSeconds = 0;
+      if (siabRateDelta > 0) {
+        siabActiveSeconds = inferredOnly
           ? Math.min(projectedCompletion, siabInference.activeSeconds || projectedCompletion)
-          : projectedCompletion)
-        : 0;
+          : projectedCompletion;
+      }
 
       const predBuff = rateWithoutSiab * projectedCompletion + siabRateDelta * siabActiveSeconds;
       const effectiveBtvRate = projectedCompletion > 0 ? predBuff / projectedCompletion : rateWithSiab;

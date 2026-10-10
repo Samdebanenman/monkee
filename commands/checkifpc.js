@@ -1,4 +1,5 @@
-import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { forEachSequential } from '../utils/async.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
 import { checkCoopForKnownPlayers, getCoopAvailability, listCoops } from '../services/coopService.js';
 import {
@@ -45,6 +46,7 @@ async function asyncPool(limit, items, iterator) {
     task.then(cleanup).catch(cleanup);
 
     if (executing.size >= limit) {
+      // eslint-disable-next-line sonarjs/S9382 -- Wait for a pool slot to keep concurrent requests within the configured limit.
       await Promise.race(executing);
     }
   }
@@ -104,7 +106,7 @@ async function buildNonFreeCoops(contractId, baseCodes, onAvailabilityChecked) {
   const added = new Set();
   const availabilityCache = new Map();
 
-  for (const baseCode of baseCodes) {
+  await forEachSequential(baseCodes, async baseCode => {
     const baseStatus = await resolveCoopState(
       contractId,
       baseCode,
@@ -114,7 +116,7 @@ async function buildNonFreeCoops(contractId, baseCodes, onAvailabilityChecked) {
     );
 
     if (baseStatus.state === 'free') {
-      continue;
+      return;
     }
 
     pushCandidate(nonFree, added, baseCode);
@@ -144,24 +146,9 @@ async function buildNonFreeCoops(contractId, baseCodes, onAvailabilityChecked) {
     }
 
     if (firstStatus.state !== 'free' && secondStatus.state !== 'free') {
-      for (let prefix = 3; prefix <= MAX_INCREMENT_PREFIX; prefix += 1) {
-        const incrementCode = `${prefix}${baseCode}`;
-        const incrementStatus = await resolveCoopState(
-          contractId,
-          incrementCode,
-          availabilityCache,
-          onAvailabilityChecked,
-          { isIncrement: true },
-        );
-
-        if (incrementStatus.state === 'free') {
-          break;
-        }
-
-        pushCandidate(nonFree, added, incrementCode);
-      }
+      await collectIncrementCoops({ contractId, baseCode, availabilityCache, onAvailabilityChecked, nonFree, added });
     }
-  }
+  });
 
   return nonFree;
 }
@@ -216,11 +203,7 @@ export async function execute(interaction) {
   const coopCodesToCheck = buildCoopCodes(codesOption);
   const summaries = await fetchContractSummaries();
   const sortedContracts = [...summaries].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
-  const nameById = new Map(sortedContracts.map(c => [c.id, c.name || c.id]));
-
-  const selectedContracts = checkAllContracts
-    ? sortedContracts.filter(contract => contract.id).map(contract => [contract.name || contract.id, contract.id])
-    : [[nameById.get(contractInput) || contractInput, contractInput]];
+  const selectedContracts = selectContracts(sortedContracts, contractInput, checkAllContracts);
 
   if (!selectedContracts.length) {
     const message = createTextComponentMessage('No contracts matched your selection.');
@@ -240,32 +223,7 @@ export async function execute(interaction) {
 
   const totalSteps = selectedContracts.length * coopCodesToCheck.length;
   let currentContract = '';
-  const progress = totalSteps > 0
-    ? {
-        total: totalSteps,
-        completed: 0,
-        lastUpdatedAt: 0,
-        intervalMs: PROGRESS_UPDATE_INTERVAL_MS,
-        pendingUpdate: Promise.resolve(),
-        addTotal(amount = 0) {
-          this.total += Math.max(0, Number(amount) || 0);
-        },
-        update(force = false) {
-          const now = Date.now();
-          if (!force && now - this.lastUpdatedAt < this.intervalMs) return this.pendingUpdate;
-          this.lastUpdatedAt = now;
-          const content = formatProgressText(this.completed, this.total);
-          if (checkAllContracts) {
-            console.log(`[checkifpc] ${content}${currentContract ? ` | ${currentContract}` : ''}`);
-            return this.pendingUpdate;
-          }
-          this.pendingUpdate = this.pendingUpdate
-            .then(() => interaction.editReply(createTextComponentMessage(content)))
-            .catch(() => {});
-          return this.pendingUpdate;
-        },
-      }
-    : null;
+  const progress = createCheckProgress(totalSteps, interaction, checkAllContracts, () => currentContract);
 
   let completedCount = 0;
   const updateProgress = async (increment = 0) => {
@@ -280,75 +238,15 @@ export async function execute(interaction) {
   }
 
   const resultsLines = [];
-  for (const [name, id] of selectedContracts) {
+  await forEachSequential(selectedContracts, async ([name, id]) => {
     currentContract = `${name} (${id})`;
-    const nonFree = await buildNonFreeCoops(id, coopCodesToCheck, async ({ isIncrement }) => {
-      if (progress && isIncrement) {
-        progress.addTotal(1);
-      }
-      await updateProgress(1);
-    });
-    const existing = listCoops(id);
-    const existingSet = new Set(existing.map(coop => String(coop).toLowerCase()));
-    const candidates = nonFree.filter(code => !existingSet.has(code.toLowerCase()));
-    const skippedCount = nonFree.length - candidates.length;
-    if (progress) {
-      progress.addTotal(candidates.length);
-    }
-
-    resultsLines.push(`**${name}**`);
-
-    if (nonFree.length === 0) {
-      resultsLines.push('All checked coops appear to be free.', '');
-      continue;
-    }
-
-    if (candidates.length === 0) {
-      resultsLines.push(`All ${nonFree.length} non-free coops are already in the database.`, '');
-      continue;
-    }
-
-    const matches = [];
-
-    await asyncPool(DEFAULT_CONCURRENCY, candidates, async coop => {
-      const matchResult = await checkCoopForKnownPlayers(id, coop);
-      await updateProgress(1);
-      if (!matchResult.ok) return;
-      if (matchResult.matched.length > 0) {
-        matches.push({ coop, matched: matchResult.matched });
-      }
-    });
-
-    if (matches.length === 0) {
-      const skippedText = skippedCount ? ` (skipped ${skippedCount} saved)` : '';
-      resultsLines.push(`No known players found in ${candidates.length} non-free coops${skippedText}.`, '');
-      continue;
-    }
-
-    const skippedText = skippedCount ? ` (skipped ${skippedCount} saved)` : '';
-    resultsLines.push(
-      `Found ${matches.length} coop${matches.length === 1 ? '' : 's'} with known players out of ${candidates.length} checked${skippedText}.`
-    );
-
-    for (const match of matches) {
-      const uniqueIgns = [...new Set(match.matched.map(entry => entry.ign).filter(Boolean))];
-      const preview = uniqueIgns.slice(0, 6).map(ign => `\`${ign}\``).join(', ');
-      const remaining = uniqueIgns.length - 6;
-      const ignText = uniqueIgns.length
-        ? `Known: ${preview}${remaining > 0 ? ` (+${remaining} more)` : ''}`
-        : '';
-      resultsLines.push(`\`${match.coop}\`${ignText ? ` - ${ignText}` : ''}`);
-      resultsLines.push(`https://eicoop-carpet.netlify.app/${id}/${match.coop}`);
-    }
-
-    resultsLines.push('');
-  }
+    await checkContractCoops({ name, id, coopCodesToCheck, progress, updateProgress, resultsLines });
+  });
 
   if (checkAllContracts) {
     await progress?.update(true);
-    for (const chunk of chunkContent(resultsLines.length ? resultsLines : ['No data found.'])) {
-      await interaction.channel.send(createTextComponentMessage(chunk));
-    }
+    await forEachSequential(chunkContent(resultsLines.length ? resultsLines : ['No data found.']),
+      chunk => interaction.channel.send(createTextComponentMessage(chunk)));
     console.log(`[checkifpc] Finished checking ${selectedContracts.length} contracts.`);
     return;
   }
@@ -356,11 +254,7 @@ export async function execute(interaction) {
   const message = resultsLines.length > 0 ? resultsLines.join('\n') : 'No data found.';
   let finalMessage = message;
 
-  if (finalMessage.length > MAX_DISCORD_MESSAGE_LENGTH) {
-    const note = '\n\n(Output truncated. Narrow your search for full details.)';
-    const limit = Math.max(0, MAX_DISCORD_MESSAGE_LENGTH - note.length - 3);
-    finalMessage = `${finalMessage.slice(0, limit)}...${note}`;
-  }
+  finalMessage = truncateResultMessage(finalMessage);
 
   await interaction.editReply(createTextComponentMessage(finalMessage));
 }
@@ -412,3 +306,138 @@ export async function autocomplete(interaction) {
 }
 
 export default { data, execute, autocomplete };
+
+async function collectIncrementCoops({ contractId, baseCode, availabilityCache, onAvailabilityChecked, nonFree, added }) {
+  for (let prefix = 3; prefix <= MAX_INCREMENT_PREFIX; prefix += 1) {
+    const incrementCode = `${prefix}${baseCode}`;
+    // eslint-disable-next-line sonarjs/S9382 -- Stop the search at the first free increment; later requests depend on this result.
+    const incrementStatus = await resolveCoopState(
+      contractId,
+      incrementCode,
+      availabilityCache,
+      onAvailabilityChecked,
+      { isIncrement: true },
+    );
+
+    if (incrementStatus.state === 'free') {
+      break;
+    }
+
+    pushCandidate(nonFree, added, incrementCode);
+  }
+}
+
+function createCheckProgress(totalSteps, interaction, checkAllContracts, getCurrentContract) {
+  return totalSteps > 0
+    ? {
+        total: totalSteps,
+        completed: 0,
+        lastUpdatedAt: 0,
+        intervalMs: PROGRESS_UPDATE_INTERVAL_MS,
+        pendingUpdate: Promise.resolve(),
+        addTotal(amount = 0) {
+          this.total += Math.max(0, Number(amount) || 0);
+        },
+        update(force = false) {
+          const now = Date.now();
+          if (!force && now - this.lastUpdatedAt < this.intervalMs) return this.pendingUpdate;
+          this.lastUpdatedAt = now;
+          const content = formatProgressText(this.completed, this.total);
+          if (checkAllContracts) {
+            const currentContractLabel = getCurrentContract() ? ' | ' + getCurrentContract() : '';
+            console.log(`[checkifpc] ${content}${currentContractLabel}`);
+            return this.pendingUpdate;
+          }
+          this.pendingUpdate = this.pendingUpdate
+            .then(() => interaction.editReply(createTextComponentMessage(content)))
+            .catch(() => {});
+          return this.pendingUpdate;
+        },
+      }
+    : null;
+
+}
+
+async function checkContractCoops({ name, id, coopCodesToCheck, progress, updateProgress, resultsLines }) {
+  const nonFree = await buildNonFreeCoops(id, coopCodesToCheck, async ({ isIncrement }) => {
+    if (progress && isIncrement) {
+      progress.addTotal(1);
+    }
+    await updateProgress(1);
+  });
+  const existing = listCoops(id);
+  const existingSet = new Set(existing.map(coop => String(coop).toLowerCase()));
+  const candidates = nonFree.filter(code => !existingSet.has(code.toLowerCase()));
+  const skippedCount = nonFree.length - candidates.length;
+  if (progress) {
+    progress.addTotal(candidates.length);
+  }
+
+  resultsLines.push(`**${name}**`);
+
+  if (nonFree.length === 0) {
+    resultsLines.push('All checked coops appear to be free.', '');
+    return;
+  }
+
+  if (candidates.length === 0) {
+    resultsLines.push(`All ${nonFree.length} non-free coops are already in the database.`, '');
+    return;
+  }
+
+  const matches = [];
+
+  await asyncPool(DEFAULT_CONCURRENCY, candidates, async coop => {
+    const matchResult = await checkCoopForKnownPlayers(id, coop);
+    await updateProgress(1);
+    if (!matchResult.ok) return;
+    if (matchResult.matched.length > 0) {
+      matches.push({ coop, matched: matchResult.matched });
+    }
+  });
+
+  if (matches.length === 0) {
+    const skippedText = skippedCount ? ` (skipped ${skippedCount} saved)` : '';
+    resultsLines.push(`No known players found in ${candidates.length} non-free coops${skippedText}.`, '');
+    return;
+  }
+
+  const skippedText = skippedCount ? ` (skipped ${skippedCount} saved)` : '';
+  resultsLines.push(
+    `Found ${matches.length} coop${matches.length === 1 ? '' : 's'} with known players out of ${candidates.length} checked${skippedText}.`
+  );
+
+  for (const match of matches) resultsLines.push(...formatMatchLines(match, id));
+
+  resultsLines.push('');
+}
+
+function formatMatchLines(match, id) {
+  const uniqueIgns = [...new Set(match.matched.map(entry => entry.ign).filter(Boolean))];
+  const preview = uniqueIgns.slice(0, 6).map(ign => `\`${ign}\``).join(', ');
+  const remaining = uniqueIgns.length - 6;
+  const remainingText = remaining > 0 ? ` (+${remaining} more)` : '';
+  const ignText = uniqueIgns.length ? ` - Known: ${preview}${remainingText}` : '';
+  return [
+    `\`${match.coop}\`${ignText}`,
+    `https://eicoop-carpet.netlify.app/${id}/${match.coop}`,
+  ];
+}
+
+function truncateResultMessage(finalMessage) {
+  if (finalMessage.length > MAX_DISCORD_MESSAGE_LENGTH) {
+    const note = '\n\n(Output truncated. Narrow your search for full details.)';
+    const limit = Math.max(0, MAX_DISCORD_MESSAGE_LENGTH - note.length - 3);
+    finalMessage = `${finalMessage.slice(0, limit)}...${note}`;
+  }
+  return finalMessage;
+}
+
+function selectContracts(sortedContracts, contractInput, checkAllContracts) {
+  const nameById = new Map(sortedContracts.map(c => [c.id, c.name || c.id]));
+
+  return checkAllContracts
+    ? sortedContracts.filter(contract => contract.id).map(contract => [contract.name || contract.id, contract.id])
+    : [[nameById.get(contractInput) || contractInput, contractInput]];
+
+}

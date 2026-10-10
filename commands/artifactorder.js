@@ -53,7 +53,7 @@ function toShortArtifactName(raw) {
   if (name === 'SHIP_IN_A_BOTTLE') return 'siab';
   const parts = name.split('_').filter(Boolean);
   if (parts.length === 0) return name.toLowerCase();
-  return parts[parts.length - 1].toLowerCase();
+  return parts.at(-1).toLowerCase();
 }
 
 function buildArtifactSlotIndex() {
