@@ -226,22 +226,7 @@ function buildGridItem(record, rarity, count, stones = []) {
 }
 
 function buildGrid({ store, stonedArtifacts, rarerItemsFirst }) {
-  const stonedBySpecAndRarity = new Map();
-  for (const artifact of stonedArtifacts) {
-    const key = `${artifact.name}:${artifact.level}:${artifact.rarity}`;
-    if (!stonedBySpecAndRarity.has(key)) {
-      stonedBySpecAndRarity.set(key, new Map());
-    }
-
-    const loadoutKey = artifact.stones.map(stoneKey).join('|');
-    const loadouts = stonedBySpecAndRarity.get(key);
-    const existing = loadouts.get(loadoutKey);
-    if (existing) {
-      existing.count += artifact.count;
-    } else {
-      loadouts.set(loadoutKey, { ...artifact });
-    }
-  }
+  const stonedBySpecAndRarity = groupStonedArtifacts(stonedArtifacts);
 
   const records = [...store.values()]
     .filter(record => record.haveRarity.some(count => count > 0))
@@ -348,4 +333,25 @@ export function getArtifacts(backup, options = {}) {
     summary: summarizeGrid(grid),
     warnings,
   };
+}
+
+function groupStonedArtifacts(stonedArtifacts) {
+  const stonedBySpecAndRarity = new Map();
+  for (const artifact of stonedArtifacts) {
+    const key = `${artifact.name}:${artifact.level}:${artifact.rarity}`;
+    if (!stonedBySpecAndRarity.has(key)) {
+      stonedBySpecAndRarity.set(key, new Map());
+    }
+
+    const loadoutKey = artifact.stones.map(stoneKey).join('|');
+    const loadouts = stonedBySpecAndRarity.get(key);
+    const existing = loadouts.get(loadoutKey);
+    if (existing) {
+      existing.count += artifact.count;
+    } else {
+      loadouts.set(loadoutKey, { ...artifact });
+    }
+  }
+
+  return stonedBySpecAndRarity;
 }

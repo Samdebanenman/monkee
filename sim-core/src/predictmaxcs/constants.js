@@ -104,7 +104,8 @@ function loadStoredColleggtibles() {
     const require = createRequire(import.meta.url);
     const repo = require('../../../utils/database/colleggtiblesRepository.js');
     return typeof repo.getStoredColleggtibles === 'function' ? repo.getStoredColleggtibles() : [];
-  } catch (error) {
+  } catch {
+    // Workers may not have database access; use the default colleggtible buffs.
     return [];
   }
 }

@@ -20,7 +20,8 @@ function getIconUrl(iconFile, { iconBaseUrl = DEFAULT_ICON_BASE_URL, iconSize = 
     return null;
   }
 
-  const normalizedBase = String(iconBaseUrl).replace(/\/+$/, '');
+  let normalizedBase = String(iconBaseUrl);
+  while (normalizedBase.endsWith('/')) normalizedBase = normalizedBase.slice(0, -1);
   return `${normalizedBase}/${iconSize}/egginc/${iconFile}`;
 }
 
@@ -212,7 +213,7 @@ export async function visualiseArtifacts(grid, options = {}) {
   } = options;
 
   if (!Array.isArray(grid)) {
-    throw new Error('visualiseArtifacts expected an artifact grid array.');
+    throw new TypeError('visualiseArtifacts expected an artifact grid array.');
   }
 
   const warnings = [];

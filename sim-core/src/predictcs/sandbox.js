@@ -140,57 +140,16 @@ export function parseSandboxUrl(raw) {
 
   const flagsAndArtifacts = expanded.slice(1).split('');
 
-  let dataIndex = dataOffset + 8;
-  if (normalizedVersion !== 'v-1') {
-    dataIndex += 1; // btvTarget
-  }
-
-  const playerGroups = [];
-  const playerTe = [];
-
-  if (usesCompressedPlayers) {
-    let playersInGroups = 0;
-    while (playersInGroups < numPlayers) {
-      const count = parseIndex(dataParts[dataIndex]);
-      if (!Number.isInteger(count) || count <= 0 || playersInGroups + count > numPlayers
-        || dataIndex + 2 >= dataParts.length) {
-        return { error: 'Invalid grouped player data.' };
-      }
-
-      const te = parseSandboxNumber(dataParts[dataIndex + 2]);
-      playerGroups.push({ count, te });
-      playerTe.push(...new Array(count).fill(te));
-      playersInGroups += count;
-      dataIndex += 3; // count + tokens + TE
-    }
-  } else {
-    for (let i = 0; i < numPlayers; i += 1) {
-      dataIndex += 1; // player name
-      dataIndex += 1; // tokens
-
-      let te = 0;
-      if (normalizedVersion === 'v-4' || normalizedVersion === 'v-5') {
-        te = parseSandboxNumber(dataParts[dataIndex]);
-        dataIndex += 1;
-      }
-
-      playerGroups.push({ count: 1, te });
-      playerTe.push(te);
-    }
-  }
+  const groups = parsePlayerGroups({ dataParts, dataOffset, normalizedVersion, usesCompressedPlayers, numPlayers });
+  if (groups.error) return groups;
+  const { playerGroups, playerTe } = groups;
 
   let flagIndex = 0;
   const playerArtifacts = [];
   const playerIhrArtifacts = [];
 
   for (const group of playerGroups) {
-    flagIndex += 2; // mirror + shipping
-    if (normalizedVersion !== 'v-1') {
-      flagIndex += 1; // sink
-      if (normalizedVersion !== 'v-2') {
-        flagIndex += 1; // creator
-      }
-    }
+    flagIndex += artifactFlagCount(normalizedVersion);
 
     const metroIndex = readTwoDigits(flagsAndArtifacts, flagIndex);
     flagIndex += 2;
@@ -258,4 +217,53 @@ export function parseSandboxUrl(raw) {
       players: numPlayers,
     },
   };
+}
+
+function parsePlayerGroups({ dataParts, dataOffset, normalizedVersion, usesCompressedPlayers, numPlayers }) {
+  let dataIndex = dataOffset + 8;
+  if (normalizedVersion !== 'v-1') {
+    dataIndex += 1; // btvTarget
+  }
+
+  const playerGroups = [];
+  const playerTe = [];
+
+  if (usesCompressedPlayers) {
+    let playersInGroups = 0;
+    while (playersInGroups < numPlayers) {
+      const count = parseIndex(dataParts[dataIndex]);
+      if (!Number.isInteger(count) || count <= 0 || playersInGroups + count > numPlayers
+        || dataIndex + 2 >= dataParts.length) {
+        return { error: 'Invalid grouped player data.' };
+      }
+
+      const te = parseSandboxNumber(dataParts[dataIndex + 2]);
+      playerGroups.push({ count, te });
+      playerTe.push(...new Array(count).fill(te));
+      playersInGroups += count;
+      dataIndex += 3; // count + tokens + TE
+    }
+  } else {
+    for (let i = 0; i < numPlayers; i += 1) {
+      dataIndex += 1; // player name
+      dataIndex += 1; // tokens
+
+      let te = 0;
+      if (normalizedVersion === 'v-4' || normalizedVersion === 'v-5') {
+        te = parseSandboxNumber(dataParts[dataIndex]);
+        dataIndex += 1;
+      }
+
+      playerGroups.push({ count: 1, te });
+      playerTe.push(te);
+    }
+  }
+
+  return { playerGroups, playerTe };
+}
+
+function artifactFlagCount(version) {
+  if (version === 'v-1') return 2; // mirror + shipping
+  if (version === 'v-2') return 3; // plus sink
+  return 4; // plus creator
 }

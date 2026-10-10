@@ -100,7 +100,7 @@ export function countArtifactsByRarity(grid, { family, tier }) {
     : resolveArtifactFamily(family);
   const normalizedTier = Number(tier);
 
-  if (!artifactFamily || !artifactFamily.tiers.includes(normalizedTier)) {
+  if (!artifactFamily?.tiers.includes(normalizedTier)) {
     return null;
   }
 

@@ -31,7 +31,6 @@ export async function buildPredictCsModel(options) {
     pushCount = 0,
     modifierType = null,
     modifierValue = null,
-    progress = null,
   } = options;
   const bases = getContractAdjustedBases({ modifierType, modifierValue });
 
@@ -303,12 +302,6 @@ async function optimizePredictCsTokens(options) {
       score,
       summaries: adjusted.adjustedSummaries,
     };
-  };
-
-  const hasAllPlayersImproved = (prevSummaries, nextSummaries) => {
-    if (!Array.isArray(prevSummaries) || !Array.isArray(nextSummaries)) return false;
-    if (prevSummaries.length !== nextSummaries.length) return false;
-    return nextSummaries.every((summary, index) => summary.cs >= (prevSummaries[index]?.cs ?? -Infinity));
   };
 
   const baseTokensByPlayer = Array.from({ length: players }, () => baseTokens);

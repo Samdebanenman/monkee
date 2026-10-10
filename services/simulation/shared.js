@@ -9,9 +9,6 @@ import {
 import { getIhrStoneSlots, getSwapChickenJump, optimizeStones, buildPlayerConfigs } from '../../sim-core/src/predictmaxcs/model.js';
 import { buildDeflectorDisplay, buildDeflectorPlan, getRequiredOtherDeflector } from '../../sim-core/src/predictmaxcs/deflector.js';
 import { buildBoostOrder } from '../../sim-core/src/predictcs/model.js';
-import { TOKEN_CANDIDATES } from '../../sim-core/src/predictmaxcs/model.js';
-
-export const tokenCandidates = TOKEN_CANDIDATES;
 
 export function normalizeTeValues(values, players, fallbackTe = 0) {
   const playerCount = Number.isFinite(players) && players > 0 ? Math.floor(players) : 0;
@@ -215,7 +212,6 @@ export function buildPredictCsVariant(options) {
     const gusset = entry.gusset ?? { chickMult: 1, slots: 0, siabPercent: 0 };
     const chalice = ihrArtifacts.chalice ?? null;
     const monocle = ihrArtifacts.monocle ?? null;
-    const ihrDeflector = ihrArtifacts.deflector ?? null;
     const ihrSiab = ihrArtifacts.siab ?? null;
     const boostedSiabPercent = gusset.siabPercent ?? 0;
     const ihrSiabPercent = ihrSiab?.siabPercent ?? 0;
@@ -355,3 +351,5 @@ export function buildFinalModelFromPredictCs(simulation) {
     deflectorDisplay: simulation.deflectorDisplay,
   };
 }
+
+export { TOKEN_CANDIDATES as tokenCandidates } from '../../sim-core/src/predictmaxcs/model.js';

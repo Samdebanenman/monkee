@@ -58,9 +58,10 @@ export async function simulateScenariosParallel(
   let nextIndex = 0;
   let active = 0;
   let completed = 0;
-  const reporter = typeof onProgress === 'function'
-    ? onProgress
-    : (showProgress ? createConsoleProgress(scenarios.length, progressOptions) : null);
+  let reporter = onProgress;
+  if (typeof reporter !== 'function') {
+    reporter = showProgress ? createConsoleProgress(scenarios.length, progressOptions) : null;
+  }
 
   if (reporter) {
     reporter({ completed, total: scenarios.length, active, queued: scenarios.length });
@@ -272,6 +273,16 @@ export function runSimulationLoop(options) {
   return { tElapsed, eggsDelivered };
 }
 
+function getPlayerRates(player) {
+  const elrPerChicken = player.maxHab ? player.elrPerChickenWithStones : player.elrPerChickenNoStones;
+  const shipRate = player.maxHab ? player.srWithStones : player.srNoStones;
+  if (player.crRequested === true) return { elrPerChicken, shipRate };
+  return {
+    elrPerChicken: (player.maxHab ? player.elrPerChickenPreCrWithStones : player.elrPerChickenPreCrNoStones) ?? elrPerChicken,
+    shipRate: (player.maxHab ? player.srPreCrWithStones : player.srPreCrNoStones) ?? shipRate,
+  };
+}
+
 export function updatePlayers(options) {
   const {
     states,
@@ -295,17 +306,7 @@ export function updatePlayers(options) {
       }
     }
 
-    const usesCrSet = player.crRequested === true;
-    const elrPerChicken = usesCrSet
-      ? (player.maxHab ? player.elrPerChickenWithStones : player.elrPerChickenNoStones)
-      : (player.maxHab
-        ? (player.elrPerChickenPreCrWithStones ?? player.elrPerChickenWithStones)
-        : (player.elrPerChickenPreCrNoStones ?? player.elrPerChickenNoStones));
-    const shipRate = usesCrSet
-      ? (player.maxHab ? player.srWithStones : player.srNoStones)
-      : (player.maxHab
-        ? (player.srPreCrWithStones ?? player.srWithStones)
-        : (player.srPreCrNoStones ?? player.srNoStones));
+    const { elrPerChicken, shipRate } = getPlayerRates(player);
     const layRate = player.chickens * elrPerChicken * (1 + player.otherDefl / 100);
     const deliveryRate = Math.min(layRate, shipRate);
     player.eggsDelivered += updateRate * deliveryRate / 3600;

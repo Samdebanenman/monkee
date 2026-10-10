@@ -255,79 +255,13 @@ export async function buildModel(options) {
     };
   };
 
-  let completedOffset = 0;
-  let quickBaseScore = null;
-  let quickSiabScore = null;
+  const { baseVariant, siabVariant, quickBaseScore, quickSiabScore } = await runModelVariants({
+    siabOverride, progress, variantSteps, shouldRunQuickSiabCheck, uniformTokenCandidates, runUniformTokenSims, buildVariant,
+  });
 
-  if (shouldRunQuickSiabCheck) {
-    const quickTotal = uniformTokenCandidates.length * 2;
-    if (progress && Number.isFinite(progress.total)) {
-      progress.total = quickTotal + (2 * variantSteps);
-    }
-    const quickBase = await runUniformTokenSims(false, completedOffset);
-    completedOffset = quickBase.completedOffset;
-    quickBaseScore = quickBase.bestScore;
-    const quickSiab = await runUniformTokenSims(true, completedOffset);
-    completedOffset = quickSiab.completedOffset;
-    quickSiabScore = quickSiab.bestScore;
-  }
-
-  let runBaseVariant = true;
-  let runSiabVariant = true;
-  if (siabOverride === true) {
-    runBaseVariant = false;
-    runSiabVariant = true;
-  } else if (siabOverride === false) {
-    runBaseVariant = true;
-    runSiabVariant = false;
-  } else if (shouldRunQuickSiabCheck) {
-    const quickDelta = (quickSiabScore ?? 0) - (quickBaseScore ?? 0);
-    if (Math.abs(quickDelta) < 200) {
-      runBaseVariant = true;
-      runSiabVariant = true;
-    } else if (quickDelta > 200) {
-      runBaseVariant = false;
-      runSiabVariant = true;
-    } else if (quickDelta < -200) {
-      runBaseVariant = true;
-      runSiabVariant = false;
-    } else {
-      runBaseVariant = true;
-      runSiabVariant = true;
-    }
-  }
-
-  const totalSteps = completedOffset + ((runBaseVariant ? 1 : 0) + (runSiabVariant ? 1 : 0)) * variantSteps;
-  if (progress && Number.isFinite(progress.total)) {
-    progress.total = totalSteps;
-    if (typeof progress.update === 'function') {
-      progress.update({ completed: completedOffset, active: 0 });
-    }
-  }
-
-  const baseVariant = runBaseVariant ? await buildVariant(false, completedOffset) : null;
-  if (runBaseVariant) completedOffset += variantSteps;
-  const siabVariant = runSiabVariant ? await buildVariant(true, completedOffset) : null;
-  if (runSiabVariant) completedOffset += variantSteps;
-  if (typeof progress?.update === 'function' && Number.isFinite(progress.total)) {
-    await progress.update({ completed: Math.min(progress.total, completedOffset), active: 0 });
-  }
-
-  let selectedVariant = baseVariant ?? siabVariant;
-  if (siabOverride === true) {
-    selectedVariant = siabVariant ?? selectedVariant;
-  } else if (siabOverride === false) {
-    selectedVariant = baseVariant ?? selectedVariant;
-  } else if (baseVariant && siabVariant && siabVariant.score > baseVariant.score) {
-    selectedVariant = siabVariant;
-  }
-
+  const selectedVariant = chooseVariant(siabOverride, baseVariant, siabVariant);
   const usePlayer1Siab = selectedVariant?.usePlayer1Siab ?? false;
-  const siabScoreDelta = baseVariant && siabVariant
-    ? Math.round((siabVariant.score ?? 0) - (baseVariant.score ?? 0))
-    : (shouldRunQuickSiabCheck && Number.isFinite(quickSiabScore) && Number.isFinite(quickBaseScore)
-      ? Math.round(quickSiabScore - quickBaseScore)
-      : null);
+  const siabScoreDelta = getSiabScoreDelta({ baseVariant, siabVariant, shouldRunQuickSiabCheck, quickBaseScore, quickSiabScore });
   const selectedPlayerConfigs = selectedVariant.playerConfigs;
   const requiredDeflector = selectedVariant.requiredDeflector;
   const deflectorDisplay = selectedVariant.deflectorDisplay;
@@ -508,7 +442,6 @@ export function optimizeLateBoostTokens(options) {
 export async function optimizeLateBoostTokensAfterDeflector(options) {
   const {
     players,
-    baseTokens,
     baselineDeflectors,
     playerConfigs,
     durationSeconds,
@@ -676,4 +609,72 @@ export function getIhrStoneSlots() {
 
 export function getSwapChickenJump(players) {
   return 5e8 * Math.max(players - 1, 0);
+}
+
+function selectVariants(siabOverride, quickBaseScore, quickSiabScore) {
+  if (siabOverride === true) return { runBaseVariant: false, runSiabVariant: true };
+  if (siabOverride === false) return { runBaseVariant: true, runSiabVariant: false };
+  const delta = (quickSiabScore ?? 0) - (quickBaseScore ?? 0);
+  if (Number.isNaN(delta)) return { runBaseVariant: true, runSiabVariant: true };
+  return { runBaseVariant: delta <= 200, runSiabVariant: delta >= -200 };
+}
+
+async function runModelVariants({ siabOverride, progress, variantSteps, shouldRunQuickSiabCheck, uniformTokenCandidates, runUniformTokenSims, buildVariant }) {
+  let completedOffset = 0;
+  let quickBaseScore = null;
+  let quickSiabScore = null;
+
+  if (shouldRunQuickSiabCheck) {
+    const quickTotal = uniformTokenCandidates.length * 2;
+    if (progress && Number.isFinite(progress.total)) {
+      progress.total = quickTotal + (2 * variantSteps);
+    }
+    const quickBase = await runUniformTokenSims(false, completedOffset);
+    completedOffset = quickBase.completedOffset;
+    quickBaseScore = quickBase.bestScore;
+    const quickSiab = await runUniformTokenSims(true, completedOffset);
+    completedOffset = quickSiab.completedOffset;
+    quickSiabScore = quickSiab.bestScore;
+  }
+
+  const { runBaseVariant, runSiabVariant } = selectVariants(siabOverride, quickBaseScore, quickSiabScore);
+
+  const totalSteps = completedOffset + ((runBaseVariant ? 1 : 0) + (runSiabVariant ? 1 : 0)) * variantSteps;
+  updateVariantProgress(progress, totalSteps, completedOffset);
+
+  const baseVariant = runBaseVariant ? await buildVariant(false, completedOffset) : null;
+  if (runBaseVariant) completedOffset += variantSteps;
+  const siabVariant = runSiabVariant ? await buildVariant(true, completedOffset) : null;
+  if (runSiabVariant) completedOffset += variantSteps;
+  if (typeof progress?.update === 'function' && Number.isFinite(progress.total)) {
+    await progress.update({ completed: Math.min(progress.total, completedOffset), active: 0 });
+  }
+
+  return { baseVariant, siabVariant, quickBaseScore, quickSiabScore };
+}
+
+function chooseVariant(siabOverride, baseVariant, siabVariant) {
+  const fallback = baseVariant ?? siabVariant;
+  if (siabOverride === true) return siabVariant ?? fallback;
+  if (siabOverride === false) return baseVariant ?? fallback;
+  if (baseVariant && siabVariant && siabVariant.score > baseVariant.score) return siabVariant;
+  return fallback;
+}
+
+function getSiabScoreDelta({ baseVariant, siabVariant, shouldRunQuickSiabCheck, quickBaseScore, quickSiabScore }) {
+  if (baseVariant && siabVariant) {
+    return Math.round((siabVariant.score ?? 0) - (baseVariant.score ?? 0));
+  }
+  if (shouldRunQuickSiabCheck && Number.isFinite(quickSiabScore) && Number.isFinite(quickBaseScore)) {
+    return Math.round(quickSiabScore - quickBaseScore);
+  }
+  return null;
+}
+
+function updateVariantProgress(progress, totalSteps, completedOffset) {
+  if (!progress || !Number.isFinite(progress.total)) return;
+  progress.total = totalSteps;
+  if (typeof progress.update === 'function') {
+    progress.update({ completed: completedOffset, active: 0 });
+  }
 }

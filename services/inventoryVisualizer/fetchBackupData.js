@@ -138,7 +138,7 @@ export async function fetchBackupData(playerId, options = {}) {
     throw new Error(`First contact failed (${decoded.errorCode})${serverMessage}`);
   }
 
-  if (!decoded?.backup || !decoded.backup.game) {
+  if (!decoded?.backup?.game) {
     throw new UserBackupEmptyError();
   }
 
