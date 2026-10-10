@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import { requireMamaBird } from '../utils/permissions.js';
 import { refreshContracts } from '../services/contractService.js';
@@ -46,11 +47,11 @@ async function refreshDiscordNames(client) {
     failed: 0,
   };
 
-  for (const member of members) {
+  await forEachSequential(members, async member => {
     const discordId = member?.discord_id;
     if (!discordId) {
       summary.failed += 1;
-      continue;
+      return;
     }
 
     try {
@@ -59,12 +60,12 @@ async function refreshDiscordNames(client) {
 
       if (!username) {
         summary.failed += 1;
-        continue;
+        return;
       }
 
       if (member.discord_name === username) {
         summary.unchanged += 1;
-        continue;
+        return;
       }
 
       updateMemberDiscordNameByDiscordId(discordId, username);
@@ -73,7 +74,7 @@ async function refreshDiscordNames(client) {
       console.warn(`Failed to refresh Discord name for ${discordId}:`, error?.message ?? String(error));
       summary.failed += 1;
     }
-  }
+  });
 
   return summary;
 }

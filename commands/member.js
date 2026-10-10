@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import { requireMamaBird } from '../utils/permissions.js';
 import { extractDiscordId, chunkContent, createTextComponentMessage } from '../services/discord.js';
@@ -71,9 +72,9 @@ async function sendSummaryChunks(interaction, lines) {
   const [first, ...rest] = chunks;
 
   await interaction.editReply(createTextComponentMessage(first, { flags: 64 }));
-  for (const chunk of rest) {
+  await forEachSequential(rest, async chunk => {
     await interaction.followUp(createTextComponentMessage(chunk, { flags: 64 }));
-  }
+  });
 }
 
 function parseTargetIdentifiers(rawTargets) {
@@ -329,9 +330,9 @@ async function handleSetActive(interaction) {
   const [first, ...rest] = chunks;
 
   await interaction.reply(createTextComponentMessage(first, { flags: 64 }));
-  for (const chunk of rest) {
+  await forEachSequential(rest, async chunk => {
     await interaction.followUp(createTextComponentMessage(chunk, { flags: 64 }));
-  }
+  });
 }
 
 export const data = new SlashCommandBuilder()

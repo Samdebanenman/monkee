@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import { fetchActiveContracts, fetchContractSummaries } from '../services/contractService.js';
 import { chunkContent, createTextComponentMessage } from '../services/discord.js';
@@ -77,9 +78,9 @@ async function sendLines(interaction, lines) {
   const chunks = chunkContent(lines, { maxLength: 3800 });
   const [first, ...rest] = chunks;
   await interaction.editReply(createTextComponentMessage(first || 'No results.'));
-  for (const chunk of rest) {
+  await forEachSequential(rest, async chunk => {
     await interaction.followUp(createTextComponentMessage(chunk));
-  }
+  });
 }
 
 export async function execute(interaction) {
@@ -104,8 +105,7 @@ export async function execute(interaction) {
 
   const results = [];
   const failures = [];
-  for (let index = 0; index < selected.length; index += 1) {
-    const contract = selected[index];
+  await forEachSequential(selected.entries(), async ([index, contract]) => {
     await interaction.editReply(createTextComponentMessage(
       `Checking optimal grades: ${index + 1}/${selected.length} - ${contract.name || contract.id}`,
     ));
@@ -116,7 +116,7 @@ export async function execute(interaction) {
     } catch (error) {
       failures.push(`\`${contract.id}\`: ${error?.message ?? String(error)}`);
     }
-  }
+  });
 
   const lines = [];
   for (const result of results) {

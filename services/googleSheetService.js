@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { google } from 'googleapis';
 import { health } from '../utils/healthMonitor.js';
 import path from 'node:path';
@@ -311,7 +312,7 @@ async function getPlayerFromSheet(tabName, contractId, day, hours, isUltraOnly) 
 export async function findPlayersForRerun(contractId, day, hours, isUltraOnly) {
 	const players = [];
 	const tabs = await fetchUserTabNames();
-	for (const tabName of tabs) {
+	await forEachSequential(tabs, async tabName => {
 		try {
 			const player = await getPlayerFromSheet(tabName, contractId, day, hours, isUltraOnly);
 			if (player) {
@@ -320,7 +321,7 @@ export async function findPlayersForRerun(contractId, day, hours, isUltraOnly) {
 		} catch (error) {
 			console.error('Error fetching player for rerun:', error);
 		}
-	}
+	});
 	return players;
 }
 

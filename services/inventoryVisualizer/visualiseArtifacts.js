@@ -271,6 +271,7 @@ export async function visualiseArtifacts(grid, options = {}) {
         fill: getRarityFill(ctx, gridItem, left, top, safeScale),
       });
 
+      // eslint-disable-next-line sonarjs/S9382 -- Keep icon fetches bounded and draw onto the shared native canvas in order.
       const icon = await loadIcon(
         gridItem.iconFile,
         { iconBaseUrl, iconSize, iconTimeoutMs },
@@ -297,6 +298,7 @@ export async function visualiseArtifacts(grid, options = {}) {
 
       for (let stoneIndex = 0; stoneIndex < gridItem.stones.length; stoneIndex += 1) {
         const stone = gridItem.stones[stoneIndex];
+        // eslint-disable-next-line sonarjs/S9382 -- Draw stones in order without concurrent mutation of the canvas and icon cache.
         const stoneIcon = await loadIcon(
           stone.iconFile,
           { iconBaseUrl, iconSize, iconTimeoutMs },

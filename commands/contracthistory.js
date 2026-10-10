@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import {
   DEFAULT_HISTORY_SCOPE,
@@ -54,9 +55,9 @@ async function sendChunks(interaction, chunks) {
   });
 
   await interaction.reply(payload(first));
-  for (const chunk of rest) {
+  await forEachSequential(rest, async chunk => {
     await interaction.followUp(payload(chunk));
-  }
+  });
 }
 
 export async function execute(interaction) {

@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { randomBytes } from 'node:crypto';
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { createTextComponentMessage } from '../services/discord.js';
@@ -58,8 +59,8 @@ export const data = new SlashCommandBuilder()
     await interaction.reply({ embeds: [logic()] });
 
     // Animated rolling
-    for (let i = 0; i < 14; i++) {
+    await forEachSequential(Array.from({ length: 14 }), async () => {
       await sleep(500);
       await interaction.editReply({ embeds: [logic()] });
-    }
+    });
   }

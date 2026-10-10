@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { fetchPastCoops } from '../services/coopService.js';
 import { listSeasons } from '../services/seasonService.js';
@@ -91,14 +92,14 @@ async function replyNoRows(interaction, season) {
 }
 
 async function sendAdditionalChunks(interaction, chunks, channel, isEphemeral) {
-    for (const chunk of chunks) {
+    await forEachSequential(chunks, async chunk => {
         const content = withLeadingQuote(chunk);
         if (channel && typeof channel.send === 'function' && !isEphemeral) {
             await channel.send(content);
-            continue;
+            return;
         }
         await interaction.followUp({ content });
-    }
+    });
 }
 
 async function sendPagedResponse(interaction, chunks, headerContent) {

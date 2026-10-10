@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
 import { listCoops } from '../services/coopService.js';
@@ -312,9 +313,9 @@ export async function execute(interaction) {
   const [first, ...rest] = chunks;
 
   await interaction.editReply(createTextComponentMessage(first));
-  for (const chunk of rest) {
+  await forEachSequential(rest, async chunk => {
     await interaction.followUp(createTextComponentMessage(chunk));
-  }
+  });
 }
 
 async function respondWithContracts(interaction, focused) {

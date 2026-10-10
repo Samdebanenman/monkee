@@ -597,6 +597,7 @@ export async function optimizeLateBoostTokensAfterDeflector(options) {
   for (let index = 0; index < players; index += 1) {
     const candidateTokens = tokenCandidates.map(candidate =>
       selectedTokens.map((tokens, idx) => (idx === index ? candidate : tokens)));
+    // eslint-disable-next-line sonarjs/S9382 -- Each player sweep uses the token choices selected by the previous sweep.
     const batch = await evaluateBatch(candidateTokens, completedOffset);
     completedOffset = batch.completedOffset;
 

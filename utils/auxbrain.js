@@ -83,6 +83,7 @@ export async function postAuxbrain(endpoint, requestBase64, { timeout = AUXBRAIN
     for (const index of attemptOrder) {
       const url = buildAuxbrainUrl(AUXBRAIN_BASE_URLS[index], endpoint);
       try {
+        // eslint-disable-next-line sonarjs/S9382 -- Try the fallback host only after the previous host has failed.
         return await axios.post(
           url,
           { data: requestBase64 },

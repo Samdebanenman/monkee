@@ -1,3 +1,4 @@
+import { forEachSequential } from '../../utils/async.js';
 import { EmbedBuilder } from 'discord.js';
 import { chunkContent } from '../discord.js';
 import { buildPlayerTableLines, formatEggs, secondsToHuman } from '../../sim-core/src/predictmaxcs/display.js';
@@ -37,7 +38,7 @@ async function handlePhaseUniform(simulation) {
     });
   });
 
-  await setScenarioBatch(simulation, scenarios);
+  setScenarioBatch(simulation, scenarios);
 }
 
 async function handlePhaseSweep(simulation) {
@@ -73,7 +74,7 @@ async function handlePhaseSweep(simulation) {
     });
   });
 
-  await setScenarioBatch(simulation, scenarios);
+  setScenarioBatch(simulation, scenarios);
 }
 
 async function handlePhaseFinal(simulation) {
@@ -92,7 +93,7 @@ async function handlePhaseFinal(simulation) {
     boostOrder: simulation.boostOrder,
   };
 
-  await setScenarioBatch(simulation, [{
+  setScenarioBatch(simulation, [{
     context: { phase: 'final' },
     scenario,
   }]);
@@ -114,9 +115,9 @@ async function finalize(simulation) {
 
   const [first, ...rest] = embeds;
   await simulation.interaction.editReply({ content: '', embeds: [first] });
-  for (const embed of rest) {
+  await forEachSequential(rest, async embed => {
     await simulation.interaction.followUp({ embeds: [embed] });
-  }
+  });
   return model;
 }
 

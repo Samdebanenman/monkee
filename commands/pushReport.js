@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import { fetchPushReports } from '../services/coopService.js';
 import { listSeasons } from '../services/seasonService.js';
@@ -96,9 +97,9 @@ export async function execute(interaction) {
   };
 
   await interaction.reply(buildComponentPayload(first));
-  for (const chunk of rest) {
+  await forEachSequential(rest, async chunk => {
     await sendChunk(chunk);
-  }
+  });
 }
 
 export async function autocomplete(interaction) {

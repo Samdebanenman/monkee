@@ -39,8 +39,8 @@ if (!process.env.EID) health.components.get('gameApi').measurementType = 'passiv
 
 // Load command files
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-for (const file of commandFiles) {
-  const commandModule = await import(`./commands/${file}`);
+const commandModules = await Promise.all(commandFiles.map(file => import(`./commands/${file}`)));
+for (const commandModule of commandModules) {
   const command = commandModule.default ?? {
     data: commandModule.data,
     execute: commandModule.execute,
@@ -254,8 +254,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const commandsPath = path.join(__dirname, 'commands');
-for (const file of fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'))) {
-  const commandModule = await import(`./commands/${file}`);
+const registrationFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+const registrationModules = await Promise.all(registrationFiles.map(file => import(`./commands/${file}`)));
+for (const [index, commandModule] of registrationModules.entries()) {
+  const file = registrationFiles[index];
   const command = { data: commandModule.data, execute: commandModule.execute };
   if ('data' in command && 'execute' in command) {
     commands.push(

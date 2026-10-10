@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import { fetchActiveContracts, fetchContractSummaries } from '../services/contractService.js';
 import { findFreeCoopCodes } from '../services/coopService.js';
@@ -102,13 +103,13 @@ export async function execute(interaction) {
   }
 
   let resultsMessage = '';
-  for (const [name, id] of selectedContracts) {
+  await forEachSequential(selectedContracts, async ([name, id]) => {
     const { filteredResults, coopCodes } = await findFreeCoopCodes(id, coopCodesToCheck);
     const line = filteredResults.length > 0
       ? `**${name}**: \`${filteredResults.join('`, `')}\`\n(${filteredResults.length}/${coopCodes.length} codes available)`
       : `**${name}**: No free coops found.`;
     resultsMessage += line + '\n\n';
-  }
+  });
 
   const message = resultsMessage || 'No data found.';
   const chunkOptions = copyOutput ? { wrap: { prefix: '```', suffix: '```' } } : undefined;
@@ -116,9 +117,9 @@ export async function execute(interaction) {
   const [first, ...rest] = chunks;
 
   await interaction.editReply(createTextComponentMessage(first));
-  for (const chunk of rest) {
+  await forEachSequential(rest, async chunk => {
     await interaction.followUp(createTextComponentMessage(chunk));
-  }
+  });
 }
 
 async function buildStaticContractOptions() {

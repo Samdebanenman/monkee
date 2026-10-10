@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import {
   buildBnLeaderboardReport,
@@ -295,9 +296,9 @@ export async function execute(interaction) {
     createTextComponentMessage(`# BN Leaderboard\n${report.contractName}\n${firstChunk}`)
   );
 
-  for (const chunk of restChunks) {
+  await forEachSequential(restChunks, async chunk => {
     await interaction.followUp(createTextComponentMessage(chunk));
-  }
+  });
 
   const uncheckedLines = formatUncheckedLines(report.unchecked);
   if (uncheckedLines.length > 0) {

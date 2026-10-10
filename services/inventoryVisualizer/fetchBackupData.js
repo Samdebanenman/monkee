@@ -91,6 +91,7 @@ async function postAuxbrain(endpoint, requestBase64, { timeout = DEFAULT_TIMEOUT
     for (const baseUrl of AUXBRAIN_BASE_URLS) {
       const url = buildAuxbrainUrl(baseUrl, endpoint);
       try {
+        // eslint-disable-next-line sonarjs/S9382 -- Try the fallback host only after the previous host has failed.
         return await axios.post(url, form.toString(), {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           responseType: 'text',

@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
 import { requireMamaBird } from '../utils/permissions.js';
 import {
@@ -415,11 +416,11 @@ async function sendChunkedReply(interaction, lines, components = []) {
   await interaction.editReply(
     createTextComponentMessage(first, { allowedMentions: { users: [] }, components })
   );
-  for (const chunk of rest) {
+  await forEachSequential(rest, async chunk => {
     await interaction.followUp(
       createTextComponentMessage(chunk, { allowedMentions: { users: [] } })
     );
-  }
+  });
 }
 
 function parseSeasonPushCustomId(customId) {
@@ -545,9 +546,9 @@ async function handleAddPlayers(interaction) {
   const [first, ...rest] = chunks;
 
   await interaction.reply(createTextComponentMessage(first, { flags: 64 }));
-  for (const chunk of rest) {
+  await forEachSequential(rest, async chunk => {
     await interaction.followUp(createTextComponentMessage(chunk, { flags: 64 }));
-  }
+  });
 }
 
 async function handleAddReport(interaction) {

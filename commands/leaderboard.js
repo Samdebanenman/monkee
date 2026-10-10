@@ -1,3 +1,4 @@
+import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import { buildLeaderboardReport } from '../services/leaderboardService.js';
 import { listSeasons } from '../services/seasonService.js';
@@ -46,11 +47,11 @@ export async function execute(interaction) {
       createTextComponentMessage(first, { allowedMentions: { users: [] } })
     );
 
-    for (const chunk of rest) {
+    await forEachSequential(rest, async chunk => {
       await interaction.followUp(
         createTextComponentMessage(chunk, { allowedMentions: { users: [] } })
       );
-    }
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await interaction.editReply(
