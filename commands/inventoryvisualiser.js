@@ -1,5 +1,5 @@
 import {
-  ActionRowBuilder,
+  LabelBuilder,
   AttachmentBuilder,
   MessageFlags,
   ModalBuilder,
@@ -84,7 +84,6 @@ function getErrorMessage(error) {
 function buildEidModal({ virtue, rarerItemsFirst, publicOutput }) {
   const eidInput = new TextInputBuilder()
     .setCustomId(PLAYER_ID_INPUT)
-    .setLabel('Egg, Inc. EID')
     .setPlaceholder('EI1234567890123456')
     .setStyle(TextInputStyle.Short)
     .setMinLength(18)
@@ -101,7 +100,7 @@ function buildEidModal({ virtue, rarerItemsFirst, publicOutput }) {
   return new ModalBuilder()
     .setCustomId(modalId)
     .setTitle('Inventory visualiser')
-    .addComponents(new ActionRowBuilder().addComponents(eidInput));
+    .addLabelComponents(new LabelBuilder().setLabel('Egg, Inc. EID').setTextInputComponent(eidInput));
 }
 
 function parseModalOptions(customId) {

@@ -57,6 +57,17 @@ describe('commands/inventorynotvisualiser', () => {
     expect(interaction.showModal).toHaveBeenCalledOnce();
     const modal = interaction.showModal.mock.calls[0][0].toJSON();
     expect(modal.custom_id).toBe(`inventorynotvisualiser:eid:${family.id}:4`);
+    expect(modal.components[0]).toMatchObject({
+      type: 18,
+      label: 'Egg, Inc. EID',
+      component: {
+        type: 4,
+        custom_id: 'eid',
+        min_length: 18,
+        max_length: 18,
+        required: true,
+      },
+    });
   });
 
   it('returns the selected artifact counts grouped by rarity', async () => {

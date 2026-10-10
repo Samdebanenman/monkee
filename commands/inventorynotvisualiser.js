@@ -1,5 +1,5 @@
 import {
-  ActionRowBuilder,
+  LabelBuilder,
   MessageFlags,
   ModalBuilder,
   SlashCommandBuilder,
@@ -45,7 +45,6 @@ export const data = new SlashCommandBuilder()
 function buildEidModal({ family, tier }) {
   const eidInput = new TextInputBuilder()
     .setCustomId(PLAYER_ID_INPUT)
-    .setLabel('Egg, Inc. EID')
     .setPlaceholder('EI1234567890123456')
     .setStyle(TextInputStyle.Short)
     .setMinLength(18)
@@ -55,7 +54,7 @@ function buildEidModal({ family, tier }) {
   return new ModalBuilder()
     .setCustomId(`${MODAL_ID_PREFIX}:${family.id}:${tier}`)
     .setTitle('Inventory artifact count')
-    .addComponents(new ActionRowBuilder().addComponents(eidInput));
+    .addLabelComponents(new LabelBuilder().setLabel('Egg, Inc. EID').setTextInputComponent(eidInput));
 }
 
 function parseModalSelection(customId) {
