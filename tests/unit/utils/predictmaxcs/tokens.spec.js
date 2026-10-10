@@ -19,7 +19,7 @@ describe('sim-core/src/predictmaxcs/tokens', () => {
   it('builds token plan and selects best time', () => {
     const plan = buildTokenPlan(6, 10, true, 4, 1000, 1_000_000);
     expect(plan.tokenRate).toBeGreaterThan(0);
-    expect(plan.results.length).toBe(4);
+    expect(plan.results).toHaveLength(4);
     expect(plan.bestTime.tokens).toBeTruthy();
   });
 

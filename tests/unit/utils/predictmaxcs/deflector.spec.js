@@ -50,7 +50,7 @@ describe('sim-core/src/predictmaxcs/deflector', () => {
     expect(eligible.map(t => t.label)).toEqual(['epic+', 'legendary']);
 
     const all = getEligibleDeflectorTiers(1, TIERS, 999);
-    expect(all.length).toBe(3);
+    expect(all).toHaveLength(3);
   });
 
   it('checks tier compatibility helpers', () => {

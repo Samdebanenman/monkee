@@ -70,6 +70,6 @@ describe('commands/colleggtible', () => {
 
     expect(interaction.respond).toHaveBeenCalled();
     const options = interaction.respond.mock.calls[0][0];
-    expect(options.length).toBe(2);
+    expect(options).toHaveLength(2);
   });
 });

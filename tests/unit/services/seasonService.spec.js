@@ -19,7 +19,7 @@ describe('services/seasonService', () => {
     const result = await fetchSeasonHelpers({ season: 'fall_2025', pushOnly: false, seasonalOnly: true });
 
     expect(getSeasonHelpers).toHaveBeenCalledWith({ season: 'fall_2025', pushOnly: false, seasonalOnly: true });
-    expect(result.length).toBe(1);
+    expect(result).toHaveLength(1);
   });
 
   it('lists seasons', () => {

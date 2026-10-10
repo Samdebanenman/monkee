@@ -143,10 +143,10 @@ describe('integration/database repositories', () => {
     linkMembersToCoop('c1', 'coopA', ['100', '200']);
 
     const helpers = getSeasonHelpers({ season: 'fall_2024', pushOnly: true, seasonalOnly: true });
-    expect(helpers.length).toBe(1);
+    expect(helpers).toHaveLength(1);
     expect(helpers[0].discord_id).toBe('100');
     expect(helpers[0].count).toBe(2);
-    expect(helpers[0].breakdown.length).toBe(2);
+    expect(helpers[0].breakdown).toHaveLength(2);
   });
 
   it('stores and clears a member season-pushee assignment', () => {

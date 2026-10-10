@@ -49,7 +49,7 @@ describe('utils/contracts', () => {
 
     const result = await getAllContracts();
 
-    expect(result.length).toBe(1);
+    expect(result).toHaveLength(1);
     expect(axios.get).not.toHaveBeenCalled();
   });
 

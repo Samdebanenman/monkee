@@ -46,7 +46,7 @@ describe('sim-core/src/predictmaxcs/simulation', () => {
       playerConfigs,
     });
 
-    expect(result.summaries.length).toBe(2);
+    expect(result.summaries).toHaveLength(2);
     expect(result.maxCS).toBeGreaterThanOrEqual(result.minCS);
     expect(result.completionTime).toBeLessThanOrEqual(10);
   });

@@ -12,134 +12,30 @@ beforeEach(() => {
 });
 
 describe('commands/timestamp', () => {
-  it('rejects offsets without sign', async () => {
+  it.each([
+    ['1.5', 'Offsets must start with + or -'],
+    ['', 'Provide an offset'],
+    ['+', 'Add a numeric offset after the sign'],
+    ['+abc', 'Use decimal hours'],
+    ['+1:2:3', 'Use exactly one colon'],
+    ['+2:', 'HH:MM offsets require both hours and minutes'],
+    ['+:30', 'HH:MM offsets require both hours and minutes'],
+    ['+a:30', 'Hours and minutes must be whole numbers'],
+    ['+1:60', 'Minutes must be less than 60'],
+  ])('rejects offset %j with %s', async (offset, message) => {
     const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '1.5' } }),
+      options: createOptions({ strings: { mode: 'relative', offset } }),
     });
-
     await execute(interaction);
-
     expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('Offsets must start with + or -');
+    expect(interaction.reply.mock.calls[0][0].content).toContain(message);
   });
 
-  it('rejects empty offsets', async () => {
+  it.each(['+0.5', '+ 0 : 30', '-0.5'])('emits a Discord timestamp for %s', async offset => {
     const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '' } }),
+      options: createOptions({ strings: { mode: 'relative', offset, format: 'R' } }),
     });
-
     await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('Provide an offset');
-  });
-
-  it('rejects sign-only offsets', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '+' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('Add a numeric offset after the sign');
-  });
-
-  it('rejects non-numeric decimal offsets', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '+abc' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('Use decimal hours');
-  });
-
-  it('rejects HH:MM offsets with multiple colons', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '+1:2:3' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('Use exactly one colon');
-  });
-
-  it('rejects HH:MM offsets missing minutes', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '+2:' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('HH:MM offsets require both hours and minutes');
-  });
-
-  it('rejects HH:MM offsets missing hours', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '+:30' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('HH:MM offsets require both hours and minutes');
-  });
-
-  it('rejects HH:MM offsets with non-numeric parts', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '+a:30' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('Hours and minutes must be whole numbers');
-  });
-
-  it('rejects HH:MM offsets with minutes >= 60', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '+1:60' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('Minutes must be less than 60');
-  });
-
-  it('emits a discord timestamp for valid input', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '+0.5', format: 'R' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('<t:');
-  });
-
-  it('accepts whitespace in offsets', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '+ 0 : 30', format: 'R' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('<t:');
-  });
-
-  it('handles negative offsets', async () => {
-    const interaction = createInteraction({
-      options: createOptions({ strings: { mode: 'relative', offset: '-0.5', format: 'R' } }),
-    });
-
-    await execute(interaction);
-
     expect(interaction.reply).toHaveBeenCalled();
     expect(interaction.reply.mock.calls[0][0].content).toContain('<t:');
   });

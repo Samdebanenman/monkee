@@ -35,7 +35,7 @@ describe('services/leaderboardService', () => {
     });
 
     const entries = await fetchLeaderboardEntries({ scope: 'fall_2025' });
-    expect(entries.length).toBe(2);
+    expect(entries).toHaveLength(2);
     expect(entries[0].alias).toBe('foo');
     expect(entries[0].rank).toBe(1);
   });
@@ -56,8 +56,8 @@ describe('services/leaderboardService', () => {
     ]);
 
     const report = await buildLeaderboardReport({ scope: 'fall_2025' });
-    expect(report.matches.length).toBe(1);
-    expect(report.unmatchedMembers.length).toBe(1);
-    expect(report.missingEntries.length).toBe(1);
+    expect(report.matches).toHaveLength(1);
+    expect(report.unmatchedMembers).toHaveLength(1);
+    expect(report.missingEntries).toHaveLength(1);
   });
 });

@@ -28,39 +28,17 @@ describe('commands/ban', () => {
     expect(interaction.reply).not.toHaveBeenCalled();
   });
 
-  it('rejects invalid user input', async () => {
+  it.each([
+    ['nope', 'bad', 'valid Discord ID'],
+    ['<@123456789012345678>', '   ', 'non-empty reason'],
+    ['<@123456789012345678>', 'spoilers', 'banned <@123456789012345678>'],
+  ])('handles user %s with reason %j', async (user, reason, message) => {
     requireMamaBird.mockResolvedValue(true);
     const interaction = createInteraction({
-      options: createOptions({ strings: { user: 'nope', reason: 'bad' } }),
+      options: createOptions({ strings: { user, reason } }),
     });
-
     await execute(interaction);
-
     expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('valid Discord ID');
-  });
-
-  it('rejects empty reason input', async () => {
-    requireMamaBird.mockResolvedValue(true);
-    const interaction = createInteraction({
-      options: createOptions({ strings: { user: '<@123456789012345678>', reason: '   ' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('non-empty reason');
-  });
-
-  it('replies with a ban confirmation', async () => {
-    requireMamaBird.mockResolvedValue(true);
-    const interaction = createInteraction({
-      options: createOptions({ strings: { user: '<@123456789012345678>', reason: 'spoilers' } }),
-    });
-
-    await execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.reply.mock.calls[0][0].content).toContain('banned <@123456789012345678>');
+    expect(interaction.reply.mock.calls[0][0].content).toContain(message);
   });
 });

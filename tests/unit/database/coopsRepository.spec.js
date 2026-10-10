@@ -236,7 +236,7 @@ describe('database/coopsRepository', () => {
     if (listStmt) listStmt.all.mockReturnValue([{ contract: 'c1', coop: 'x' }]);
 
     const rows = listRecentCoops(10);
-    expect(rows.length).toBe(1);
+    expect(rows).toHaveLength(1);
   });
 
   it('normalizes listRecentCoops limits', () => {
@@ -401,7 +401,7 @@ describe('database/coopsRepository', () => {
     const helpers = getSeasonHelpers({ season: 'fall_2024', pushOnly: true, seasonalOnly: true });
     expect(helpers[0].discord_id).toBe('100');
     expect(helpers[0].count).toBe(3);
-    expect(helpers[0].breakdown.length).toBe(2);
+    expect(helpers[0].breakdown).toHaveLength(2);
   });
 
   it('returns empty season helpers for invalid seasons', () => {
@@ -418,7 +418,7 @@ describe('database/coopsRepository', () => {
     ]);
 
     const helpers = getSeasonHelpers({ season: 'winter_2024', pushOnly: false, seasonalOnly: false });
-    expect(helpers.length).toBe(1);
+    expect(helpers).toHaveLength(1);
   });
 
   it('returns push helpers for season', () => {
@@ -430,7 +430,7 @@ describe('database/coopsRepository', () => {
     ]);
 
     const helpers = getPushHelpersForSeason('fall_2024');
-    expect(helpers.length).toBe(1);
+    expect(helpers).toHaveLength(1);
   });
 
   it('returns ordered seasons', () => {

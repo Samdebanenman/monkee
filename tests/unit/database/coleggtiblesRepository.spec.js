@@ -38,6 +38,9 @@ beforeEach(() => {
 describe('database/colleggtiblesRepository', () => {
   it('no-ops on empty upserts', () => {
     upsertColleggtibles([]);
+    for (const stmt of statementMap.values()) {
+      expect(stmt.run).not.toHaveBeenCalled();
+    }
   });
 
   it('upserts colleggtibles and stores buffs', () => {
@@ -81,8 +84,8 @@ describe('database/colleggtiblesRepository', () => {
     }
 
     const rows = getStoredColleggtibles();
-    expect(rows.length).toBe(1);
-    expect(rows[0].buffs.length).toBe(1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].buffs).toHaveLength(1);
     expect(rows[0].buffs[0].rewardsLevel).toBe(1);
   });
 });

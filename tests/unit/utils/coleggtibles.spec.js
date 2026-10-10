@@ -78,11 +78,11 @@ describe('utils/colleggtibles', () => {
 
     const result = await fetchAndCacheColleggtibles();
 
-    expect(result.length).toBe(1);
+    expect(result).toHaveLength(1);
     expect(upsertColleggtibles).toHaveBeenCalledTimes(1);
     const rows = upsertColleggtibles.mock.calls[0][0];
     expect(rows[0].identifier).toBe('egg1');
-    expect(rows[0].buffs.length).toBe(2);
+    expect(rows[0].buffs).toHaveLength(2);
   });
 
   it('returns empty list when no custom eggs exist', async () => {

@@ -138,7 +138,7 @@ describe('services/memberService setMembersActiveStatus', () => {
     const result = setMembersActiveStatus({ targetDiscordIds: ['111', '222', '333'], active: true });
     expect(result.updated).toEqual(['111']);
     expect(result.created).toEqual(['222']);
-    expect(result.failures.length).toBe(1);
+    expect(result.failures).toHaveLength(1);
   });
 });
 
@@ -158,7 +158,7 @@ describe('services/memberService syncMembersFromApiEntries', () => {
       { ID: '222', IGN: '' },
     ]);
 
-    expect(summary.conflicts.length).toBe(1);
+    expect(summary.conflicts).toHaveLength(1);
     expect(summary.invalid.length).toBeGreaterThan(0);
   });
 });

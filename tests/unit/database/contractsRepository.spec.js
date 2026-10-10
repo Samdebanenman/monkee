@@ -37,6 +37,9 @@ beforeEach(() => {
 describe('database/contractsRepository', () => {
   it('no-ops on empty upserts', () => {
     upsertContracts([]);
+    for (const stmt of statementMap.values()) {
+      expect(stmt.run).not.toHaveBeenCalled();
+    }
   });
 
   it('skips invalid rows and normalizes values', () => {

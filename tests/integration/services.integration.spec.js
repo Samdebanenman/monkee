@@ -120,11 +120,11 @@ describe('integration/services', () => {
       { ID: '222', IGN: 'doo' },
     ]);
 
-    expect(summary.invalid.length).toBe(2);
-    expect(summary.skipped.length).toBe(1);
+    expect(summary.invalid).toHaveLength(2);
+    expect(summary.skipped).toHaveLength(1);
     expect(summary.updated).toBe(1);
     expect(summary.unchanged).toBe(1);
-    expect(summary.conflicts.length).toBe(1);
+    expect(summary.conflicts).toHaveLength(1);
   });
 
   it('handles member service validation and failures', () => {
@@ -165,7 +165,7 @@ describe('integration/services', () => {
     });
 
     const failUpdate = memberService.setMembersActiveStatus({ targetDiscordIds: ['777'], active: true });
-    expect(failUpdate.failures.length).toBe(1);
+    expect(failUpdate.failures).toHaveLength(1);
     activeSpy.mockRestore();
   });
 
@@ -236,14 +236,14 @@ describe('integration/services', () => {
     const allSeason = coopService.listAllCoops({ season: 'fall_2024' });
     const pushSeason = coopService.listAllCoops({ season: 'fall_2024', pushOnly: true });
 
-    expect(allSeason.length).toBe(3);
-    expect(pushSeason.length).toBe(2);
+    expect(allSeason).toHaveLength(3);
+    expect(pushSeason).toHaveLength(2);
 
     const pastAll = coopService.fetchPastCoops({ pushOnly: false, season: 'fall_2024' });
     const pastPush = coopService.fetchPastCoops({ pushOnly: true, season: 'fall_2024' });
 
-    expect(pastAll.length).toBe(2);
-    expect(pastPush.length).toBe(1);
+    expect(pastAll).toHaveLength(2);
+    expect(pastPush).toHaveLength(1);
   });
 
   it('auto-populates coop members from contributors', async () => {
@@ -265,8 +265,8 @@ describe('integration/services', () => {
 
     const result = await coopService.autoPopulateCoopMembers('c1', 'coopB');
     expect(result.ok).toBe(true);
-    expect(result.matched.length).toBe(2);
-    expect(result.missing.length).toBe(0);
+    expect(result.matched).toHaveLength(2);
+    expect(result.missing).toHaveLength(0);
     expect(result.departedCount).toBe(1);
   });
 
@@ -315,9 +315,9 @@ describe('integration/services', () => {
     });
 
     const report = await leaderboardService.buildLeaderboardReport({ scope: 'season' });
-    expect(report.matches.length).toBe(1);
-    expect(report.unmatchedMembers.length).toBe(1);
-    expect(report.missingEntries.length).toBe(1);
+    expect(report.matches).toHaveLength(1);
+    expect(report.unmatchedMembers).toHaveLength(1);
+    expect(report.missingEntries).toHaveLength(1);
     expect(report.matches[0].discordId).toBe('333');
   });
 
@@ -329,8 +329,8 @@ describe('integration/services', () => {
 
     axiosMock.get.mockResolvedValue({ data: {} });
     const report = await leaderboardService.buildLeaderboardReport({ scope: 'season' });
-    expect(report.matches.length).toBe(0);
-    expect(report.missingEntries.length).toBe(0);
+    expect(report.matches).toHaveLength(0);
+    expect(report.missingEntries).toHaveLength(0);
   });
 
   it('exposes contract and season services', async () => {
@@ -339,14 +339,14 @@ describe('integration/services', () => {
     ]);
 
     const refreshed = await contractService.refreshContracts();
-    expect(refreshed.length).toBe(1);
+    expect(refreshed).toHaveLength(1);
 
     const ids = await contractService.listContractIds();
     expect(ids).toEqual(['c3']);
 
     contractsMock.activeContracts.mockResolvedValueOnce([{ id: 'c3' }]);
     const active = await contractService.fetchActiveContracts();
-    expect(active.length).toBe(1);
+    expect(active).toHaveLength(1);
 
     contractsMock.getAllContracts.mockResolvedValueOnce([
       { id: 'c1', name: 'A', release: 100, season: 'fall_2024', egg: 'egg' },
@@ -366,7 +366,7 @@ describe('integration/services', () => {
     expect(linkResult.linked).toBe(1);
 
     const helpers = await seasonService.fetchSeasonHelpers({ season: 'fall_2024', pushOnly: true, seasonalOnly: true });
-    expect(helpers.length).toBe(1);
+    expect(helpers).toHaveLength(1);
 
     const seasons = seasonService.listSeasons();
     expect(seasons).toEqual(['fall_2024']);

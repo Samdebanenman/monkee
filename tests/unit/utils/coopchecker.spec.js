@@ -73,6 +73,6 @@ describe('utils/coopchecker', () => {
     state.responseQueue.push({ contributors: [{ userName: 'Ace' }] });
 
     const contributors = await fetchCoopContributors('c1', 'aa');
-    expect(contributors.length).toBe(1);
+    expect(contributors).toHaveLength(1);
   });
 });

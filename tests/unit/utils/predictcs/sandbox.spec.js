@@ -44,7 +44,7 @@ describe('sim-core/src/predictcs/sandbox', () => {
     const result = parseSandboxUrl(payload);
     expect(result.error).toBeUndefined();
     expect(result.players).toBe(1);
-    expect(result.playerArtifacts.length).toBe(1);
+    expect(result.playerArtifacts).toHaveLength(1);
     expect(result.contractInfo.durationSeconds).toBe(7200);
     expect(result.contractInfo.targetEggs).toBe(3e18);
     expect(result.contractInfo.tokenTimerMinutes).toBe(6);

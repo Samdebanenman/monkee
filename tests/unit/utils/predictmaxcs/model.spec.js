@@ -68,7 +68,7 @@ describe('sim-core/src/predictmaxcs/model', () => {
 
     expect(model.players).toBe(2);
     expect(model.deflectorPlan.totalDeflector).toBeGreaterThan(0);
-    expect(model.deflectorDisplay.displayDeflectors.length).toBe(2);
+    expect(model.deflectorDisplay.displayDeflectors).toHaveLength(2);
     expect(model.tokenPlan.bestTime.tokens).toBeTruthy();
   });
 });
