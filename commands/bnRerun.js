@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 import {
 	groupPlayersByHour,
@@ -90,7 +91,7 @@ function buildHourSlotPlayers(hourPlayers, requiredUserId) {
 
 function buildFinalPlayers({ requiredPlayer, otherPlayers }) {
 	for (let i = otherPlayers.length - 1; i > 0; i -= 1) {
-		const j = Math.floor(Math.random() * (i + 1));
+		const j = randomInt(i + 1);
 		[otherPlayers[i], otherPlayers[j]] = [otherPlayers[j], otherPlayers[i]];
 	}
 

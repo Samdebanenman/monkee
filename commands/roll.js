@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { createTextComponentMessage } from '../services/discord.js';
 
@@ -40,7 +41,7 @@ export const data = new SlashCommandBuilder()
         .setColor(0x6a0dad);
 
       for (let i = 1; i <= amount; i++) {
-        const roll = Math.floor(Math.random() * eyes) + 1;
+        const roll = Math.floor((Number(randomBytes(8).readBigUInt64BE() >> 11n) / 2 ** 53) * eyes) + 1;
         total += roll;
         embed.addFields({ name: `Dice ${i}`, value: `Rolled: ${roll}`, inline: true });
       }

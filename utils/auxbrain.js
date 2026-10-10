@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import axios from 'axios';
 import protobuf from 'protobufjs';
 import path from 'node:path';
@@ -74,7 +75,7 @@ function buildAuxbrainUrl(baseUrl, endpoint) {
 
 export async function postAuxbrain(endpoint, requestBase64, { timeout = AUXBRAIN_TIMEOUT_MS, observe = true } = {}) {
   const operation = async () => {
-    const primaryIndex = Math.random() < 0.5 ? 0 : 1;
+    const primaryIndex = randomInt(2);
     const fallbackIndex = primaryIndex === 0 ? 1 : 0;
     const attemptOrder = [primaryIndex, fallbackIndex];
     let lastError;

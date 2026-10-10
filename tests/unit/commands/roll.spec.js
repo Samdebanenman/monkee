@@ -25,7 +25,6 @@ describe('commands/roll', () => {
 
   it('caps amount to 25 and animates rolls', async () => {
     vi.useFakeTimers();
-    vi.spyOn(globalThis.Math, 'random').mockReturnValue(0);
 
     const interaction = createInteraction({
       options: createOptions({ integers: { eyes: 6, amount: 50 } }),
@@ -36,9 +35,14 @@ describe('commands/roll', () => {
     await promise;
 
     expect(interaction.reply).toHaveBeenCalled();
-    expect(interaction.editReply).toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledTimes(14);
+    const embed = interaction.editReply.mock.calls.at(-1)[0].embeds[0].toJSON();
+    expect(embed.fields).toHaveLength(25);
+    for (const field of embed.fields) {
+      expect(Number(field.value.replace('Rolled: ', ''))).toBeGreaterThanOrEqual(1);
+      expect(Number(field.value.replace('Rolled: ', ''))).toBeLessThanOrEqual(6);
+    }
 
     vi.useRealTimers();
-    globalThis.Math.random.mockRestore();
   });
 });
