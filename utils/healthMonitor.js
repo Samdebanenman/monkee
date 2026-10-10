@@ -73,8 +73,8 @@ export class HealthMonitor {
     for (const [stale, interval, timeout] of [
       ['loopStale', 'loopInterval', 'loopDown'], ['processingStale', 'processingInterval', 'processingSlow'],
       ['gatewayStale', 'gatewayInterval', 'gatewaySlow'], ['databaseStale', 'databaseInterval', 'databaseTimeout'],
-      ['restStale', 'restInterval', 'restTimeout'], ['gameStale', 'gameInterval', 'gameTimeout'],
-    ]) this.config[stale] = Math.min(604800000, Math.max(this.config[stale], 2 * this.config[interval] + this.config[timeout] * (stale === 'gameStale' ? 2 : 1)));
+      ['restStale', 'restInterval', 'restTimeout'],
+    ]) this.config[stale] = Math.min(604800000, Math.max(this.config[stale], 2 * this.config[interval] + this.config[timeout]));
   }
 
   register(name, { critical = false, slowMs = 3000, staleMs = this.config.passiveStale, measurementType = 'passive' } = {}) {
@@ -83,12 +83,19 @@ export class HealthMonitor {
       lastAttempt: null, lastSuccess: null, lastFailure: null, lastResult: null, lastStatusChange: null,
       measurementType, intervalMs: null, failures: 0, recoveries: 0, revision: 0,
       reason: 'Not measured', pending: 0, pendingSince: null,
+      lastStartedAt: null, nextMeasurementId: 0, measurementId: 0,
     });
     return this.components.get(name);
   }
 
-  record(name, { ok = true, latencyMs = null, reason = null, down = false, attemptAt, statusOverride } = {}) {
+  record(name, { ok = true, latencyMs = null, reason = null, down = false, attemptAt, statusOverride, measurementId } = {}) {
     const state = this.register(name);
+    if (name === 'gameApi') {
+      const id = measurementId ?? ++state.nextMeasurementId;
+      // Completion order must not let an older request replace newer evidence.
+      if (id < state.measurementId) return;
+      state.measurementId = id;
+    }
     const now = this.now();
     const previousStatus = state.status;
     state.lastAttempt = attemptAt ?? now;
@@ -125,22 +132,42 @@ export class HealthMonitor {
     try { this.record(name, measurement); } catch { /* Monitoring cannot break application operations. */ }
   }
 
-  async observe(name, operation, classify = () => ({})) {
+  async observe(name, operation, classify = () => ({}), { timeoutMs } = {}) {
     const state = this.register(name);
     const started = this.clock();
-    const attemptAt = state.lastAttempt = this.now();
+    const attemptAt = this.now();
+    const measurementId = name === 'gameApi' ? ++state.nextMeasurementId : undefined;
+    state.lastStartedAt = attemptAt;
+    if (name !== 'gameApi') state.lastAttempt = attemptAt;
     state.pending++;
     state.pendingSince ??= this.now();
+    let timer;
+    const timeoutError = () => Object.assign(new Error('Health probe timed out'), { name: 'TimeoutError' });
     try {
-      const result = await operation();
-      this.safeRecord(name, { ...classify(result), attemptAt, latencyMs: this.clock() - started });
+      const deadline = timeoutMs == null ? null : new Promise((_, reject) => {
+        timer = setTimeout(() => reject(timeoutError()), timeoutMs);
+        timer.unref?.();
+      });
+      const running = (async () => {
+        try { return await operation(); }
+        finally {
+          // A monitoring timeout does not cancel application work. Keep the
+          // in-flight guard until the underlying operation actually settles.
+          state.pending--;
+          if (!state.pending) state.pendingSince = null;
+        }
+      })();
+      const result = deadline == null ? await running : await Promise.race([running, deadline]);
+      const latencyMs = this.clock() - started;
+      // Synchronous decoding can delay the timer on a busy event loop.
+      if (timeoutMs != null && latencyMs >= timeoutMs) throw timeoutError();
+      this.safeRecord(name, { ...classify(result), attemptAt, measurementId, latencyMs });
       return result;
     } catch (error) {
-      this.safeRecord(name, { ok: false, attemptAt, latencyMs: this.clock() - started, reason: failureReason(error) });
+      this.safeRecord(name, { ok: false, attemptAt, measurementId, latencyMs: this.clock() - started, reason: failureReason(error) });
       throw error;
     } finally {
-      state.pending--;
-      if (!state.pending) state.pendingSince = null;
+      if (timer != null) clearTimeout(timer);
     }
   }
 
@@ -158,9 +185,9 @@ export class HealthMonitor {
   }
 
   async probe(name, operation) {
-    if (this.pending.has(name)) return;
-    this.pending.add(name);
     const state = this.register(name);
+    if (this.pending.has(name) || (name === 'gameApi' && state.pending)) return;
+    this.pending.add(name);
     const revision = state.revision;
     const attemptAt = this.now();
     try { await operation(); }
@@ -181,7 +208,7 @@ export class HealthMonitor {
       }
       let status = stale ? 'unknown' : state.status;
       let reason = stale ? (state.lastResult == null ? 'Not measured' : 'Monitoring result stale') : state.reason;
-      if (state.pendingSince != null && now - state.pendingSince > state.slowMs && status !== 'down') {
+      if (name !== 'gameApi' && state.pendingSince != null && now - state.pendingSince > state.slowMs && status !== 'down') {
         status = 'degraded';
         reason = 'Request still pending';
       }
@@ -279,7 +306,9 @@ export class HealthMonitor {
       ['gameApi', gameProbe, this.config.gameInterval], ['discordRest', restProbe, this.config.restInterval],
     ]) if (operation) this.every(Math.min(30000, intervalMs), () => {
       const state = this.components.get(name);
-      if (!state.pending && (state.lastAttempt == null || this.now() < state.lastAttempt || this.now() - state.lastAttempt >= intervalMs)) {
+      const lastAttempt = state.lastStartedAt == null ? state.lastAttempt
+        : Math.max(state.lastStartedAt, state.lastAttempt ?? -Infinity);
+      if (!state.pending && (lastAttempt == null || this.now() < lastAttempt || this.now() - lastAttempt >= intervalMs)) {
         return this.probe(name, operation);
       }
     }, true);

@@ -133,19 +133,154 @@ describe('application health', () => {
     expect(monitor.snapshot().components.database.status).toBe('operational');
   });
 
-  it('detects slow in-flight operations without cancelling or overlapping probes', async () => {
+  it('preserves completed game evidence while a probe is pending, without overlapping probes', async () => {
     let time = 10000;
     healthy({ now: () => time, clock: () => time });
+    monitor.record('gameApi', { latencyMs: 302 });
+    const previous = monitor.snapshot().components.gameApi;
+    time += 1000;
     let release;
     const operation = vi.fn(() => monitor.observe('gameApi', () => new Promise(resolve => { release = resolve; })));
     const first = monitor.probe('gameApi', operation);
     time += 4000;
-    expect(monitor.snapshot().components.gameApi).toMatchObject({ status: 'degraded', reason: 'Request still pending' });
+    expect(monitor.snapshot().components.gameApi).toEqual(previous);
     await monitor.probe('gameApi', operation);
     expect(operation).toHaveBeenCalledTimes(1);
     release('result');
     await first;
     expect(monitor.components.get('gameApi').pending).toBe(0);
+    expect(monitor.snapshot().components.gameApi).toMatchObject({ status: 'degraded', latencyMs: 4000,
+      reason: 'Response latency elevated', lastAttempt: new Date(11000).toISOString(),
+      lastMeasurement: new Date(15000).toISOString() });
+  });
+
+  it.each([2221, 3000, 3001])('classifies a completed game probe taking %i ms using the slow threshold', async latency => {
+    let time = 10000;
+    healthy({ now: () => time, clock: () => time });
+    await monitor.probe('gameApi', () => monitor.observe('gameApi', async () => { time += latency; }));
+    expect(monitor.snapshot().components.gameApi).toMatchObject({ latencyMs: latency,
+      status: latency > 3000 ? 'degraded' : 'operational',
+      reason: latency > 3000 ? 'Response latency elevated' : null });
+  });
+
+  it('keeps the first pending game measurement unknown until it completes', async () => {
+    let time = 10000;
+    monitor = new HealthMonitor({ env: {}, now: () => time, clock: () => time });
+    const previous = monitor.snapshot().components.gameApi;
+    let release;
+    const first = monitor.probe('gameApi', () => monitor.observe('gameApi', () => new Promise(resolve => { release = resolve; })));
+    time += 4000;
+    expect(monitor.snapshot().components.gameApi).toEqual(previous);
+    release();
+    await first;
+    expect(monitor.snapshot().components.gameApi.status).toBe('degraded');
+  });
+
+  it.each([{}, { HEALTH_GAME_API_STALE_MS: '1000' }])('expires cached game evidence while a request is pending (%j)', async env => {
+    let time = 10000;
+    healthy({ env, now: () => time, clock: () => time });
+    const previous = monitor.snapshot().components.gameApi;
+    const staleMs = Number(env.HEALTH_GAME_API_STALE_MS ?? 900000);
+    expect(monitor.config.gameStale).toBe(staleMs);
+    time += staleMs - 1;
+    let release;
+    const first = monitor.observe('gameApi', () => new Promise(resolve => { release = resolve; }));
+    expect(monitor.snapshot().components.gameApi).toEqual(previous);
+    time += 2;
+    const stale = monitor.snapshot().components.gameApi;
+    expect(stale).toMatchObject({ status: 'unknown', reason: 'Monitoring result stale',
+      lastAttempt: previous.lastAttempt, lastMeasurement: previous.lastMeasurement,
+      lastSuccess: previous.lastSuccess, latencyMs: previous.latencyMs });
+    release();
+    await first;
+    expect(monitor.snapshot().components.gameApi.status).toBe('operational');
+  });
+
+  it('preserves a completed failure while game activity is pending', async () => {
+    let time = 10000;
+    healthy({ now: () => time, clock: () => time });
+    monitor.record('gameApi', { ok: false, reason: 'HTTP 503', latencyMs: 302 });
+    const previous = monitor.snapshot().components.gameApi;
+    time += 1000;
+    let release;
+    const running = monitor.observe('gameApi', () => new Promise(resolve => { release = resolve; }));
+    time += 15000;
+    expect(monitor.snapshot().components.gameApi).toEqual(previous);
+    release();
+    await running;
+  });
+
+  it.each([false, true])('records a probe timeout once and ignores late settlement (reject=%s)', async rejectLate => {
+    vi.useFakeTimers();
+    healthy({ now: () => Date.now(), clock: () => Date.now() });
+    const previous = monitor.snapshot().components.gameApi;
+    let settle;
+    const operation = vi.fn(() => monitor.observe('gameApi', () => new Promise((resolve, reject) => {
+      settle = rejectLate ? () => reject(new Error('late failure')) : resolve;
+    }), undefined, { timeoutMs: monitor.config.gameTimeout }));
+    const first = monitor.probe('gameApi', operation);
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(monitor.snapshot().components.gameApi).toEqual(previous);
+    await vi.advanceTimersByTimeAsync(1);
+    await first;
+    const timedOut = monitor.snapshot().components.gameApi;
+    expect(timedOut).toMatchObject({ status: 'degraded', latencyMs: 5000, reason: 'Request timed out',
+      consecutiveFailures: 1, lastSuccess: previous.lastSuccess });
+    expect(monitor.components.get('gameApi').pending).toBe(1);
+    await monitor.probe('gameApi', operation);
+    expect(operation).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(10000);
+    settle();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(monitor.components.get('gameApi').pending).toBe(0);
+    expect(monitor.snapshot().components.gameApi).toEqual(timedOut);
+  });
+
+  it('detects a probe deadline exceeded during synchronous work before its timer runs', async () => {
+    let time = 10000;
+    healthy({ now: () => time, clock: () => time });
+    await monitor.probe('gameApi', () => monitor.observe('gameApi', async () => { time += 5001; },
+      undefined, { timeoutMs: monitor.config.gameTimeout }));
+    expect(monitor.snapshot().components.gameApi).toMatchObject({ status: 'degraded', latencyMs: 5001,
+      reason: 'Request timed out', consecutiveFailures: 1 });
+  });
+
+  it.each([[false, false], [true, false], [false, true], [true, true]])(
+    'does not let older game activity overwrite a newer result (older fails=%s, newer fails=%s)', async (rejectOld, rejectNew) => {
+      let time = 10000;
+      healthy({ now: () => time, clock: () => time });
+      let settle;
+      const older = monitor.observe('gameApi', () => new Promise((resolve, reject) => {
+        settle = rejectOld ? () => reject(new Error('old failure')) : resolve;
+      })).catch(() => {});
+      time += 1000;
+      await monitor.observe('gameApi', async () => {
+        time += 2221;
+        if (rejectNew) throw { status: 503 };
+      }).catch(() => {});
+      const newer = monitor.snapshot().components.gameApi;
+      time += 15000;
+      settle();
+      await older;
+      expect(monitor.snapshot().components.gameApi).toEqual(newer);
+    },
+  );
+
+  it('does not let an older probe timeout overwrite a newer completed game request', async () => {
+    vi.useFakeTimers();
+    healthy({ now: () => Date.now(), clock: () => Date.now() });
+    let release;
+    const first = monitor.probe('gameApi', () => monitor.observe('gameApi', () => new Promise(resolve => { release = resolve; }),
+      undefined, { timeoutMs: monitor.config.gameTimeout }));
+    await vi.advanceTimersByTimeAsync(1000);
+    await monitor.observe('gameApi', async () => {});
+    const newer = monitor.snapshot().components.gameApi;
+    await vi.advanceTimersByTimeAsync(4000);
+    await first;
+    expect(monitor.snapshot().components.gameApi).toEqual(newer);
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(monitor.snapshot().components.gameApi).toEqual(newer);
   });
 
   it('keeps instrumentation failures from changing application results or errors', async () => {

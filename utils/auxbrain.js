@@ -115,7 +115,7 @@ export async function probeGameApi() {
     if (!messageBuffer.length) throw new Error('Empty API response');
     const responseType = await getProtoType('ei.PeriodicalsResponse');
     responseType.decode(messageBuffer);
-  });
+  }, undefined, { timeoutMs: health.config.gameTimeout });
 }
 
 export async function decodeAuthenticatedPayload(responseData, { decompress = true } = {}) {

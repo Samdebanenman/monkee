@@ -41,7 +41,19 @@ describe('Monkee health check', () => {
     monitor.initialized = true;
     for (const name of monitor.components.keys()) monitor.record(name);
     server = await startHealthServer({}, { monitor, port: 0 });
-    expect(JSON.parse((await probe()).stdout).status).toBe('operational');
+    monitor.record('gameApi', { latencyMs: 302 });
+    const previous = monitor.snapshot().components.gameApi;
+    let release;
+    const pending = monitor.observe('gameApi', () => new Promise(resolve => { release = resolve; }));
+    try {
+      expect(JSON.parse((await probe()).stdout)).toMatchObject({ contract: 'application-health/v1', status: 'operational',
+        components: { gameApi: { status: 'operational', latencyMs: 302,
+          lastAttempt: previous.lastAttempt, lastSuccess: previous.lastSuccess,
+          lastMeasurement: previous.lastMeasurement, lastStatusChange: previous.lastStatusChange } } });
+    } finally {
+      release();
+      await pending;
+    }
     for (let index = 0; index < 3; index++) monitor.record('gameApi', { ok: false, reason: 'Request timed out' });
     const result = await probe();
     expect(JSON.parse(result.stdout)).toMatchObject({ status: 'degraded', coreAvailable: true,
