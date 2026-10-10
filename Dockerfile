@@ -21,7 +21,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY --chown=node:node package*.json ./
-COPY --chown=node:node . .
+COPY --chown=node:node index.js healthcheck.js Enums.js ei.proto ./
+COPY --chown=node:node commands/ ./commands/
+COPY --chown=node:node services/ ./services/
+COPY --chown=node:node utils/ ./utils/
+COPY --chown=node:node sim-core/package.json ./sim-core/package.json
+COPY --chown=node:node sim-core/src/ ./sim-core/src/
 RUN mkdir -p /app/data \
     && chown -R node:node /app
 USER node

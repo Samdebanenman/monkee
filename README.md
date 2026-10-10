@@ -108,6 +108,12 @@ outages can degrade Monkee without failing Docker liveness. See [HEALTH.md](HEAL
 for thresholds, aggregation, configuration, transport, and deployment details.
 No published port is needed.
 
+The image includes only runtime source files. Google Sheets credentials must be
+provided at runtime as a read-only mount at `/app/google-credentials.json`.
+The Compose configuration mounts `./google-credentials.json` automatically;
+with `docker run`, add
+`-v "$(pwd)/google-credentials.json:/app/google-credentials.json:ro"` when using Sheets.
+
 ## Data & persistence
 - SQLite lives at `./data/coops.db` by default; schema is bootstrapped on startup.
 - Embedding caches are written under `data/` (e.g., `embeddings_*.json`).

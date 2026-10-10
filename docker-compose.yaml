@@ -6,4 +6,5 @@ services:
     env_file: .env
     volumes:
       - ./data:/app/data
+      - ./google-credentials.json:/app/google-credentials.json:ro
     restart: unless-stopped
