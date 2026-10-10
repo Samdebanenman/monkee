@@ -25,8 +25,17 @@ let monkeeMissingKeyNotified = false;
 await startHealthServer(client, { monitor: health });
 health.start(client, {
   databaseProbe: async () => (await import('./utils/database/client.js')).probeDatabase(),
-  gameProbe: async () => (await import('./utils/auxbrain.js')).probeGameApi(),
+  gameProbe: process.env.EID ? async () => (await import('./utils/auxbrain.js')).probeGameApi() : undefined,
+  // Inspect the registered dispatch path without invoking commands or replying.
+  processingProbe: async () => client.listenerCount(Events.InteractionCreate) > 0
+    && client.commands.size > 0,
+  restProbe: async () => {
+    if (!client.isReady()) return;
+    const response = await client.rest.get(Routes.user('@me'), { signal: AbortSignal.timeout(health.config.restTimeout) });
+    if (!response?.id) health.safeRecord('discordRest', { ok: false, reason: 'Invalid API response' });
+  },
 });
+if (!process.env.EID) health.components.get('gameApi').measurementType = 'passive';
 
 // Load command files
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
@@ -86,11 +95,11 @@ client.on(Events.InteractionCreate, async interaction => {
     await handleChatInputInteraction(interaction, client);
   } catch (error) {
     failed = true;
-    health.safeRecord('processing', { ok: false, reason: 'Interaction dispatch failed' });
+    health.safeRecord('interactionDispatch', { ok: false, reason: 'Interaction dispatch failed' });
     console.error('Interaction dispatch failed:', error);
     return;
   } finally {
-    if (!failed) health.safeRecord('processing');
+    if (!failed) health.safeRecord('interactionDispatch');
   }
 });
 

@@ -47,7 +47,7 @@ describe('application health', () => {
   it('makes stale measurements unknown, retaining a fresh confirmed critical failure', () => {
     let now = 10000;
     healthy({ now: () => now });
-    now += 6000;
+    now += 8000;
     expect(monitor.snapshot()).toMatchObject({ status: 'unknown', coreAvailable: null });
     monitor.record('discord', { ok: false, down: true });
     expect(monitor.snapshot()).toMatchObject({ status: 'down', coreAvailable: false });
@@ -56,8 +56,81 @@ describe('application health', () => {
   it('separates optional monitoring gaps from established core liveness', () => {
     let now = 10000;
     healthy({ now: () => now });
-    monitor.register('planner', { staleMs: 10 });
+    monitor.register('planner', { staleMs: 10, measurementType: 'active' });
     expect(monitor.snapshot()).toMatchObject({ status: 'unknown', coreAvailable: true });
+  });
+
+  it('keeps passive inactivity separate from active availability', () => {
+    healthy();
+    monitor.register('planner');
+    expect(monitor.snapshot()).toMatchObject({ status: 'operational', coreAvailable: true,
+      components: { planner: { status: 'unknown', measurementType: 'passive' } } });
+    monitor.record('planner', { ok: false, down: true });
+    expect(monitor.snapshot().status).toBe('operational');
+  });
+
+  it('does not trust future-dated measurements after a clock adjustment', () => {
+    let now = 20000;
+    healthy({ now: () => now });
+    now -= 6000;
+    expect(monitor.snapshot()).toMatchObject({ status: 'unknown', coreAvailable: null });
+  });
+
+  it('actively measures every core dependency through 24 idle hours', async () => {
+    vi.useFakeTimers();
+    monitor = new HealthMonitor({ env: {}, now: () => Date.now(), clock: () => Date.now() });
+    monitor.initialized = true;
+    const probes = {};
+    for (const name of ['database', 'gameApi', 'discordRest']) probes[name] = vi.fn(
+      () => monitor.observe(name, async () => true));
+    monitor.start({ isReady: () => true, ws: { ping: 85 } }, {
+      databaseProbe: probes.database, gameProbe: probes.gameApi, restProbe: probes.discordRest,
+      env: { HEALTH_EVENT_LOOP_PROBE_MS: '30000', HEALTH_PROCESSING_PROBE_MS: '30000', HEALTH_DISCORD_PROBE_MS: '30000' },
+    });
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+    const report = monitor.snapshot();
+    expect(report.status).toBe('operational');
+    for (const component of Object.values(report.components)) {
+      expect(component.lastSuccess).not.toBeNull();
+      expect(Date.now() - Date.parse(component.lastMeasurement)).toBeLessThanOrEqual(component.intervalMs);
+    }
+    expect(probes.discordRest).toHaveBeenCalledTimes(289);
+    expect(probes.gameApi).toHaveBeenCalledTimes(289);
+  }, 15000);
+
+  it('preserves attempt, failure, success, measurement and status-change times', async () => {
+    let time = 10000;
+    healthy({ now: () => time, clock: () => time });
+    await monitor.observe('gameApi', async () => { time += 100; throw new Error('private'); }).catch(() => {});
+    let state = monitor.snapshot().components.gameApi;
+    expect(Date.parse(state.lastAttempt)).toBe(10000);
+    expect(Date.parse(state.lastFailure)).toBe(10100);
+    expect(Date.parse(state.lastSuccess)).toBe(10000);
+    expect(Date.parse(state.lastMeasurement)).toBe(10100);
+    expect(Date.parse(state.lastStatusChange)).toBe(10100);
+    time += 100;
+    monitor.record('gameApi');
+    monitor.record('gameApi');
+    state = monitor.snapshot().components.gameApi;
+    expect(Date.parse(state.lastFailure)).toBe(10100);
+    expect(Date.parse(state.lastSuccess)).toBe(10200);
+  });
+
+  it('records probe initialization failures and retries without overlapping', async () => {
+    vi.useFakeTimers();
+    healthy({ now: () => Date.now(), clock: () => Date.now() });
+    let fail = true;
+    const operation = vi.fn(async () => {
+      if (fail) throw new Error('import failed');
+      monitor.record('database');
+    });
+    monitor.start({ isReady: () => true, ws: { ping: 85 } }, { databaseProbe: operation,
+      env: { HEALTH_DATABASE_PROBE_MS: '1000', HEALTH_FAILURE_THRESHOLD: '2' } });
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(monitor.snapshot().components.database.status).toBe('down');
+    fail = false;
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(monitor.snapshot().components.database.status).toBe('operational');
   });
 
   it('detects slow in-flight operations without cancelling or overlapping probes', async () => {

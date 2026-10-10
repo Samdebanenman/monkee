@@ -56,7 +56,8 @@ describe('Monkee health check', () => {
     for (const name of monitor.components.keys()) monitor.record(name);
     monitor.register('planner');
     server = await startHealthServer({}, { monitor, port: 0 });
-    expect(JSON.parse((await probe()).stdout)).toMatchObject({ status: 'unknown', coreAvailable: true });
+    expect(JSON.parse((await probe()).stdout)).toMatchObject({ status: 'operational', coreAvailable: true,
+      components: { planner: { status: 'unknown', measurementType: 'passive' } } });
   });
 
   it('fails Docker while application initialization is incomplete', async () => {

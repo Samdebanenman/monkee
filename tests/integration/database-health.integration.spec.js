@@ -40,19 +40,20 @@ describe('SQLite health using the existing connection', () => {
     expect(module.default.pragma('busy_timeout', { simple: true })).toBe(5000);
   });
 
-  it('does not erase write failures merely because a read probe succeeds', () => {
+  it('actively verifies write recovery without changing rows or needing user writes', () => {
     const write = module.default.prepare('INSERT INTO meta(key,value) VALUES(?,?)');
     module.default.pragma('busy_timeout = 10');
     locker = new Database(process.env.COOPS_DB_PATH);
     locker.exec('BEGIN IMMEDIATE');
     for (let index = 0; index < 3; index++) expect(() => write.run('a', 'b')).toThrow();
-    module.probeDatabase();
+    expect(() => module.probeDatabase()).toThrow();
     expect(health.snapshot().components.database.status).toBe('down');
     locker.exec('ROLLBACK'); locker.close(); locker = undefined;
-    write.run('a', 'b');
+    module.probeDatabase();
     expect(health.snapshot().components.database.status).toBe('degraded');
-    module.default.prepare('DELETE FROM meta').run();
+    module.probeDatabase();
     expect(health.snapshot().components.database.status).toBe('operational');
+    expect(module.default.prepare('SELECT COUNT(*) count FROM meta').get().count).toBe(0);
   });
 
   it('records unavailable connections as failures', () => {

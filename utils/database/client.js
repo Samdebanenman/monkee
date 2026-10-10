@@ -47,8 +47,6 @@ if (typeof db.prepare === 'function') {
           // A readable database does not establish that previously failed writes recovered.
           try {
             const result = original.apply(this, values);
-            health.components.get('database').lastResult = Date.now();
-            health.components.get('database').lastAttempt = Date.now();
             return result;
           } catch (error) {
             health.safeRecord('database', { ok: false, reason: failureReason(error) });
@@ -71,6 +69,7 @@ if (typeof db.prepare === 'function') {
 
 export function probeDatabase() {
   const started = performance.now();
+  const attemptAt = health.now();
   let previous;
   try {
     previous = db.pragma('busy_timeout', { simple: true });
@@ -79,11 +78,14 @@ export function probeDatabase() {
     probeRead();
     const state = health.components.get('database');
     if (writeFailure) {
-      state.lastAttempt = state.lastResult = Date.now();
-      state.latencyMs = Math.round(performance.now() - started);
-    } else health.safeRecord('database', { latencyMs: performance.now() - started });
+      // Acquire a write reservation without changing rows or flushing data.
+      // A recovered database must not wait for a user command to write again.
+      db.transaction(() => probeRead()).immediate();
+    }
+    health.safeRecord('database', { latencyMs: performance.now() - started, attemptAt });
+    if (state.status === 'operational') writeFailure = false;
   } catch (error) {
-    health.safeRecord('database', { ok: false, latencyMs: performance.now() - started, reason: failureReason(error) });
+    health.safeRecord('database', { ok: false, attemptAt, latencyMs: performance.now() - started, reason: failureReason(error) });
     throw error;
   } finally {
     if (previous != null && db.open) db.pragma(`busy_timeout = ${previous}`);

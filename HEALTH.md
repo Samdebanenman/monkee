@@ -1,115 +1,90 @@
 # Application health
 
-Monkee extends its existing loopback `GET /health` and Docker `healthcheck.js`.
-No port needs to be published. The endpoint uses cached measurements and does
-not make external calls or query SQLite on demand. Monitoring timers are
-unreferenced, observations retain application return values/exceptions, and
-Monkee stores only the latest state per component.
+The existing loopback `GET /health` server, Docker `healthcheck.js`, bot timers,
+Discord client, and SQLite connection provide health measurements independently
+of commands, messages, interactions, or dashboard requests. No port is published.
 
-## States and core availability
+## Active checks and passive observations
 
-`operational`: every measured component is within its threshold.
-`degraded`: core functionality remains available but a component is slow,
-recovering, or failing. `down`: a confirmed critical failure prevents essential
-processing. `unknown`: initialization or incomplete/stale monitoring evidence.
+Application responsiveness, processing readiness, and Discord connectivity are
+critical. Database, game API, and Discord REST are noncritical. Operational means
+all active components are healthy. Slow checks and early failures are Degraded;
+three consecutive failures establish Down, and two fast successes establish
+recovery. Confirmed critical Down overrides Unknown evidence. Unknown means
+startup, missing measurements, or stale monitoring, and never means no users.
 
-Application readiness/event-loop responsiveness, interaction dispatch, and
-Discord gateway connectivity are critical. SQLite, game API, Discord REST, and
-feature integrations are noncritical: independent commands remain available.
-Repeated failures in the essential dispatch path can still make processing Down.
-An uncaught fatal process failure is detected by an unanswered local probe;
-monitoring does not swallow fatal application errors.
+- Application: sample event-loop timer drift every second.
+- Processing: every five seconds, check the registered interaction handler and
+  command registry through an asynchronous local probe. No commands are executed.
+  Real interaction outcomes are separate passive `interactionDispatch` observations.
+- Discord: every second, sample client/shard readiness and the existing gateway
+  heartbeat latency. Discord's own heartbeat supplies network liveness evidence.
+  Reconnection is Degraded during the 90-second grace period, then Down.
+- Database: every 30 seconds, read `meta` on the existing connection with a
+  bounded lock timeout. After a write failure, also acquire an immediate write
+  reservation without changing rows. Two successful probes can establish write
+  recovery without waiting for a user command. The normal lock timeout is restored.
+- Discord REST: when ready and idle for five minutes, request authenticated
+  `GET /users/@me` through the existing REST client, rate-limit queue, and transport.
+  The probe has a five-second abort deadline and never overlaps another REST probe.
+- Game API: when idle for five minutes, read `/ei/get_periodicals` with a
+  five-second timeout per fallback host, without changing game state or caches.
+  Normal requests retain their existing timeouts. Without `EID`, game evidence is
+  explicitly passive/unmeasured and does not determine availability.
 
-The aggregation order is confirmed critical Down, Unknown evidence, Degraded
-components, then Operational. A stale Down measurement is no longer a confirmed
-current failure. Discord reconnects are Degraded for the grace period, then Down.
-Before the first gateway connection or a valid heartbeat measurement, Discord is
-Unknown rather than healthy. A healthy tick does not erase a dispatch failure;
-successful interactions must provide recovery evidence.
-
-`coreAvailable` is independently `true`, `false`, or `null` (not established).
-Docker exits 0 when core availability is established, including Degraded periods
-and an overall Unknown caused solely by optional evidence. It exits 1 for Down
-or unknown core liveness. The probe aborts after 3 seconds; Docker retains its
-existing 30-second interval, 5-second timeout, startup grace and retries.
-
-## Measurements
-
-- Event-loop timer drift is sampled each second on the same loop as the bot.
-- Discord readiness, shard reconnect/resume events and gateway ping are sampled
-  locally. REST measurements wrap Discord's supported `makeRequest` transport;
-  the default transport is preserved and no synthetic REST calls are added.
-  Reconnection attempts are counted. Request-scoped REST errors (such as missing
-  messages or channel permissions) do not imply a global Discord transport outage.
-- Existing native SQLite statement `get`, `all`, and `run` methods are observed.
-  A background read touches `meta` every 30 seconds on the existing connection.
-  Its lock timeout is temporarily bounded and restored. Successful reads do not
-  erase observed write failures: actual successful writes establish recovery.
-  Native SQLite operations cannot be interrupted by a JavaScript Promise timeout.
-- Game API measurements cover logical requests across fallback hosts, including
-  inventory requests. If idle, `/ei/get_periodicals` is read without writing game
-  state or updating caches. Probes run at most once every five minutes, use a
-  five-second timeout per host, and back off after failures. Existing command
-  requests keep their current timeouts (up to 80 seconds per host). An in-flight
-  request crossing the slow threshold is reported as Degraded.
-- Planner, Sheets, leaderboard, member API, contract archive and OpenAI are
-  observed only when used. Unused/unconfigured feature integrations are not
-  registered; registered integrations become Unknown when their observations
-  expire. This can make overall health Unknown while core remains available.
-  Missing game credentials do not result in synthetic successful measurements.
-
-The initial failure threshold is three; recovery requires two consecutive
-responses below the slow threshold. First failures are Degraded. Slow successful
-responses retain a successful-request timestamp but do not count as recovery.
-Reasons are fixed descriptions or HTTP status codes; no tokens, request URLs,
-SQL, database values, player data, or raw error messages enter the health snapshot.
+Feature integrations (planner, Sheets, leaderboard, member API, archive, OpenAI,
+and interaction outcomes) are passive. They remain visible, including failures or
+expired observations, but do not determine active core/full availability. An
+unused feature no longer makes the application Unknown. Processing readiness
+does not prove that every command or feature will execute successfully.
 
 ## Configuration
 
-All variables are optional positive numbers, in milliseconds unless stated.
+All values are positive milliseconds except the failure/recovery counts.
 
-| Variable | Default |
-| --- | ---: |
-| `HEALTHCHECK_PORT` | 3000 |
-| `HEALTH_FAILURE_THRESHOLD` (count) | 3 |
-| `HEALTH_RECOVERY_THRESHOLD` (count) | 2 |
-| `HEALTH_EVENT_LOOP_SLOW_MS` | 250 |
-| `HEALTH_EVENT_LOOP_DOWN_MS` | 5000 |
-| `HEALTH_DISCORD_SLOW_MS` | 1000 |
-| `HEALTH_DISCORD_GRACE_MS` | 90000 |
-| `HEALTH_DISCORD_REST_SLOW_MS` | 2000 |
-| `HEALTH_DATABASE_SLOW_MS` | 100 |
-| `HEALTH_DATABASE_TIMEOUT_MS` | 250 |
-| `HEALTH_GAME_API_SLOW_MS` | 3000 |
-| `HEALTH_GAME_API_PROBE_MS` | 300000 |
-| `HEALTH_GAME_API_TIMEOUT_MS` | 5000 |
-| `HEALTH_GAME_API_STALE_MS` | 900000 |
-| `HEALTH_PASSIVE_STALE_MS` | 3600000 |
+| Component | Probe variable/default | Freshness variable/default | Slow variable/default |
+| --- | --- | --- | --- |
+| Application | `HEALTH_EVENT_LOOP_PROBE_MS` / 1000 | `HEALTH_EVENT_LOOP_STALE_MS` / 5000 | `HEALTH_EVENT_LOOP_SLOW_MS` / 250 |
+| Processing | `HEALTH_PROCESSING_PROBE_MS` / 5000 | `HEALTH_PROCESSING_STALE_MS` / 15000 | `HEALTH_PROCESSING_SLOW_MS` / 250 |
+| Discord | `HEALTH_DISCORD_PROBE_MS` / 1000 | `HEALTH_DISCORD_STALE_MS` / 15000 | `HEALTH_DISCORD_SLOW_MS` / 1000 |
+| Database | `HEALTH_DATABASE_PROBE_MS` / 30000 | `HEALTH_DATABASE_STALE_MS` / 90000 | `HEALTH_DATABASE_SLOW_MS` / 100 |
+| Discord REST | `HEALTH_DISCORD_REST_PROBE_MS` / 300000 | `HEALTH_DISCORD_REST_STALE_MS` / 900000 | `HEALTH_DISCORD_REST_SLOW_MS` / 2000 |
+| Game API | `HEALTH_GAME_API_PROBE_MS` / 300000 | `HEALTH_GAME_API_STALE_MS` / 900000 | `HEALTH_GAME_API_SLOW_MS` / 3000 |
 
-Local database observations expire after 90 seconds and gateway observations
-after 15 seconds. Application and dispatch freshness follows the local timer.
-Choose a game freshness limit longer than the probe interval plus both host
-timeouts and expected backoff. Background probes never overlap for a component.
+Other defaults: `HEALTHCHECK_PORT=3000`, `HEALTH_FAILURE_THRESHOLD=3`,
+`HEALTH_RECOVERY_THRESHOLD=2`, `HEALTH_EVENT_LOOP_DOWN_MS=5000`,
+`HEALTH_DISCORD_GRACE_MS=90000`, `HEALTH_DATABASE_TIMEOUT_MS=250`,
+`HEALTH_DISCORD_REST_TIMEOUT_MS=5000`, `HEALTH_GAME_API_TIMEOUT_MS=5000`, and
+`HEALTH_PASSIVE_STALE_MS=3600000`. Local freshness is raised to at least twice
+the interval plus the timeout/lag allowance (both host timeouts for game probes).
+The default effective application freshness is therefore seven seconds.
 
-## Status Server transport and deployment
+## Timestamps and Docker transport
 
-`healthcheck.js` prints a single compact `application-health/v1` JSON object.
-Docker stores this in the latest inspect health log, even for a nonzero exit.
-The existing Status Server proxy parses and filters that object through the
-same read-only list/inspect routes. This does not require access to Monkee's
-loopback from another container, a shared network, Docker exec, or new mounts.
+Components distinguish `lastAttempt`, `lastSuccess`, `lastFailure`,
+`lastMeasurement`, and `lastStatusChange`, with UTC timezone-qualified times.
+Successful slow responses still update success time. Failures preserve the
+previous success. Snapshot reads preserve measurement times. The report timestamp
+comes from the latest application measurement, not the health HTTP request.
 
-Snapshots include overall/core state, component states and criticality,
-latency, attempt/success times, failure/recovery counts, a source timestamp,
-and a 90-second validity. Output is capped at 4,000 bytes (Docker stores 4,096).
-An unavailable local endpoint produces a small Down snapshot. Full detail is
-available locally; the current component set also fits within the Docker budget.
-Polling adds roughly 30–90 seconds of reporting delay at default intervals.
+Docker runs its existing check every 30 seconds and retains one compact
+`application-health/v1` report, valid for 180 seconds. This includes cached probe
+age, Docker's interval, the default 60-second Status Server interval, and scheduling
+margin. Component transport freshness allows at least that 180-second window;
+shorter local limits are enforced
+before publishing. Core availability remains independent of optional evidence.
+The command exits 0 for established core liveness, including an Unknown overall
+result due solely to an unmeasured active optional dependency; Down/unknown core
+or an unanswered endpoint exits 1. Reasons contain no private request data.
 
-Rebuild Monkee and both Status Server images, preserving existing data volumes
-and the Docker monitor targeting `monkee`. No Compose network changes are needed.
-Status Server owns history, time-weighted availability, and coverage; restarting
-Monkee resets only its current in-memory measurements.
+The 4000-byte transport budget keeps every component's state, measurement type,
+measurement timestamp, and success time. Null optional fields are omitted. If many
+features are registered, optional timelines/counters and passive metadata may be
+omitted; complete data remains available on the local endpoint.
 
-Tests use fake clocks, HTTP servers, mocked API requests and temporary SQLite
-connections with controlled locking; they do not depend on external outages.
+Rebuild Monkee and both Status Server images, preserving data volumes and monitor
+IDs. The updated proxy/parser understands passive observations and component
+freshness without changing the contract version. History stays in Status Server;
+restarting Monkee resets only its in-memory state. Run `npm test`; tests include
+24 simulated idle hours, real temporary SQLite locking/recovery, and Docker
+command transport against local HTTP fixtures with no external API calls.
