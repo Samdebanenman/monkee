@@ -7,6 +7,7 @@ A Discord bot for Egg, Inc. co-op coordination, leaderboards, and a lightweight 
 - Monkee AI persona that replies in-channel when toggled on via `/monkee`.
 - Co-op helpers: lookup free co-ops, recent co-ops, push reports, and season helpers.
 - Member utilities: add/remove mamabirds, list members without IGN, ban helpers, and leaderboard reporting.
+- Mama Bird member commands: `/member checkinactive` lists members marked inactive; `/member removeplayer mention:@player1 @player2` permanently deletes the selected members and their member-coop links after two green-button confirmations. Cancel or wait 60 seconds at either step to stop. Linked alts stay in the database and are unlinked unless explicitly selected.
 - SQLite persistence (Better-SQLite3) with automatic schema bootstrap and optional custom DB path.
 - Optional embedding-based IGN matcher (uses OpenAI) and cached embeddings under `data/`.
 - Dockerfile for production builds and packaged runtime.

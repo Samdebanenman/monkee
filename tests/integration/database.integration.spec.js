@@ -24,6 +24,9 @@ let setAltRelationship;
 let getSeasonHelpers;
 let getAllSeasons;
 let getContractHistoryForMember;
+let listInactiveMembers;
+let deleteMemberRecords;
+let getMemberRecord;
 
 let dbPath;
 
@@ -59,6 +62,9 @@ beforeAll(async () => {
     listMembersByPushee,
     getMembersByIgns,
     setAltRelationship,
+    listInactiveMembers,
+    deleteMemberRecords,
+    getMemberRecord,
   } = await import('../../utils/database/membersRepository.js'));
 });
 
@@ -80,6 +86,71 @@ afterAll(() => {
 });
 
 describe('integration/database repositories', () => {
+  it('lists only inactive members with their stored Discord names', () => {
+    const inactive = ensureMemberRecord('111').record;
+    const active = ensureMemberRecord('222').record;
+    db.prepare('UPDATE members SET discord_name = ? WHERE internal_id = ?').run('Inactive player', inactive.internal_id);
+    updateMemberActiveByInternalId(active.internal_id, true);
+    expect(listInactiveMembers()).toEqual([{ discord_id: '111', discord_name: 'Inactive player' }]);
+    expect(getMemberRecord('222')).not.toBeNull();
+  });
+
+  it('hard deletes a batch and all its coop links while retaining other members, coops and alts', () => {
+    upsertContracts([{ id: 'c1', name: 'A', release: 100, season: 'fall_2024', egg: 'egg' }]);
+    addCoop('c1', 'first', true);
+    addCoop('c1', 'second', true);
+    const main = ensureMemberRecord('111').record;
+    const other = ensureMemberRecord('222').record;
+    ensureMemberRecord('333');
+    ensureMemberRecord('444');
+    setAltRelationship('111', '333');
+    linkMembersToCoop('c1', 'first', ['111', '222', '333', '444']);
+    linkMembersToCoop('c1', 'second', ['111', '222', '333', '444']);
+
+    expect(deleteMemberRecords([main, other]).removed).toEqual([main, other]);
+    expect(getMemberRecord('111')).toBeNull();
+    expect(getMemberRecord('222')).toBeNull();
+    expect(getMemberRecord('333').main_id).toBeNull();
+    expect(getMemberRecord('444')).not.toBeNull();
+    expect(getMembersForCoop('c1', 'first')).toEqual(['333', '444']);
+    expect(getMembersForCoop('c1', 'second')).toEqual(['333', '444']);
+    expect(getCoopsForContract('c1')).toEqual(['first', 'second']);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM member_coops WHERE member_id IN (?, ?)')
+      .get(main.internal_id, other.internal_id).count).toBe(0);
+  });
+
+  it('does not delete a member record recreated while confirmations were pending', () => {
+    const original = ensureMemberRecord('111').record;
+    deleteMemberRecords([original]);
+    const replacement = ensureMemberRecord('111').record;
+    expect(replacement.internal_id).not.toBe(original.internal_id);
+    expect(deleteMemberRecords([original])).toEqual({ removed: [], skipped: [original] });
+    expect(getMemberRecord('111').internal_id).toBe(replacement.internal_id);
+  });
+
+  it('rolls back the entire batch and its coop links when one deletion fails', () => {
+    upsertContracts([{ id: 'c1', name: 'A', release: 100, season: 'fall_2024', egg: 'egg' }]);
+    addCoop('c1', 'coopA', true);
+    linkMembersToCoop('c1', 'coopA', ['111', '222']);
+    const members = ['111', '222'].map(id => getMemberRecord(id));
+    db.exec(`CREATE TEMP TRIGGER reject_member_delete BEFORE DELETE ON members
+      WHEN OLD.discord_id = '222' BEGIN SELECT RAISE(ABORT, 'deletion rejected'); END;`);
+    try {
+      expect(() => deleteMemberRecords(members)).toThrow('deletion rejected');
+      expect(getMemberRecord('111')).not.toBeNull();
+      expect(getMemberRecord('222')).not.toBeNull();
+      expect(getMembersForCoop('c1', 'coopA')).toEqual(['111', '222']);
+    } finally {
+      db.exec('DROP TRIGGER reject_member_delete;');
+    }
+  });
+
+  it('does nothing for an empty deletion list', () => {
+    ensureMemberRecord('111');
+    expect(deleteMemberRecords([])).toEqual({ removed: [], skipped: [] });
+    expect(getMemberRecord('111')).not.toBeNull();
+  });
+
   it('creates and updates coops with reports', () => {
     upsertContracts([
       { id: 'c1', name: 'A', release: 100, season: 'fall_2024', egg: 'egg' },

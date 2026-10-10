@@ -8,6 +8,8 @@ vi.mock('../../../utils/database/index.js', () => ({
   updateMemberActiveByInternalId: vi.fn(),
   updateMemberPusheeByInternalId: vi.fn(),
   listMembersByPushee: vi.fn(),
+  listInactiveMembers: vi.fn(),
+  deleteMemberRecords: vi.fn(),
 }));
 
 import {
@@ -17,6 +19,9 @@ import {
   setMembersActiveStatus,
   setSeasonPushee,
   syncMembersFromApiEntries,
+  getInactiveMembers,
+  prepareMemberRemoval,
+  removeMembers,
 } from '../../../services/memberService.js';
 import {
   ensureMemberRecord,
@@ -26,10 +31,37 @@ import {
   updateMemberActiveByInternalId,
   updateMemberPusheeByInternalId,
   listMembersByPushee,
+  listInactiveMembers,
+  deleteMemberRecords,
 } from '../../../utils/database/index.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe('services/memberService removal', () => {
+  it('lists inactive members without changing records', () => {
+    const members = [{ discord_id: '111', discord_name: 'Player' }];
+    listInactiveMembers.mockReturnValue(members);
+    expect(getInactiveMembers()).toEqual(members);
+    expect(ensureMemberRecord).not.toHaveBeenCalled();
+  });
+
+  it('prepares a deduplicated list of existing records and reports missing IDs without creating them', () => {
+    const member = { internal_id: 1, discord_id: '111', discord_name: 'Player' };
+    getMemberRecord.mockImplementation(id => id === '111' ? member : null);
+    expect(prepareMemberRemoval([' 111 ', '111', '', '222'])).toEqual({ members: [member], missing: ['222'] });
+    expect(ensureMemberRecord).not.toHaveBeenCalled();
+  });
+
+  it('deletes only the records captured in the confirmation', () => {
+    const members = [{ internal_id: 1, discord_id: '111' }];
+    const summary = { removed: members, skipped: [] };
+    deleteMemberRecords.mockReturnValue(summary);
+    expect(removeMembers({ members })).toEqual(summary);
+    expect(deleteMemberRecords).toHaveBeenCalledWith(members);
+    expect(ensureMemberRecord).not.toHaveBeenCalled();
+  });
 });
 
 describe('services/memberService setIgnForMember', () => {

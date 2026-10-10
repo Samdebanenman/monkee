@@ -12,6 +12,11 @@ const listMamaBirdsStmt = db.prepare('SELECT discord_id FROM members WHERE is_ma
 const listMembersWithoutIgnStmt = db.prepare('SELECT discord_id FROM members WHERE ign IS NULL AND is_active = 1 ORDER BY discord_id ASC');
 const listMembersWithIgnStmt = db.prepare('SELECT discord_id, ign FROM members WHERE ign IS NOT NULL AND is_active = 1 ORDER BY discord_id ASC');
 const listAllMemberStmt = db.prepare('SELECT * FROM members ORDER BY sheet_tab ASC');
+const listInactiveMembersStmt = db.prepare(`
+  SELECT discord_id, discord_name FROM members WHERE is_active = 0
+  ORDER BY COALESCE(discord_name, discord_id) COLLATE NOCASE ASC, discord_id ASC
+`);
+const deleteMemberStmt = db.prepare('DELETE FROM members WHERE internal_id = ? AND discord_id = ?');
 const updateMemberIgnStmt = db.prepare('UPDATE members SET ign = ? WHERE internal_id = ?');
 const updateMemberDiscordNameStmt = db.prepare('UPDATE members SET discord_name = ? WHERE discord_id = ?');
 const setMemberActiveStmt = db.prepare('UPDATE members SET is_active = ? WHERE internal_id = ?');
@@ -297,6 +302,27 @@ export function listMembersWithIgn() {
 
 export function listAllMembers() {
   return listAllMemberStmt.all();
+}
+
+export function listInactiveMembers() {
+  return listInactiveMembersStmt.all();
+}
+
+export function deleteMemberRecords(members = []) {
+  if (members.length === 0) return { removed: [], skipped: [] };
+
+  return db.transaction(() => {
+    const removed = [];
+    const skipped = [];
+    for (const member of members) {
+      // The internal ID binds deletion to the record shown in the confirmations.
+      // Foreign keys delete member_coops and unlink surviving alt accounts.
+      const result = deleteMemberStmt.run(member.internal_id, member.discord_id);
+      if (result.changes > 0) removed.push(member);
+      else skipped.push(member);
+    }
+    return { removed, skipped };
+  })();
 }
 
 for (const id of DEFAULT_MAMABIRD_IDS) {

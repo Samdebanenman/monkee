@@ -1,10 +1,126 @@
 import { forEachSequential } from '../utils/async.js';
-import { SlashCommandBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, SlashCommandBuilder } from 'discord.js';
 import { requireMamaBird } from '../utils/permissions.js';
 import { extractDiscordId, chunkContent, createTextComponentMessage } from '../services/discord.js';
 import { linkAltAccount, unlinkAltAccount } from '../services/coopService.js';
-import { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries, fetchMembersPayloadFromApi } from '../services/memberService.js';
+import { setIgnForMember, setMembersActiveStatus, syncMembersFromApiEntries, fetchMembersPayloadFromApi,
+  getInactiveMembers, prepareMemberRemoval, removeMembers } from '../services/memberService.js';
 const MAX_DETAIL_ROWS = 5;
+const REMOVAL_CONFIRMATION_TIMEOUT_MS = 60_000;
+
+function formatMemberLine(member, mention = true) {
+  const identifier = mention ? `<@${member.discord_id}>` : member.discord_id;
+  const name = String(member.discord_name || 'Unknown Discord name').replaceAll(/[\r\n`]/g, ' ');
+  return `${identifier} \`${name}\``;
+}
+
+async function handleCheckInactive(interaction) {
+  await interaction.deferReply({ flags: 64 });
+  const members = getInactiveMembers();
+  const lines = members.length > 0
+    ? ['Inactive members:', ...members.map(member => formatMemberLine(member))]
+    : ['No inactive members found.'];
+  await sendSummaryChunks(interaction, lines);
+}
+
+function parseRemovalTargets(input) {
+  const ids = new Set();
+  const invalid = [];
+  for (const token of String(input ?? '').split(/[\s,]+/).filter(Boolean)) {
+    const match = /^(?:<@!?(\d{17,20})>|(\d{17,20}))$/.exec(token);
+    if (match) ids.add(match[1] ?? match[2]);
+    else invalid.push(token);
+  }
+  return { ids: [...ids], invalid };
+}
+
+function removalButtons(step) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`member:removeplayer:${step}:confirm`)
+      .setLabel(step === 1 ? 'Yes, continue' : 'Yes, remove players')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`member:removeplayer:${step}:cancel`)
+      .setLabel('Cancel')
+      .setStyle(ButtonStyle.Danger),
+  );
+}
+
+async function requestRemovalConfirmation(interaction, members, step) {
+  const heading = step === 1
+    ? 'Are you sure you want to remove the following players?'
+    : 'Are you really sure you want to remove the following players? This cannot be undone.';
+  const chunks = chunkContent([
+    heading,
+    ...members.map(member => formatMemberLine(member, false)),
+    '',
+    'Their member records and all associated member-coop entries will be permanently deleted. This cannot be undone.',
+    'Linked alts are kept and unlinked unless also listed above.',
+  ], { maxLength: 3500 });
+  await forEachSequential(chunks.slice(0, -1), chunk =>
+    interaction.followUp(createTextComponentMessage(chunk, { flags: 64 })));
+  const message = await interaction.followUp(createTextComponentMessage(chunks.at(-1), {
+    flags: 64, components: [removalButtons(step)],
+  }));
+  let button;
+  try {
+    button = await message.awaitMessageComponent({
+      componentType: ComponentType.Button,
+      time: REMOVAL_CONFIRMATION_TIMEOUT_MS,
+      filter: candidate => candidate.user.id === interaction.user.id
+        && [`member:removeplayer:${step}:confirm`, `member:removeplayer:${step}:cancel`].includes(candidate.customId),
+    });
+  } catch (error) {
+    if (error.code !== 'InteractionCollectorError') throw error;
+    await interaction.webhook.editMessage(message.id,
+      createTextComponentMessage('Confirmation expired. No players were removed.'));
+    return false;
+  }
+
+  if (button.customId === `member:removeplayer:${step}:cancel`) {
+    await button.update(createTextComponentMessage('Removal cancelled. No players were removed.'));
+    return false;
+  }
+  if (!(await requireMamaBird(button))) {
+    await interaction.webhook.editMessage(message.id,
+      createTextComponentMessage('Removal cancelled: you are no longer a Mama Bird. No players were removed.'));
+    return false;
+  }
+  await button.update(createTextComponentMessage(`Confirmation ${step} received.`));
+  return true;
+}
+
+async function handleRemovePlayer(interaction) {
+  const { ids, invalid } = parseRemovalTargets(interaction.options.getString('mention'));
+  if (ids.length === 0 || invalid.length > 0) {
+    await interaction.reply(createTextComponentMessage(
+      'Provide only valid Discord mentions or IDs, separated by spaces or commas. No players were removed.', { flags: 64 }));
+    return;
+  }
+  const { members, missing } = prepareMemberRemoval(ids);
+  if (missing.length > 0) {
+    const chunks = chunkContent(['These players were not found in the database:', ...missing,
+      'No players were removed. Correct the list and try again.']);
+    await interaction.reply(createTextComponentMessage(chunks[0], { flags: 64 }));
+    await forEachSequential(chunks.slice(1), chunk =>
+      interaction.followUp(createTextComponentMessage(chunk, { flags: 64 })));
+    return;
+  }
+
+  await interaction.reply(createTextComponentMessage('Confirm the removal in both messages below.', { flags: 64 }));
+  if (!(await requestRemovalConfirmation(interaction, members, 1))) return;
+  if (!(await requestRemovalConfirmation(interaction, members, 2))) return;
+
+  const { removed, skipped } = removeMembers({ members });
+  const lines = [`Permanently removed ${removed.length} player(s) and their member-coop entries.`,
+    ...removed.map(member => formatMemberLine(member, false))];
+  if (skipped.length > 0) {
+    lines.push('', 'Not removed because their records changed or were already deleted:',
+      ...skipped.map(member => formatMemberLine(member, false)));
+  }
+  await sendSummaryChunks(interaction, lines);
+}
 
 function formatConflict(conflict) {
   const others = (conflict.conflictDiscordIds ?? [])
@@ -338,6 +454,16 @@ async function handleSetActive(interaction) {
 export const data = new SlashCommandBuilder()
   .setName('member')
   .setDescription('Manage member records')
+  .addSubcommand(subcommand => subcommand
+    .setName('checkinactive')
+    .setDescription('List members marked inactive in the database'))
+  .addSubcommand(subcommand => subcommand
+    .setName('removeplayer')
+    .setDescription('Permanently remove players and their member-coop entries')
+    .addStringOption(option => option
+      .setName('mention')
+      .setDescription('One or more Discord mentions or IDs, separated by spaces or commas')
+      .setRequired(true)))
   .addSubcommand(subcommand =>
     subcommand
       .setName('setalt')
@@ -418,6 +544,12 @@ export async function execute(interaction) {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
+    case 'checkinactive':
+      await handleCheckInactive(interaction);
+      break;
+    case 'removeplayer':
+      await handleRemovePlayer(interaction);
+      break;
     case 'setalt':
       await handleSetAlt(interaction);
       break;

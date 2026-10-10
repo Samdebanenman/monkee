@@ -7,11 +7,33 @@ import {
   updateMemberActiveByInternalId,
   updateMemberPusheeByInternalId,
   listMembersByPushee,
+  listInactiveMembers,
+  deleteMemberRecords,
 } from '../utils/database/index.js';
 import { getAstronomicalSeasonRange, parseSeasonKey } from '../utils/seasons.js';
 import { observedFetch } from '../utils/healthMonitor.js';
 
 const MEMBER_API_URL = 'https://eiapi.up.railway.app/allMaj';
+
+export function getInactiveMembers() {
+  return listInactiveMembers();
+}
+
+export function prepareMemberRemoval(targetDiscordIds = []) {
+  const ids = [...new Set(targetDiscordIds.map(normalizeDiscordId).filter(Boolean))];
+  const members = [];
+  const missing = [];
+  for (const id of ids) {
+    const member = getMemberRecord(id);
+    if (member) members.push(member);
+    else missing.push(id);
+  }
+  return { members, missing };
+}
+
+export function removeMembers({ members = [] } = {}) {
+  return deleteMemberRecords(members);
+}
 
 function normalizeDiscordId(value) {
   if (!value) return '';
@@ -285,6 +307,9 @@ export function hasKnownMembersForContributors({ contributors = [], contractId, 
 }
 
 export default {
+  getInactiveMembers,
+  prepareMemberRemoval,
+  removeMembers,
   setSeasonPushee,
   removeSeasonPushee,
   getSeasonPushees,
