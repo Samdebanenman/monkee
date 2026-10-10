@@ -103,6 +103,12 @@ export class HealthMonitor {
     state.revision++;
     state.latencyMs = Number.isFinite(latencyMs) ? Math.max(0, Math.round(latencyMs)) : null;
     const slow = ok && latencyMs != null && latencyMs > state.slowMs;
+    this.recordOutcome(state, { ok, slow, reason, down }, now);
+    if (statusOverride) state.status = statusOverride;
+    if (state.status !== previousStatus) state.lastStatusChange = now;
+  }
+
+  recordOutcome(state, { ok, slow, reason, down }, now) {
     if (!ok || slow) {
       if (!ok) state.lastFailure = now;
       state.failures = ok ? 0 : Math.min(1000000, state.failures + 1);
@@ -123,8 +129,6 @@ export class HealthMonitor {
         state.reason = 'Recovering';
       }
     }
-    if (statusOverride) state.status = statusOverride;
-    if (state.status !== previousStatus) state.lastStatusChange = now;
   }
 
   // Instrumentation must never change operation return values or exceptions.
@@ -197,42 +201,67 @@ export class HealthMonitor {
     finally { this.pending.delete(name); }
   }
 
+  componentSnapshot(name, state, now) {
+    const stale = state.lastResult == null || now - state.lastResult < -5000 || now - state.lastResult > state.staleMs;
+    if (stale && state.status !== 'unknown') {
+      state.status = 'unknown';
+      state.lastStatusChange = Math.min(now, state.lastResult + state.staleMs);
+    }
+    let status = stale ? 'unknown' : state.status;
+    let reason = state.reason;
+    if (stale) reason = state.lastResult == null ? 'Not measured' : 'Monitoring result stale';
+    if (name !== 'gameApi' && state.pendingSince != null && now - state.pendingSince > state.slowMs && status !== 'down') {
+      status = 'degraded';
+      reason = 'Request still pending';
+    }
+    return {
+      status, critical: state.critical, latencyMs: state.latencyMs, reason,
+      lastAttempt: iso(state.lastAttempt), lastSuccess: iso(state.lastSuccess),
+      lastFailure: iso(state.lastFailure), lastMeasurement: iso(state.lastResult), lastStatusChange: iso(state.lastStatusChange),
+      measurementType: state.measurementType,
+      ...(state.intervalMs != null ? { intervalMs: state.intervalMs } : {}),
+      // Include cached probe age, Docker cadence, proxy polling, and scheduling margin.
+      staleAfterMs: Math.max(180000, state.staleMs),
+      consecutiveFailures: state.failures, consecutiveRecoveries: state.recoveries,
+      ...(state.reconnectAttempts != null ? { reconnectAttempts: state.reconnectAttempts } : {}),
+    };
+  }
+
+  coreAvailability(critical) {
+    if (critical.some(item => item.status === 'down')) return false;
+    if (!this.initialized || critical.some(item => item.status === 'unknown')) return null;
+    return true;
+  }
+
+  aggregateStatus(coreAvailable, components) {
+    if (coreAvailable === false) return 'down';
+    if (coreAvailable == null || components.some(item => item.status === 'unknown')) return 'unknown';
+    return components.some(item => item.status !== 'operational') ? 'degraded' : 'operational';
+  }
+
   snapshot() {
     const now = this.now();
     const components = {};
     for (const [name, state] of this.components) {
-      const stale = state.lastResult == null || now - state.lastResult < -5000 || now - state.lastResult > state.staleMs;
-      if (stale && state.status !== 'unknown') {
-        state.status = 'unknown';
-        state.lastStatusChange = Math.min(now, state.lastResult + state.staleMs);
-      }
-      let status = stale ? 'unknown' : state.status;
-      let reason = stale ? (state.lastResult == null ? 'Not measured' : 'Monitoring result stale') : state.reason;
-      if (name !== 'gameApi' && state.pendingSince != null && now - state.pendingSince > state.slowMs && status !== 'down') {
-        status = 'degraded';
-        reason = 'Request still pending';
-      }
-      components[name] = {
-        status, critical: state.critical, latencyMs: state.latencyMs, reason,
-        lastAttempt: iso(state.lastAttempt), lastSuccess: iso(state.lastSuccess),
-        lastFailure: iso(state.lastFailure), lastMeasurement: iso(state.lastResult), lastStatusChange: iso(state.lastStatusChange),
-        measurementType: state.measurementType,
-        ...(state.intervalMs != null ? { intervalMs: state.intervalMs } : {}),
-        // Include cached probe age, Docker cadence, proxy polling, and scheduling margin.
-        staleAfterMs: Math.max(180000, state.staleMs),
-        consecutiveFailures: state.failures, consecutiveRecoveries: state.recoveries,
-        ...(state.reconnectAttempts != null ? { reconnectAttempts: state.reconnectAttempts } : {}),
-      };
+      components[name] = this.componentSnapshot(name, state, now);
     }
     const critical = Object.values(components).filter(item => item.critical);
     const all = Object.values(components).filter(item => item.measurementType !== 'passive');
-    const coreAvailable = critical.some(item => item.status === 'down') ? false
-      : !this.initialized || critical.some(item => item.status === 'unknown') ? null : true;
-    const status = coreAvailable === false ? 'down'
-      : coreAvailable == null || all.some(item => item.status === 'unknown') ? 'unknown'
-      : all.some(item => item.status !== 'operational') ? 'degraded' : 'operational';
+    const coreAvailable = this.coreAvailability(critical);
+    const status = this.aggregateStatus(coreAvailable, all);
     return { contract: 'application-health/v1', status, coreAvailable,
       timestamp: iso(this.components.get('application').lastResult ?? now), validForMs: 180000, components };
+  }
+
+  recordGatewayHeartbeat(client) {
+    const ping = client.ws?.ping;
+    if (Number.isFinite(ping) && ping >= 0) this.record('discord', { latencyMs: ping });
+    else Object.assign(this.components.get('discord'), {
+      status: 'unknown', lastAttempt: this.now(), lastResult: this.now(), latencyMs: null,
+      lastStatusChange: this.components.get('discord').status === 'unknown'
+        ? this.components.get('discord').lastStatusChange : this.now(),
+      reason: 'Gateway heartbeat not measured',
+    });
   }
 
   start(client, { databaseProbe, gameProbe, restProbe, processingProbe = async () => this.initialized, env = process.env } = {}) {
@@ -285,20 +314,14 @@ export class HealthMonitor {
       if (ready) {
         hasConnected = true;
         disconnectedAt = null;
-        const ping = client.ws?.ping;
-        if (Number.isFinite(ping) && ping >= 0) this.record('discord', { latencyMs: ping });
-        else Object.assign(this.components.get('discord'), {
-          status: 'unknown', lastAttempt: this.now(), lastResult: this.now(), latencyMs: null,
-          lastStatusChange: this.components.get('discord').status === 'unknown'
-            ? this.components.get('discord').lastStatusChange : this.now(),
-          reason: 'Gateway heartbeat not measured',
-        });
+        this.recordGatewayHeartbeat(client);
       } else {
         disconnectedAt ??= this.now();
         const down = this.initialized && this.now() - disconnectedAt >= this.config.disconnectGrace;
         // The grace period overrides consecutive failures for transient reconnection.
+        const reconnectStatus = hasConnected ? 'degraded' : 'unknown';
         this.record('discord', { ok: false, reason: down ? 'Discord disconnected' : 'Discord reconnecting', down,
-          statusOverride: down ? 'down' : hasConnected ? 'degraded' : 'unknown' });
+          statusOverride: down ? 'down' : reconnectStatus });
       }
     });
     if (databaseProbe) this.every(this.config.databaseInterval, () => this.probe('database', databaseProbe), true);

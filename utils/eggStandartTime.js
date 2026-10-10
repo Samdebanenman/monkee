@@ -86,17 +86,7 @@ export function formatHourRanges(utcHours) {
 			|| getEggHourSortIndex(gameHours[i]) !== getEggHourSortIndex(gameHours[i - 1]) + 1;
 		if (isRangeBreak) {
 			const endOfRange = gameHours[i - 1];
-			const startLabel = `${startOfRange >= 0 ? '+' : ''}${startOfRange}`;
-
-			if (startOfRange === endOfRange) {
-				ranges.push(startLabel);
-			} else if (getEggHourSortIndex(endOfRange) === getEggHourSortIndex(startOfRange) + 1) {
-				const endLabel = `${endOfRange >= 0 ? '+' : ''}${endOfRange}`;
-				ranges.push(`${startLabel},${endLabel}`);
-			} else {
-				const endLabel = `${endOfRange >= 0 ? '+' : ''}${endOfRange}`;
-				ranges.push(`${startLabel} to ${endLabel}`);
-			}
+			ranges.push(formatEggHourRange(startOfRange, endOfRange));
 
 			if (i < gameHours.length) {
 				startOfRange = gameHours[i];
@@ -113,3 +103,13 @@ export default {
 	normalizeEggHour,
 	ORDERED_EGG_HOURS,
 };
+
+function formatEggHourRange(start, end) {
+	const startLabel = `${start >= 0 ? '+' : ''}${start}`;
+	if (start === end) return startLabel;
+	const endLabel = `${end >= 0 ? '+' : ''}${end}`;
+	if (getEggHourSortIndex(end) === getEggHourSortIndex(start) + 1) {
+		return `${startLabel},${endLabel}`;
+	}
+	return `${startLabel} to ${endLabel}`;
+}

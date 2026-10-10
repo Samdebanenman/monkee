@@ -169,7 +169,7 @@ export function getContractRelease(contractId) {
 export function getContractById(contractId) {
   if (!contractId) return null;
   const row = getContractByIdStmt.get(String(contractId).trim());
-  return row ? row : null;
+  return row || null;
 }
 
 export function getContractSize(contractId) {

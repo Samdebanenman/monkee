@@ -47,7 +47,8 @@ try {
     if (!response.ok) throw new Error(`Monkee returned HTTP ${response.status}`);
     if (body?.status !== 'ok') throw new Error('Monkee did not return a healthy response');
   }
-} catch (error) {
+} catch {
+  // Health failures intentionally expose only a fixed, credential-free reason.
   console.log(JSON.stringify({ contract: 'application-health/v1', status: 'down', coreAvailable: false,
     timestamp: new Date().toISOString(), validForMs: 180000,
     components: { application: { status: 'down', critical: true, reason: 'Health endpoint unavailable' } } }));
