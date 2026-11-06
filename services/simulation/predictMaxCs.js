@@ -2,6 +2,7 @@ import { forEachSequential } from '../../utils/async.js';
 import { EmbedBuilder } from 'discord.js';
 import { chunkContent } from '../discord.js';
 import { buildPlayerTableLines, formatEggs, secondsToHuman } from '../../sim-core/src/predictmaxcs/display.js';
+import { simulateScenariosParallel } from '../../sim-core/src/predictmaxcs/simulation.js';
 import {
   buildFinalModelFromPredictMaxCs,
   buildPredictMaxCsVariant,
@@ -27,6 +28,7 @@ async function handlePhaseUniform(simulation) {
         baseIHR: variant.baseIHR,
         tokensPerPlayer: tokensByPlayer,
         cxpMode: simulation.assumptions.cxpMode,
+        gradeMultiplier: variant.gradeMultiplier,
       };
 
       scenarios.push({
@@ -64,6 +66,7 @@ async function handlePhaseSweep(simulation) {
       baseIHR: variant.baseIHR,
       tokensPerPlayer: tokensByPlayer,
       cxpMode: simulation.assumptions.cxpMode,
+      gradeMultiplier: variant.gradeMultiplier,
     };
 
     scenarios.push({
@@ -95,6 +98,7 @@ async function handlePhaseFinal(simulation) {
       baseIHR: variant.baseIHR,
       tokensPerPlayer: variant.selectedTokens,
       cxpMode: simulation.assumptions.cxpMode,
+      gradeMultiplier: variant.gradeMultiplier,
     };
 
     scenarios.push({
@@ -156,6 +160,7 @@ export async function createPredictMaxCsRun(options) {
     modifierType,
     modifierValue,
     colleggtiblesRows,
+    gradeMultiplier,
   } = options;
 
   const baseVariant = buildPredictMaxCsVariant({
@@ -170,6 +175,7 @@ export async function createPredictMaxCsRun(options) {
     modifierType,
     modifierValue,
     colleggtiblesRows,
+    gradeMultiplier,
   });
   baseVariant.id = 'base';
   baseVariant.uniformScores = new Map();
@@ -187,6 +193,7 @@ export async function createPredictMaxCsRun(options) {
     modifierType,
     modifierValue,
     colleggtiblesRows,
+    gradeMultiplier,
   });
   siabVariant.id = 'siab';
   siabVariant.uniformScores = new Map();
@@ -224,6 +231,33 @@ export async function createPredictMaxCsRun(options) {
 
   await handlePhaseUniform(simulation);
   return simulation;
+}
+
+// Run the same optimization as /predictmaxcs without publishing Discord output.
+export async function optimizePredictMaxCs(options) {
+  const simulation = await createPredictMaxCsRun(options);
+  let completed = 0;
+  while (simulation.pending > 0) {
+    const batch = simulation.scenarios;
+    const results = await simulateScenariosParallel(batch.map(entry => entry.scenario), {
+      maxWorkers: options.maxWorkers ?? 4,
+      onProgress: options.onProgress
+        ? progress => options.onProgress({
+          ...progress,
+          completed: completed + progress.completed,
+          total: simulation.expectedSimulationCount,
+        })
+        : null,
+    });
+    results.forEach((result, index) => {
+      handlePredictMaxCsResult(simulation, { ...result, context: batch[index].context });
+    });
+    completed += results.length;
+    simulation.pending = 0;
+    if (simulation.phase === 'final') break;
+    await advancePredictMaxCs(simulation);
+  }
+  return { variants: simulation.variantsToFinalize, simulationsRun: completed };
 }
 
 export function handlePredictMaxCsResult(simulation, result) {

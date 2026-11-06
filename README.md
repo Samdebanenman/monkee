@@ -12,6 +12,7 @@ A Discord bot for Egg, Inc. co-op coordination, leaderboards, and a lightweight 
 - Optional embedding-based IGN matcher (uses OpenAI) and cached embeddings under `data/`.
 - Dockerfile for production builds and packaged runtime.
 - `/predictcs` and `/predictmaxcs` run simulations on demand in the bot using temporary worker threads, with progress updates. No separate simulation service or Kafka broker is required.
+- `/checkoptimalgrade` compares optimized player 1 CS across grades, with and without SIAB, using 100 TE, ten-minute token farming, and GG off. Select **All contracts** (or type `all`) to check the full archive. Long output includes each grade's scores; full-archive checks can take time because every grade uses the PredictMaxCS boost optimizer.
 
 ## Requirements
 - Node.js 20+

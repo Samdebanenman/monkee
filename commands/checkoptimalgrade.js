@@ -23,7 +23,7 @@ export const data = new SlashCommandBuilder()
     .setAutocomplete(true))
   .addStringOption(option => option
     .setName(OUTPUT_OPTION)
-    .setDescription('Short verdict (default) or predicted scores for every grade')
+    .setDescription('Short verdict (default) or optimized P1 scores for every grade (10-minute farming)')
     .setRequired(false)
     .addChoices(
       { name: 'short', value: OUTPUT_SHORT },
@@ -44,7 +44,7 @@ function flattenActiveContracts(active) {
 
 function selectContracts(contractInput, contracts, activeContracts) {
   const sorted = [...contracts].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
-  if (contractInput === ALL_CONTRACTS) return sorted;
+  if ([ALL_CONTRACTS, 'all', 'check all'].includes(contractInput.toLowerCase())) return sorted;
   if (contractInput === ACTIVE_CONTRACTS) {
     const activeIds = new Set(activeContracts.map(contract => contract.id));
     return sorted.filter(contract => activeIds.has(String(contract.id)));
@@ -166,7 +166,14 @@ export async function autocomplete(interaction) {
   }
 
   const focused = String(focusedOption.value || '').trim();
-  const options = focused ? await searchContractOptions(focused) : await buildPresetOptions();
+  const options = focused
+    ? [
+      ...('all contracts'.includes(focused.toLowerCase()) || focused.toLowerCase() === 'check all'
+        ? [{ name: 'All contracts', value: ALL_CONTRACTS }]
+        : []),
+      ...await searchContractOptions(focused),
+    ].slice(0, 25)
+    : await buildPresetOptions();
   await interaction.respond(options);
 }
 

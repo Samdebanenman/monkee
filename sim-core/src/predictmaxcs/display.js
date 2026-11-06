@@ -151,6 +151,7 @@ export function buildPlayerTableLines(model, assumptions) {
     durationSeconds,
     players,
     assumptions,
+    gradeMultiplier: model.gradeMultiplier,
   });
 
   const tokenEmoji = ArtifactEmoji.TOKEN;

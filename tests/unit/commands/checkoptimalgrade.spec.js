@@ -100,4 +100,24 @@ describe('commands/checkoptimalgrade', () => {
       { name: 'Contract One (c1)', value: 'c1' },
     ]);
   });
+
+  it('keeps the all-contracts selection available when searching for all', async () => {
+    const interaction = createInteraction({
+      options: createOptions({ focused: 'all', focusedOptionName: 'contract' }),
+    });
+    await autocomplete(interaction);
+    expect(interaction.respond.mock.lastCall[0]).toContainEqual({
+      name: 'All contracts', value: '__all_contracts__',
+    });
+  });
+
+  it.each(['all', '__all_contracts__'])('checks every contract for selection %s', async selection => {
+    const secondContract = { id: 'c2', name: 'Contract Two', release: 20 };
+    fetchContractSummaries.mockResolvedValue([contract, secondContract]);
+    const interaction = createInteraction({
+      options: createOptions({ strings: { contract: selection } }),
+    });
+    await execute(interaction);
+    expect(checkOptimalGrade.mock.calls.map(([entry]) => entry.id)).toEqual(['c2', 'c1']);
+  });
 });

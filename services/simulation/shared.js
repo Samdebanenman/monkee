@@ -283,6 +283,7 @@ export function buildPredictCsVariant(options) {
 
 export function buildFinalModelFromPredictMaxCs(simulation, winner) {
   return {
+    gradeMultiplier: winner.gradeMultiplier,
     players: simulation.players,
     durationSeconds: simulation.durationSeconds,
     targetEggs: simulation.targetEggs,

@@ -1,27 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../sim-core/src/predictmaxcs/simulation.js', () => ({
-  simulateScenariosParallel: vi.fn(async scenarios => scenarios.map(() => ({ summaries: [] }))),
-}));
-
 vi.mock('../../../utils/database/colleggtiblesRepository.js', () => ({
   getStoredColleggtibles: vi.fn(() => []),
 }));
 
-vi.mock('../../../services/simulation/shared.js', () => ({
-  buildPredictMaxCsVariant: vi.fn(options => ({
-    ...options,
-    baselineDeflectors: Array.from({ length: options.players }, () => 20),
-    playerConfigs: Array.from({ length: options.players }, () => ({})),
-    baseIHR: 1,
+vi.mock('../../../services/simulation/predictMaxCs.js', () => ({
+  optimizePredictMaxCs: vi.fn(async options => ({
+    variants: [false, true].map(usePlayer1Siab => ({
+      usePlayer1Siab,
+      finalScore: options.targetEggs * options.gradeMultiplier + (usePlayer1Siab ? 10 : 0),
+    })),
+    simulationsRun: 66,
   })),
-  scorePredictMaxCsResult: vi.fn((_result, variant) => (
-    variant.targetEggs * variant.gradeMultiplier + (variant.usePlayer1Siab ? 10 : 0)
-  )),
 }));
 
-import { simulateScenariosParallel } from '../../../sim-core/src/predictmaxcs/simulation.js';
-import { buildPredictMaxCsVariant } from '../../../services/simulation/shared.js';
+import { optimizePredictMaxCs } from '../../../services/simulation/predictMaxCs.js';
 import { checkOptimalGrade } from '../../../services/optimalGradeService.js';
 
 const makeContract = () => ({
@@ -43,26 +36,23 @@ beforeEach(() => {
 });
 
 describe('services/optimalGradeService', () => {
-  it('runs one SIAB and one non-SIAB simulation for every grade', async () => {
+  it('optimizes both SIAB variants for every grade using fixed ten-minute farming', async () => {
     const result = await checkOptimalGrade(makeContract(), { colleggtiblesRows: [] });
 
     expect(result.ok).toBe(true);
-    expect(result.simulationsRun).toBe(10);
+    expect(result.simulationsRun).toBe(330);
     expect(result.noteworthyGrades).toEqual(['AA']);
-    expect(buildPredictMaxCsVariant).toHaveBeenCalledTimes(10);
-    expect(buildPredictMaxCsVariant.mock.calls.every(([options]) => (
+    expect(optimizePredictMaxCs).toHaveBeenCalledTimes(5);
+    expect(optimizePredictMaxCs.mock.calls.every(([options]) => (
       options.assumptions.teValues.every(value => value === 100)
+      && options.giftMinutes === 10 && options.gg === false
     ))).toBe(true);
-    expect(buildPredictMaxCsVariant.mock.calls.map(([options]) => options.gradeMultiplier)).toEqual([
-      1, 1, 2, 2, 3.5, 3.5, 5, 5, 7, 7,
+    expect(optimizePredictMaxCs.mock.calls.map(([options]) => options.gradeMultiplier)).toEqual([
+      1, 2, 3.5, 5, 7,
     ]);
-
-    const scenarios = simulateScenariosParallel.mock.calls[0][0];
-    expect(scenarios).toHaveLength(10);
-    expect(scenarios.every(scenario => scenario.tokensPerPlayer.every(value => value === 6))).toBe(true);
-    expect(scenarios.map(scenario => scenario.gradeMultiplier)).toEqual([
-      1, 1, 2, 2, 3.5, 3.5, 5, 5, 7, 7,
-    ]);
+    expect(result.grades.find(entry => entry.grade === 'AAA')).toMatchObject({
+      noSiab: 700, siab: 710, predictedScore: 710, bestVariant: 'SIAB',
+    });
   });
 
   it('rejects contracts without all five grade configurations', async () => {
@@ -73,6 +63,6 @@ describe('services/optimalGradeService', () => {
 
     expect(result.ok).toBe(false);
     expect(result.reason).toContain('B');
-    expect(simulateScenariosParallel).not.toHaveBeenCalled();
+    expect(optimizePredictMaxCs).not.toHaveBeenCalled();
   });
 });
