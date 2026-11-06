@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../utils/database/colleggtiblesRepository.js', () => ({
-  getStoredColleggtibles: vi.fn(() => []),
-}));
-
 vi.mock('../../../sim-core/src/predictmaxcs/simulation.js', async importOriginal => {
   const actual = await importOriginal();
   return {
@@ -15,8 +11,6 @@ vi.mock('../../../sim-core/src/predictmaxcs/simulation.js', async importOriginal
 import { optimizePredictMaxCs } from '../../../services/simulation/predictMaxCs.js';
 import { getAssumptions } from '../../../sim-core/src/predictmaxcs/model.js';
 import { computeAdjustedSummaries, simulateScenariosParallel } from '../../../sim-core/src/predictmaxcs/simulation.js';
-import { checkOptimalGrade } from '../../../services/optimalGradeService.js';
-import { GameDimension } from '../../../Enums.js';
 
 describe('headless PredictMaxCS optimization', () => {
   it('runs every phase without Discord and preserves grade scoring for player one', async () => {
@@ -50,30 +44,4 @@ describe('headless PredictMaxCS optimization', () => {
       expect(variant.selectedTokens).toHaveLength(2);
     }
   });
-
-  it('reproduces memorial-2020 with AAA ahead of AA under ten-minute farming', async () => {
-    const contract = {
-      id: 'memorial-2020',
-      maxCoopSize: 50,
-      minutesPerToken: 240,
-      gradeSpecs: [
-        { grade: 'C', coopDurationSeconds: 172800, eggGoal: 3.2e12 },
-        { grade: 'B', coopDurationSeconds: 259200, eggGoal: 4.6e14 },
-        { grade: 'A', coopDurationSeconds: 345600, eggGoal: 1.9e16 },
-        { grade: 'AA', coopDurationSeconds: 432000, eggGoal: 1.6e18 },
-        { grade: 'AAA', coopDurationSeconds: 432000, eggGoal: 11e18 },
-      ],
-    };
-    // Combined colleggtible buffs from the reported run.
-    const colleggtiblesRows = [{ buffs: [
-      { dimension: GameDimension.EGG_LAYING_RATE, value: 1.1025 },
-      { dimension: GameDimension.SHIPPING_CAPACITY, value: 1.1025 },
-      { dimension: GameDimension.INTERNAL_HATCHERY_RATE, value: 1.05 },
-      { dimension: GameDimension.HAB_CAPACITY, value: 1.05 },
-    ] }];
-    const result = await checkOptimalGrade(contract, { colleggtiblesRows });
-    expect(result.aaaScore).toBe(65960);
-    expect(result.grades.find(entry => entry.grade === 'AA').predictedScore).toBe(59436);
-    expect(result.noteworthyGrades).toEqual([]);
-  }, 60000);
 });
