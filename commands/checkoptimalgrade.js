@@ -11,11 +11,11 @@ const ALL_CONTRACTS = '__all_contracts__';
 const ACTIVE_CONTRACTS = '__active_contracts__';
 const OUTPUT_SHORT = 'short';
 const OUTPUT_LONG = 'long';
-const GRADE_DISPLAY_ORDER = ['AAA', 'AA', 'A', 'B', 'C'];
+const GRADE_DISPLAY_ORDER = ['AAA', 'AA'];
 
 export const data = new SlashCommandBuilder()
   .setName('checkoptimalgrade')
-  .setDescription('Check whether AAA is the best-scoring grade for one or more contracts.')
+  .setDescription('Compare AAA and AA scores for one or more contracts.')
   .addStringOption(option => option
     .setName(CONTRACT_OPTION)
     .setDescription('Choose all, active, an active preset, or type to search every contract')
@@ -23,7 +23,7 @@ export const data = new SlashCommandBuilder()
     .setAutocomplete(true))
   .addStringOption(option => option
     .setName(OUTPUT_OPTION)
-    .setDescription('Short verdict (default) or optimized P1 scores for every grade (10-minute farming)')
+    .setDescription('Short verdict (default) or AAA/AA P1 scores (6 tokens, 100 TE, 10-minute farming)')
     .setRequired(false)
     .addChoices(
       { name: 'short', value: OUTPUT_SHORT },

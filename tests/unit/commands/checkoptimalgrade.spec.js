@@ -71,6 +71,9 @@ describe('commands/checkoptimalgrade', () => {
     const final = interaction.editReply.mock.calls.at(-1)[0].content;
     expect(final).toContain('AAA: **100 CS**');
     expect(final).toContain('AA: **97 CS**');
+    expect(final).not.toContain('- A:');
+    expect(final).not.toContain('- B:');
+    expect(final).not.toContain('- C:');
   });
 
   it('prefills all, active, and active-contract options before typing', async () => {

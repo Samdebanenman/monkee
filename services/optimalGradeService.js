@@ -1,13 +1,15 @@
 import { getAssumptions } from '../sim-core/src/predictmaxcs/model.js';
 import { getGradeMultiplier } from '../sim-core/src/predictmaxcs/score.js';
 import { getStoredColleggtibles } from '../utils/database/colleggtiblesRepository.js';
-import { optimizePredictMaxCs } from './simulation/predictMaxCs.js';
+import { simulateScenariosParallel } from '../sim-core/src/predictmaxcs/simulation.js';
+import { buildPredictMaxCsVariant, scorePredictMaxCsResult } from './simulation/shared.js';
 
-export const GRADE_ORDER = ['C', 'B', 'A', 'AA', 'AAA'];
+export const GRADE_ORDER = ['AAA', 'AA'];
 export const NOTEWORTHY_RATIO = 0.95;
 
 const DEFAULT_TE = 100;
 const GIFT_MINUTES = 10;
+const TOKENS_PER_PLAYER = 6;
 
 function isPositiveNumber(value) {
   return Number.isFinite(value) && value > 0;
@@ -63,27 +65,47 @@ export async function checkOptimalGrade(contract, options = {}) {
   }
 
   const colleggtiblesRows = options.colleggtiblesRows ?? getStoredColleggtibles();
-  const grades = [];
-  let simulationsRun = 0;
-  for (const gradeSpec of gradeSpecs) {
-    const result = await optimizePredictMaxCs({
+  const variants = gradeSpecs.flatMap(gradeSpec => [true, false].map(usePlayer1Siab => ({
+    grade: gradeSpec.grade,
+    variant: buildPredictMaxCsVariant({
       ...buildOptions(contract, gradeSpec, colleggtiblesRows),
-      maxWorkers: options.maxWorkers,
-      onProgress: options.onProgress
-        ? progress => options.onProgress({ ...progress, grade: gradeSpec.grade })
-        : null,
-    });
-    simulationsRun += result.simulationsRun;
-    const noSiab = result.variants.find(variant => !variant.usePlayer1Siab)?.finalScore ?? 0;
-    const siab = result.variants.find(variant => variant.usePlayer1Siab)?.finalScore ?? 0;
-    grades.push({
-      grade: gradeSpec.grade,
+      usePlayer1Siab,
+    }),
+  })));
+  const scenarios = variants.map(({ variant }) => ({
+    players: variant.players,
+    playerDeflectors: variant.baselineDeflectors,
+    playerConfigs: variant.playerConfigs,
+    durationSeconds: variant.durationSeconds,
+    targetEggs: variant.targetEggs,
+    tokenTimerMinutes: variant.tokenTimerMinutes,
+    giftMinutes: variant.giftMinutes,
+    gg: variant.gg,
+    baseIHR: variant.baseIHR,
+    tokensPerPlayer: Array.from({ length: variant.players }, () => TOKENS_PER_PLAYER),
+    cxpMode: variant.assumptions.cxpMode,
+    gradeMultiplier: variant.gradeMultiplier,
+  }));
+  const simulations = await simulateScenariosParallel(scenarios, {
+    maxWorkers: options.maxWorkers ?? 4,
+    onProgress: options.onProgress,
+  });
+  const scores = variants.map(({ grade, variant }, index) => ({
+    grade,
+    usePlayer1Siab: variant.usePlayer1Siab,
+    score: scorePredictMaxCsResult(simulations[index], variant),
+  }));
+  const grades = GRADE_ORDER.map(grade => {
+    const noSiab = scores.find(entry => entry.grade === grade && !entry.usePlayer1Siab)?.score ?? 0;
+    const siab = scores.find(entry => entry.grade === grade && entry.usePlayer1Siab)?.score ?? 0;
+    return {
+      grade,
       noSiab,
       siab,
       predictedScore: Math.max(noSiab, siab),
       bestVariant: siab > noSiab ? 'SIAB' : 'no SIAB',
-    });
-  }
+    };
+  });
 
   const aaaScore = grades.find(entry => entry.grade === 'AAA')?.predictedScore ?? 0;
   const noteworthyGrades = grades
@@ -97,7 +119,7 @@ export async function checkOptimalGrade(contract, options = {}) {
     grades,
     aaaScore,
     noteworthyGrades,
-    simulationsRun,
+    simulationsRun: simulations.length,
   };
 }
 
