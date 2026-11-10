@@ -36,7 +36,7 @@ describe('coop code management commands', () => {
   it.each([
     [add, addExtendedCoopCode, { ok: true, code: 'customoo' }, 'Added'],
     [add, addExtendedCoopCode, { ok: false, code: 'customoo', reason: 'already-exists' }, 'already'],
-    [add, addExtendedCoopCode, { ok: false, reason: 'invalid-code' }, 'must match'],
+    [add, addExtendedCoopCode, { ok: false, reason: 'invalid-code' }, 'not a valid'],
     [remove, removeExtendedCoopCode, { ok: true, code: 'customoo' }, 'Removed'],
     [remove, removeExtendedCoopCode, { ok: false, code: 'customoo', reason: 'not-found' }, 'not in'],
     [remove, removeExtendedCoopCode, { ok: false, reason: 'invalid-code' }, 'choose a saved'],
