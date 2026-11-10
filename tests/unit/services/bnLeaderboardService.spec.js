@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../../utils/database/coopCodesRepository.js', () => ({
+  listExtendedCoopPrefixes: vi.fn(() => []),
+}));
+import { listExtendedCoopPrefixes } from '../../../utils/database/coopCodesRepository.js';
+
 vi.mock('../../../services/contractService.js', () => ({
   fetchContractSummaries: vi.fn(),
 }));
@@ -93,9 +98,27 @@ function mockOccupiedCoops(...coopCodes) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  listExtendedCoopPrefixes.mockReturnValue([]);
 });
 
 describe('services/bnLeaderboardService', () => {
+  it('always includes extended codes and checks numbered restarts', async () => {
+    listExtendedCoopPrefixes.mockReturnValue(['custom-9']);
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1' }]);
+    listCoops.mockReturnValue([]);
+    mockOccupiedCoops('custom-9oo', '1custom-9oo', '2custom-9oo', '3custom-9oo');
+    getCoopStatus.mockResolvedValue({ contributors: [] });
+
+    await buildBnLeaderboardReport({ contractId: 'c1' });
+
+    expect(getCoopAvailability).toHaveBeenCalledWith('c1', 'aoo');
+    for (const code of ['custom-9oo', '1custom-9oo', '2custom-9oo', '3custom-9oo']) {
+      expect(getCoopStatus).toHaveBeenCalledWith('c1', code);
+    }
+    expect(getCoopAvailability).toHaveBeenCalledWith('c1', '4custom-9oo');
+    expect(getCoopAvailability).not.toHaveBeenCalledWith('c1', '5custom-9oo');
+  });
+
   it('returns unknown-contract for invalid ids', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1' }]);
     const result = await buildBnLeaderboardReport({ contractId: 'bad' });

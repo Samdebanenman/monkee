@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInteraction, createOptions } from './helpers.js';
 
+vi.mock('../../../utils/database/coopCodesRepository.js', () => ({
+  listExtendedCoopPrefixes: vi.fn(() => []),
+}));
+
 vi.mock('../../../services/discord.js', () => ({
   createTextComponentMessage: (content, options = {}) => ({ content, ...options }),
 }));
@@ -16,14 +20,35 @@ vi.mock('../../../services/coopService.js', () => ({
 }));
 
 import { execute } from '../../../commands/checkifpc.js';
+import { listExtendedCoopPrefixes } from '../../../utils/database/coopCodesRepository.js';
 import { fetchContractSummaries } from '../../../services/contractService.js';
 import { checkCoopForKnownPlayers, getCoopAvailability, listCoops } from '../../../services/coopService.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  listExtendedCoopPrefixes.mockReturnValue([]);
 });
 
 describe('commands/checkifpc', () => {
+  it('checks saved extended codes and their numbered restarts', async () => {
+    listExtendedCoopPrefixes.mockReturnValue(['custom-9']);
+    fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'Contract 1' }]);
+    listCoops.mockReturnValue([]);
+    checkCoopForKnownPlayers.mockResolvedValue({ ok: true, matched: [] });
+    getCoopAvailability.mockImplementation(async (_contract, code) => ({
+      free: !['custom-9oo', '1custom-9oo', '2custom-9oo', '3custom-9oo'].includes(code),
+    }));
+    await execute(createInteraction({
+      options: createOptions({ strings: { contract: 'c1', searchlist: 'extended' } }),
+    }));
+    for (const code of ['custom-9oo', '1custom-9oo', '2custom-9oo', '3custom-9oo']) {
+      expect(checkCoopForKnownPlayers).toHaveBeenCalledWith('c1', code);
+    }
+    expect(getCoopAvailability).toHaveBeenCalledWith('c1', 'aoo');
+    expect(getCoopAvailability).toHaveBeenCalledWith('c1', '4custom-9oo');
+    expect(getCoopAvailability).not.toHaveBeenCalledWith('c1', '5custom-9oo');
+  });
+
   it('checks default base codes', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'Contract 1' }]);
     getCoopAvailability.mockImplementation(async (_contractId, coopCode) => ({ coopCode, free: true }));
@@ -39,6 +64,7 @@ describe('commands/checkifpc', () => {
     const expectedCodes = prefixes.map(prefix => `${prefix}oo`);
     expect(getCoopAvailability.mock.calls.map(([, coopCode]) => coopCode)).toEqual(expectedCodes);
     expect(checkCoopForKnownPlayers).not.toHaveBeenCalled();
+    expect(listExtendedCoopPrefixes).not.toHaveBeenCalled();
   });
 
   it('rejects empty contract input', async () => {

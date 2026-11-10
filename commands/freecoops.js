@@ -4,7 +4,6 @@ import { fetchActiveContracts, fetchContractSummaries } from '../services/contra
 import { findFreeCoopCodes } from '../services/coopService.js';
 import { chunkContent, createTextComponentMessage } from '../services/discord.js';
 
-const CODE_OPTION_DEFAULT = 'default';
 const CONTRACT_OPTION = 'contract';
 
 function buildCoopCodes() {
@@ -27,16 +26,7 @@ export const data = new SlashCommandBuilder()
       .setName('copy')
       .setDescription('Wrap the output in a code block for easier copying')
       .setRequired(false)
-  )
-  .addStringOption(option =>
-    option
-      .setName('codes')
-      .setDescription('Which coop codes to check')
-      .setRequired(false)
-      .addChoices(
-        { name: 'default', value: CODE_OPTION_DEFAULT },
-      )
-  )
+  );
   
 export async function execute(interaction) {
   const copyOutput = interaction.options.getBoolean('copy') ?? false;

@@ -1,6 +1,7 @@
 import { forEachSequential } from '../utils/async.js';
 import { SlashCommandBuilder } from 'discord.js';
 import { fetchContractSummaries } from '../services/contractService.js';
+import { includeExtendedCoopCodes } from '../services/coopCodeService.js';
 import { checkCoopForKnownPlayers, getCoopAvailability, listCoops } from '../services/coopService.js';
 import {
   chunkContent,
@@ -162,10 +163,11 @@ export const data = new SlashCommandBuilder()
   .addStringOption(option =>
     option
       .setName(SEARCHLIST_OPTION)
-      .setDescription('Which coop codes to check')
+      .setDescription('Default codes, or default plus saved extended codes')
       .setRequired(false)
       .addChoices(
         { name: 'default', value: CODE_OPTION_DEFAULT },
+        { name: 'extended', value: 'extended' },
       )
   );
 
@@ -193,7 +195,7 @@ export async function execute(interaction) {
     await interaction.reply(createTextComponentMessage('Starting check.'));
   }
 
-  const coopCodesToCheck = buildCoopCodes();
+  const coopCodesToCheck = includeExtendedCoopCodes(buildCoopCodes(), interaction.options.getString(SEARCHLIST_OPTION));
   const summaries = await fetchContractSummaries();
   const sortedContracts = [...summaries].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
   const selectedContracts = selectContracts(sortedContracts, contractInput, checkAllContracts);

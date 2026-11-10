@@ -60,6 +60,14 @@ function ensureContractsTable() {
   return { addedGradeSpecsJson: !hasGradeSpecsJson };
 }
 
+function ensureExtendedCoopCodesTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS extended_coop_codes (
+      prefix TEXT PRIMARY KEY NOT NULL
+    );
+  `);
+}
+
 function ensureMetaTable() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS meta (
@@ -200,6 +208,7 @@ function ensureCoopsTable() {
 function bootstrap() {
   const contractsState = ensureContractsTable();
   ensureMetaTable();
+  ensureExtendedCoopCodesTable();
   if (contractsState.addedGradeSpecsJson) {
     db.prepare('DELETE FROM meta WHERE key = ?').run('lastContractFetch');
   }

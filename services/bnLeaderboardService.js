@@ -1,4 +1,5 @@
 import { fetchContractSummaries } from './contractService.js';
+import { includeExtendedCoopCodes } from './coopCodeService.js';
 import { getCoopAvailability, getCoopStatus, listCoops } from './coopService.js';
 import { hasKnownMembersForContributors } from './memberService.js';
 import { BnLeaderboardEntryBuilder } from './bnLeaderboard/entryBuilder.js';
@@ -51,6 +52,12 @@ function pushCandidate(candidates, added, coopCode) {
 }
 
 async function collectIncrementSeries({ contractId, baseCode, cache, candidates, added }) {
+  const firstCode = `1${baseCode}`;
+  const firstStatus = await resolveCoopState(contractId, firstCode, cache);
+  if (firstStatus.state !== 'free') {
+    pushCandidate(candidates, added, firstCode);
+  }
+  // Also check 2 even when 1 is unused; restart numbering can begin at 2.
   for (let prefix = 2; prefix <= MAX_INCREMENT_PREFIX; prefix += 1) {
     const coopCode = `${prefix}${baseCode}`;
     const status = await resolveCoopState(contractId, coopCode, cache);
@@ -64,7 +71,7 @@ async function collectIncrementSeries({ contractId, baseCode, cache, candidates,
 }
 
 async function buildCoopsToCheck(contractId) {
-  const baseCodes = buildCoopCodes();
+  const baseCodes = includeExtendedCoopCodes(buildCoopCodes(), 'extended');
   const savedCoopList = listCoops(contractId).map(coop => String(coop).trim()).filter(Boolean);
   const savedCoops = new Set(savedCoopList.map(coop => coop.toLowerCase()));
   const candidates = [];
