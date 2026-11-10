@@ -3,16 +3,13 @@ import { getCoopAvailability, getCoopStatus, listCoops } from './coopService.js'
 import { hasKnownMembersForContributors } from './memberService.js';
 import { BnLeaderboardEntryBuilder } from './bnLeaderboard/entryBuilder.js';
 
-const CODE_SUFFIXES = ['oo', 'ooo'];
 const MAX_INCREMENT_PREFIX = 100;
 
 const entryBuilder = new BnLeaderboardEntryBuilder();
 
-function buildExtendedPlusCodes() {
+function buildCoopCodes() {
   const letters = Array.from({ length: 26 }, (_, index) => String.fromCodePoint(97 + index));
-  const digits = Array.from({ length: 10 }, (_, index) => String(index));
-  const prefixes = [...letters, '-', ...digits];
-  return prefixes.flatMap(prefix => CODE_SUFFIXES.map(suffix => `${prefix}${suffix}`));
+  return letters.map(prefix => `${prefix}oo`);
 }
 
 async function isFreeCoop(contractId, coopCode, cache) {
@@ -67,7 +64,7 @@ async function collectIncrementSeries({ contractId, baseCode, cache, candidates,
 }
 
 async function buildCoopsToCheck(contractId) {
-  const baseCodes = buildExtendedPlusCodes();
+  const baseCodes = buildCoopCodes();
   const savedCoopList = listCoops(contractId).map(coop => String(coop).trim()).filter(Boolean);
   const savedCoops = new Set(savedCoopList.map(coop => coop.toLowerCase()));
   const candidates = [];
