@@ -5,22 +5,11 @@ import { findFreeCoopCodes } from '../services/coopService.js';
 import { chunkContent, createTextComponentMessage } from '../services/discord.js';
 
 const CODE_OPTION_DEFAULT = 'default';
-const CODE_OPTION_EXTENDED = 'extended';
-const CODE_OPTION_EXTENDED_PLUS = 'extended_plus';
 const CONTRACT_OPTION = 'contract';
 
-function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
+function buildCoopCodes() {
   const letters = Array.from({ length: 26 }, (_, index) => String.fromCodePoint(97 + index));
-  const digits = Array.from({ length: 10 }, (_, index) => String(index));
-
-  const normalizedMode = [CODE_OPTION_EXTENDED, CODE_OPTION_EXTENDED_PLUS].includes(mode)
-    ? mode
-    : CODE_OPTION_DEFAULT;
-
-  const prefixes = normalizedMode === CODE_OPTION_DEFAULT ? letters : [...letters, ...digits];
-  const suffixes = normalizedMode === CODE_OPTION_EXTENDED_PLUS ? ['oo', 'ooo'] : ['oo'];
-
-  return prefixes.flatMap(prefix => suffixes.map(suffix => `${prefix}${suffix}`));
+  return letters.map(prefix => `${prefix}oo`);
 }
 
 export const data = new SlashCommandBuilder()
@@ -46,14 +35,11 @@ export const data = new SlashCommandBuilder()
       .setRequired(false)
       .addChoices(
         { name: 'default', value: CODE_OPTION_DEFAULT },
-        { name: 'extended', value: CODE_OPTION_EXTENDED },
-        { name: 'extended+', value: CODE_OPTION_EXTENDED_PLUS },
       )
   )
   
 export async function execute(interaction) {
   const copyOutput = interaction.options.getBoolean('copy') ?? false;
-  const codesOption = interaction.options.getString('codes') ?? CODE_OPTION_DEFAULT;
   const contractInput = (interaction.options.getString(CONTRACT_OPTION) ?? '').trim();
 
   if (!contractInput) {
@@ -61,7 +47,7 @@ export async function execute(interaction) {
     return;
   }
 
-  const coopCodesToCheck = buildCoopCodes(codesOption);
+  const coopCodesToCheck = buildCoopCodes();
   const { seasonal = [], leggacy = [] } = await fetchActiveContracts();
   const summaries = await fetchContractSummaries();
   const validContractIds = new Set(summaries.map(contract => contract.id).filter(Boolean));
@@ -107,7 +93,7 @@ export async function execute(interaction) {
     const { filteredResults, coopCodes } = await findFreeCoopCodes(id, coopCodesToCheck);
     const line = filteredResults.length > 0
       ? `**${name}**: \`${filteredResults.join('`, `')}\`\n(${filteredResults.length}/${coopCodes.length} codes available)`
-      : `**${name}**: No free coops found.`;
+      : `**${name}**: No free coops found. Use your own code! For example: \`acoo\`, \`kazoo\`, \`igloo\`, \`gigoloo\`, etc. Be creative!`;
     resultsMessage += line + '\n\n';
   });
 

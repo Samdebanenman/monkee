@@ -24,23 +24,19 @@ beforeEach(() => {
 });
 
 describe('commands/checkifpc', () => {
-  it.each([
-    ['default', ['oo']],
-    ['extended', ['oo']],
-    ['extended_plus', ['oo', 'ooo']],
-  ])('checks the requested %s base codes', async (searchlist, suffixes) => {
+  it('checks default base codes', async () => {
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'Contract 1' }]);
     getCoopAvailability.mockImplementation(async (_contractId, coopCode) => ({ coopCode, free: true }));
     listCoops.mockReturnValue([]);
 
     const interaction = createInteraction({
-      options: createOptions({ strings: { contract: 'c1', searchlist } }),
+      options: createOptions({ strings: { contract: 'c1' } }),
     });
 
     await execute(interaction);
 
     const prefixes = [...'abcdefghijklmnopqrstuvwxyz', '-'];
-    const expectedCodes = prefixes.flatMap(prefix => suffixes.map(suffix => `${prefix}${suffix}`));
+    const expectedCodes = prefixes.map(prefix => `${prefix}oo`);
     expect(getCoopAvailability.mock.calls.map(([, coopCode]) => coopCode)).toEqual(expectedCodes);
     expect(checkCoopForKnownPlayers).not.toHaveBeenCalled();
   });
@@ -95,7 +91,6 @@ describe('commands/checkifpc', () => {
 
     getCoopAvailability.mockImplementation(async (_contractId, coopCode) => {
       if (coopCode === '-oo') return { coopCode, free: false };
-      if (coopCode === '-ooo') return { coopCode, free: false };
       if (coopCode === '1-oo') return { coopCode, free: false };
       if (coopCode === '2-oo') return { coopCode, free: false };
       if (coopCode === '3-oo') return { coopCode, free: true };
@@ -103,13 +98,12 @@ describe('commands/checkifpc', () => {
     });
 
     const interaction = createInteraction({
-      options: createOptions({ strings: { contract: 'c1', searchlist: 'extended_plus' } }),
+      options: createOptions({ strings: { contract: 'c1' } }),
     });
 
     await execute(interaction);
 
     expect(checkCoopForKnownPlayers).toHaveBeenCalledWith('c1', '-oo');
-    expect(checkCoopForKnownPlayers).toHaveBeenCalledWith('c1', '-ooo');
     expect(checkCoopForKnownPlayers).toHaveBeenCalledWith('c1', '1-oo');
     expect(checkCoopForKnownPlayers).toHaveBeenCalledWith('c1', '2-oo');
     expect(checkCoopForKnownPlayers).not.toHaveBeenCalledWith('c1', '3-oo');
@@ -153,7 +147,7 @@ describe('commands/checkifpc', () => {
     });
 
     const interaction = createInteraction({
-      options: createOptions({ strings: { contract: 'c1', searchlist: 'extended' } }),
+      options: createOptions({ strings: { contract: 'c1' } }),
     });
 
     await execute(interaction);

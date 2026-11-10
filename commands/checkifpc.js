@@ -8,8 +8,6 @@ import {
 } from '../services/discord.js';
 
 const CODE_OPTION_DEFAULT = 'default';
-const CODE_OPTION_EXTENDED = 'extended';
-const CODE_OPTION_EXTENDED_PLUS = 'extended_plus';
 const CONTRACT_OPTION = 'contract';
 const ALL_CONTRACTS_OPTION = 'all';
 const ALL_CONTRACTS_USER_ID = '659339631564947456';
@@ -54,12 +52,10 @@ async function asyncPool(limit, items, iterator) {
   return Promise.all(results);
 }
 
-function buildCoopCodes(mode = CODE_OPTION_DEFAULT) {
+function buildCoopCodes() {
   const letters = Array.from({ length: 26 }, (_, index) => String.fromCodePoint(97 + index));
   const prefixes = [...letters, '-'];
-  const suffixes = mode === CODE_OPTION_EXTENDED_PLUS ? ['oo', 'ooo'] : ['oo'];
-
-  return prefixes.flatMap(prefix => suffixes.map(suffix => `${prefix}${suffix}`));
+  return prefixes.map(prefix => `${prefix}oo`);
 }
 
 function pushCandidate(candidates, added, coopCode) {
@@ -170,13 +166,10 @@ export const data = new SlashCommandBuilder()
       .setRequired(false)
       .addChoices(
         { name: 'default', value: CODE_OPTION_DEFAULT },
-        { name: 'extended', value: CODE_OPTION_EXTENDED },
-        { name: 'extended+', value: CODE_OPTION_EXTENDED_PLUS },
       )
   );
 
 export async function execute(interaction) {
-  const codesOption = interaction.options.getString(SEARCHLIST_OPTION) ?? CODE_OPTION_DEFAULT;
   const contractInput = (interaction.options.getString(CONTRACT_OPTION) ?? '').trim();
 
   if (!contractInput) {
@@ -200,7 +193,7 @@ export async function execute(interaction) {
     await interaction.reply(createTextComponentMessage('Starting check.'));
   }
 
-  const coopCodesToCheck = buildCoopCodes(codesOption);
+  const coopCodesToCheck = buildCoopCodes();
   const summaries = await fetchContractSummaries();
   const sortedContracts = [...summaries].sort((a, b) => (b.release ?? 0) - (a.release ?? 0));
   const selectedContracts = selectContracts(sortedContracts, contractInput, checkAllContracts);

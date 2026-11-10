@@ -35,7 +35,7 @@ describe('commands/freecoops', () => {
     expect(interaction.reply.mock.calls[0][0].content).toContain('Please choose a contract');
   });
 
-  it('builds a report for selected contract', async () => {
+  it('builds a report using default codes', async () => {
     fetchActiveContracts.mockResolvedValue({ seasonal: [['Name', 'c1']], leggacy: [] });
     fetchContractSummaries.mockResolvedValue([{ id: 'c1', name: 'Contract 1' }]);
     findFreeCoopCodes.mockResolvedValue({ filteredResults: ['aa'], coopCodes: ['aa'] });
@@ -46,6 +46,7 @@ describe('commands/freecoops', () => {
 
     await execute(interaction);
 
+    expect(findFreeCoopCodes).toHaveBeenCalledWith('c1', [...'abcdefghijklmnopqrstuvwxyz'].map(prefix => `${prefix}oo`));
     expect(interaction.deferReply).toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalled();
   });
